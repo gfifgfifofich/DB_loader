@@ -26,7 +26,7 @@ sqlBackup - хранит каждый запуск sql по дате
 
 stock.sql - Открывается при запуске программы, хранит последний запущенный скрипт
 
-#Build
+# Build
 ```bash
   mkdir build
   cd ./build
