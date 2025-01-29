@@ -23,5 +23,4 @@ int main(int argc, char *argv[])
     w.conName = QVariant(thrnum).toString();
     w.show();
     return a.exec();
-
 }

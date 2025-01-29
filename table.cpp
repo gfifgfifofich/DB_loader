@@ -43,6 +43,7 @@ Table::Table(QWidget *parent)
 
 
 
+
     iw.Init();
     ui->horizontalLayout_3->addLayout(&iw.iter_layout);
     connect( &iw.button, SIGNAL(pressed()), this, SLOT(IterButtonPressed()));
