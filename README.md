@@ -2,6 +2,7 @@
 Создание новых подключений:
 в ODBC Data Sources (32-bit) создать новый источник данных (в случае с Oracle - Oracle in OraClient)
 в userdata.txt добавить имя в UserDBs. Подключение будет добавлено в ComboBox в верхней строке приложения.
+В лучае сборки проекта в 64bit использовать ODBC Data Sources (64-bit) / источник данных ODBC (64-разрядная версия)
 
 
 # Shortcuts
