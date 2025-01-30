@@ -140,14 +140,14 @@ void CodeEditor::suggestName()
     }
 
 
-    while(text[curscop].isLetter() ||text[curscop] == '_'||text[curscop] == '$' )
+    while(text[curscop].isLetter() ||text[curscop] == '_'||text[curscop] == '\"'||text[curscop] == '$' )
     {
         start = curscop;
         curscop-=1;
         if(curscop<0)
             break;
     }
-    while(text[curs].isLetter() ||text[curs] == '_'||text[curs] == '$')
+    while(text[curs].isLetter() ||text[curs] == '_'|| text[curs] == '\"' ||text[curs] == '$')
     {
         end = curs;
         curs+=1;
@@ -156,6 +156,7 @@ void CodeEditor::suggestName()
     }
     for(int i=start;i<=end;i++)
     {
+        if(text[i]!='"')
         word+=text[i];
     }
 
@@ -166,14 +167,14 @@ void CodeEditor::suggestName()
     int curscop2 = curs2;
     int start2 = curs2;
     int end2 = curs2;
-    while(text[curscop2].isLetter() ||text[curscop2] == '_'||text[curscop2] == '$' )
+    while(text[curscop2].isLetter() ||text[curscop2] == '_'||text[curscop2] == '\"'||text[curscop2] == '$' )
     {
         start2 = curscop2;
         curscop2-=1;
         if(curscop2<0)
             break;
     }
-    while(text[curs2].isLetter() ||text[curs2] == '_'||text[curs2] == '$')
+    while(text[curs2].isLetter() ||text[curs2] == '_'||text[curs2] == '\"'||text[curs2] == '$')
     {
         end2 = curs2;
         curs2+=1;
@@ -182,10 +183,11 @@ void CodeEditor::suggestName()
     }
     for(int i=start2;i<=end2;i++)
     {
-        PrevWord+=text[i];
+        if(text[i]!='"')
+            PrevWord+=text[i];
     }
-    word = word.toLower();
-    PrevWord = PrevWord.toLower();
+    word = word;
+    PrevWord = PrevWord;
     bool hasdot = false;
     for(int i=start2; i < end;i++)
     {
@@ -259,7 +261,7 @@ void CodeEditor::suggestName()
             int mdiff = wrong_cost;
             for(int a = 0 ; a<k.size();a++)
             {
-                if(k[a]==word[i] && move_cost * abs(i-a)<mdiff)
+                if(k[a].toLower()==word[i].toLower() && move_cost * abs(i-a)<mdiff)
                     mdiff = move_cost * abs(i-a);
             }
             diff+=mdiff;
@@ -279,6 +281,49 @@ void CodeEditor::suggestName()
     }
     lastSuggestedWord = mindiffWord;
 
+    lastwordisTableColumn = false;
+
+    if(highlighter->TableColumnMap.contains(PrevWord))
+        for(auto ke : highlighter->TableColumnMap[PrevWord].keys())
+        {
+            if(lastSuggestedWord == ke)
+            {
+                lastwordisTableColumn = true;
+                break;
+            }
+        }
+    if(!lastwordisTableColumn)
+        if(highlighter->TableColumnAliasMap.contains(PrevWord))
+            for(auto ke : highlighter->TableColumnMap[highlighter->TableColumnAliasMap[PrevWord]].keys())
+            {
+                if(lastSuggestedWord == ke)
+                {
+                    lastwordisTableColumn = true;
+                    break;
+                }
+            }
+
+    if(!lastwordisTableColumn)
+    for(auto ke : highlighter->TableColumnMap.keys())
+    {
+        if(lastSuggestedWord == ke)
+        {
+            lastwordisTableColumn = true;
+            break;
+        }
+    }
+    if(!lastwordisTableColumn)
+    for(auto ke : highlighter->TableColumnAliasMap.keys())
+    {
+        if(highlighter->TableColumnAliasMap.contains(ke))
+        if(lastSuggestedWord == ke)
+        {
+            lastwordisTableColumn = true;
+            break;
+        }
+    }
+
+
     emit s_suggestedName();
 
 }
@@ -293,6 +338,7 @@ void CodeEditor::FillsuggestName()
 {
     QTextCursor cursor = textCursor();
     QString lasttext = lastSuggestedWord;
+    bool lasttexttablecolumn = lastwordisTableColumn;
     QString word = "";
     QString text = toPlainText();
     int curs = textCursor().position();
@@ -302,9 +348,11 @@ void CodeEditor::FillsuggestName()
     int start = curs;
     int end = curs;
     bool hitspace = false;
-    while(text[curscop].isLetter() || text[curscop] == '_'|| text[curscop] == '\t'||text[curscop] == '$'||text[curscop] == ' ' )
+
+    bool postgreSQL = highlighter->PostgresStyle;
+    while(text[curscop].isLetter() || text[curscop] == '_'||(text[curscop] == '"' && postgreSQL)|| text[curscop] == '\t'||text[curscop] == '$'||text[curscop] == ' ' )
     {
-        if(hitspace && text[curscop].isLetter())
+        if(hitspace && (text[curscop] != ' '))
         {
             curscop++;
             curscop++;
@@ -318,7 +366,7 @@ void CodeEditor::FillsuggestName()
         }
         curscop-=1;
     }
-    while(text[curs].isLetter() ||text[curs] == '_'|| text[curs] == '\t'||text[curs] == '$')
+    while(text[curs].isLetter() ||text[curs] == '_'|| (text[curs] == '"' && postgreSQL) || text[curs] == '\t'||text[curs] == '$')
     {
         end = curs;
         curs+=1;
@@ -328,14 +376,21 @@ void CodeEditor::FillsuggestName()
     for(int i=start;i<=end;i++)
     {
         word+=text[i];
+
     }
+    qDebug() << word;
 
     qDebug()<< "Pasted: "<<lastSuggestedWord;
     cursor.setPosition(start, QTextCursor::MoveAnchor);
     cursor.setPosition(end+1, QTextCursor::KeepAnchor);
+    if(postgreSQL && lasttexttablecolumn)
+        cursor.insertText("\"");
     cursor.insertText(lasttext);
+    if(postgreSQL && lasttexttablecolumn)
+        cursor.insertText("\"");
 
 }
+
 
 
 

@@ -246,6 +246,9 @@ void Table::exec()
     }
     QString str = sqlCode;
     QSqlQuery q(str,tdb);
+
+    q.setForwardOnly(true);
+    q.prepare(str);
     headers.clear();
 
 
@@ -408,6 +411,8 @@ void Func(Table* tbl)
 void  Table::runSqlAsync(QString conname,QString dbname,QString usrname, QString password, bool createconnection, bool runall)
 {
     ui->statuslabel->setText("running sql...");
+    int sqlstart = 0;
+    int sqlend = cd->toPlainText().size();
     if(cd->textCursor().selectedText().size() <= 5)
     {
         sqlCode = "";
@@ -418,11 +423,13 @@ void  Table::runSqlAsync(QString conname,QString dbname,QString usrname, QString
         if(text[start]==';')
             start++;
         int iter = start;
+        sqlstart = start;
         sqlCode.push_back(text[iter]);
         iter++;
         while(iter<text.size())
         {
             sqlCode.push_back(text[iter]);
+            sqlend = start;
             if((text[iter]==';'))
                 break;
             iter++;
@@ -434,8 +441,9 @@ void  Table::runSqlAsync(QString conname,QString dbname,QString usrname, QString
         sqlCode = cd->textCursor().selectedText();
 
     if(runall)
+    {
         sqlCode = cd->toPlainText();
-    //qDebug()<<"sql"<<sqlCode;
+    }//qDebug()<<"sql"<<sqlCode;
 
     QString str = "sqlBackup/";
     str += QTime::currentTime().toString();
@@ -466,6 +474,8 @@ void  Table::runSqlAsync(QString conname,QString dbname,QString usrname, QString
         connectDB(conname,dbname,usrname,password);
     }
 
+    cd->textCursor().setPosition(sqlstart, QTextCursor::MoveAnchor);
+    cd->textCursor().setPosition(sqlend+1, QTextCursor::KeepAnchor);
 
     if(thr!=nullptr)
         thr->terminate();
@@ -492,4 +502,10 @@ void Table::on_comboBox_currentTextChanged(const QString &arg1)
     userDS.Save("userdata.txt");
 }
 
+
+
+void Table::on_checkBox_checkStateChanged(const Qt::CheckState &arg1)
+{
+    cd->highlighter->PostgresStyle = arg1;
+}
 

@@ -611,6 +611,13 @@
            </widget>
           </item>
           <item>
+           <widget class="QCheckBox" name="checkBox">
+            <property name="text">
+             <string>PostgresSQL</string>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QLabel" name="statuslabel">
             <property name="text">
              <string>status</string>

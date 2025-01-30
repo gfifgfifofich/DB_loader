@@ -31,6 +31,8 @@ public:
     QVector<QString> dbPatterns;
     QMap<QString,QMap<QString,bool>> TableColumnMap;
 
+    bool PostgresStyle = false;
+
     DataStorage TableColumnDS;
     void UpdateTableColumns(QSqlDatabase* db);
 

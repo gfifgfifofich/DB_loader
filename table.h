@@ -138,6 +138,8 @@ private slots:
 
     void on_comboBox_currentTextChanged(const QString &arg1);
 
+    void on_checkBox_checkStateChanged(const Qt::CheckState &arg1);
+
 private:
     bool closing = false;
     Ui::Table *ui;

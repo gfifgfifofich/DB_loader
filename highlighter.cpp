@@ -67,7 +67,7 @@ void Highlighter::highlightBlock(const QString &text)
         if(te.type!=0)
             te.end = i;
         if(te.type ==-1)
-            if( (text[i] == ' ' ||text[i] == '=' || text[i] == '.'|| text[i] == ','|| text[i] == '('|| text[i] == ')'|| text[i] == '\''|| text[i] == '\n'|| text[i] == ';' || text[i] == '\"' || i == text.size()))
+            if( (text[i] == ' ' ||text[i] == '=' || text[i] == '.'|| text[i] == ','|| text[i] == '('|| text[i] == ')'|| text[i] == '\''|| text[i] == '\n'|| text[i] == ';'  || i == text.size()))
             {
                 te.end = i;
                 for(int a = te.start; a < te.end;a++)
@@ -114,22 +114,7 @@ void Highlighter::highlightBlock(const QString &text)
                 last_char = text[i];
                 continue;
             }
-        if(te.type == 3)
-            if(text[i] == '\"')
-            {
-                te.end = i;
-                for(int a = te.start; a <= te.end;a++)
-                    te.text.push_back(text[a]);
-                textintervals.push_back(te);
-                te.end = 0;
-                te.start = 0;
-                te.type = 0;
-                te.PrevWord = te.text;
-                te.text = "";
-                added = true;
-                last_char = text[i];
-                continue;
-            }
+
         if(te.type == 0)
         {
             if(text[i] == '\'')
@@ -137,14 +122,6 @@ void Highlighter::highlightBlock(const QString &text)
                 te.end = i+1;
                 te.start = i;
                 te.type = 2; // text
-                last_char = text[i];
-                continue;
-            }
-            else if(text[i] == '\"')
-            {
-                te.end = i+1;
-                te.start = i;
-                te.type = 3; // text
                 last_char = text[i];
                 continue;
             }
@@ -172,13 +149,30 @@ void Highlighter::highlightBlock(const QString &text)
     bool prevWordIsTable = false;
 
     TableAliasMapPerRow[currentBlock().blockNumber()].clear();
+    if(PostgresStyle) // convert strings back to normal, without ""
+    {
+        for(int  i =0;i < textintervals.size();i++)
+        {
+            QStringList sl = textintervals[i].text.split('"');
+            if(sl.size() > 1)
+                textintervals[i].text = sl[1];
+            else if(sl.size() >0)
+                textintervals[i].text = sl[0];
+            sl = textintervals[i].PrevWord.split('"');
+            if(sl.size() > 1)
+                textintervals[i].PrevWord = sl[1];
+            else if(sl.size() >0)
+                textintervals[i].PrevWord = sl[0];
+        }
+
+    }
     for(auto i : textintervals)
     {
-        if((prevWordIsTable) && !keywordPatterns.contains(i.text.toLower())&& !ColumnMap.contains(i.text.toLower())
+        if((prevWordIsTable) && !keywordPatterns.contains(i.text)&& !ColumnMap.contains(i.text)
             && i.text.size()>0&& i.text[0].isLetter())
-            TableAliasMapPerRow[currentBlock().blockNumber()][i.text.toLower()] = i;
+            TableAliasMapPerRow[currentBlock().blockNumber()][i.text] = i;
 
-        if(TableColumnMap.contains(i.text.toLower()))
+        if(TableColumnMap.contains(i.text))
             prevWordIsTable = true;
         else
             prevWordIsTable = false;
@@ -190,7 +184,7 @@ void Highlighter::highlightBlock(const QString &text)
     {
         for(auto i : ta.keys())
         {
-            TableColumnAliasMap[i] = ta[i].PrevWord.toLower();
+            TableColumnAliasMap[i] = ta[i].PrevWord;
         }
     }
 
@@ -205,21 +199,21 @@ void Highlighter::highlightBlock(const QString &text)
             {
                 format = keywordFormat;
             }
-            else if(TableColumnMap.contains(i.text.toLower()) || TableColumnAliasMap.contains(i.text.toLower()))
+            else if(TableColumnMap.contains(i.text) || TableColumnAliasMap.contains(i.text))
             {
                 format = classFormat;
             }
-            else if(TableColumnMap.contains(i.PrevWord.toLower()))
-            {if(TableColumnMap[i.PrevWord.toLower()].contains(i.text.toLower()))
+            else if(TableColumnMap.contains(i.PrevWord))
+            {if(TableColumnMap[i.PrevWord].contains(i.text))
                 {
                     format = NameFormat;
                 }}
-            else if(TableColumnAliasMap.contains(i.PrevWord.toLower()))
-            {if(TableColumnMap[TableColumnAliasMap[i.PrevWord.toLower()]].contains(i.text.toLower()))
+            else if(TableColumnAliasMap.contains(i.PrevWord))
+            {if(TableColumnMap[TableColumnAliasMap[i.PrevWord]].contains(i.text))
                 {
                     format = NameFormat;
                 }}
-            else if(ColumnMap.contains(i.text.toLower()))
+            else if(ColumnMap.contains(i.text))
             {
                 format = NameFormat;
             }
@@ -273,6 +267,7 @@ void Highlighter::UpdateTableColumns(QSqlDatabase* db)
         db->open();
         QSqlQuery q(*db);
 
+
         if(q.exec(sql))
         {
 
@@ -307,6 +302,4 @@ void Highlighter::UpdateTableColumns(QSqlDatabase* db)
         }
         dbPatterns.push_back(x.first.c_str());
     }
-
-
 }

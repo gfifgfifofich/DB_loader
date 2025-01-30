@@ -16,6 +16,7 @@ public:
     Highlighter* highlighter = nullptr;
 
     QString lastSuggestedWord=" ";
+    bool lastwordisTableColumn = false;
 
     int prevTabPos = 0;
     int prevTabTextSize;
