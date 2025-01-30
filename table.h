@@ -49,6 +49,7 @@ public:
     QSqlDatabase tdb;
 
     QString LastDbName = "";
+    bool executing = false;
 
     struct iter_Window
     {

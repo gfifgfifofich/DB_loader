@@ -295,6 +295,7 @@ void Table::exec()
     q.clear();
     q.finish();
     qDebug() << "Execd";
+    executing = false;
     tableDataMutex.unlock();
     emit execdReady();
 
@@ -410,6 +411,9 @@ void Func(Table* tbl)
 
 void  Table::runSqlAsync(QString conname,QString dbname,QString usrname, QString password, bool createconnection, bool runall)
 {
+    if(executing)
+        return;
+    executing = true;
     ui->statuslabel->setText("running sql...");
     int sqlstart = 0;
     int sqlend = cd->toPlainText().size();
@@ -473,9 +477,9 @@ void  Table::runSqlAsync(QString conname,QString dbname,QString usrname, QString
     {
         connectDB(conname,dbname,usrname,password);
     }
-
-    cd->textCursor().setPosition(sqlstart, QTextCursor::MoveAnchor);
-    cd->textCursor().setPosition(sqlend+1, QTextCursor::KeepAnchor);
+    QTextCursor cursor = cd->textCursor();
+    cursor.setPosition(sqlstart, QTextCursor::MoveAnchor);
+    cursor.setPosition(sqlend+1, QTextCursor::KeepAnchor);
 
     if(thr!=nullptr)
         thr->terminate();
@@ -508,4 +512,8 @@ void Table::on_checkBox_checkStateChanged(const Qt::CheckState &arg1)
 {
     cd->highlighter->PostgresStyle = arg1;
 }
+
+
+
+
 

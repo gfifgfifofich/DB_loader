@@ -379,10 +379,14 @@ void CodeEditor::FillsuggestName()
 
     }
     qDebug() << word;
-
+    bool CursedStarSymbolDetected = false;
+    if(start-1 >=0 && text[start-1] =='*')
+        CursedStarSymbolDetected = true;
     qDebug()<< "Pasted: "<<lastSuggestedWord;
     cursor.setPosition(start, QTextCursor::MoveAnchor);
     cursor.setPosition(end+1, QTextCursor::KeepAnchor);
+    if(CursedStarSymbolDetected)
+        cursor.insertText(" ");
     if(postgreSQL && lasttexttablecolumn)
         cursor.insertText("\"");
     cursor.insertText(lasttext);
