@@ -528,12 +528,32 @@
          <number>5</number>
         </property>
         <item>
-         <widget class="QComboBox" name="comboBox"/>
+         <widget class="QComboBox" name="comboBoxDriver">
+          <property name="editable">
+           <bool>true</bool>
+          </property>
+          <property name="placeholderText">
+           <string>Select Driver</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="comboBox">
+          <property name="editable">
+           <bool>true</bool>
+          </property>
+          <property name="placeholderText">
+           <string>Select database</string>
+          </property>
+         </widget>
         </item>
         <item>
          <widget class="QLineEdit" name="lineEdit_2">
           <property name="text">
            <string/>
+          </property>
+          <property name="placeholderText">
+           <string>UserName</string>
           </property>
          </widget>
         </item>
@@ -544,6 +564,9 @@
           </property>
           <property name="echoMode">
            <enum>QLineEdit::EchoMode::Password</enum>
+          </property>
+          <property name="placeholderText">
+           <string>Password</string>
           </property>
          </widget>
         </item>
@@ -564,16 +587,30 @@
         <item>
          <widget class="QLineEdit" name="lineEdit">
           <property name="text">
-           <string>excel/111.xlsx</string>
+           <string>excel/tmp.xlsx</string>
           </property>
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="pushButton_2">
-          <property name="text">
-           <string>Save to excel</string>
+         <layout class="QHBoxLayout" name="horizontalLayout_4">
+          <property name="bottomMargin">
+           <number>0</number>
           </property>
-         </widget>
+          <item>
+           <widget class="QPushButton" name="SaveToSQLiteTable">
+            <property name="text">
+             <string>Save as SQLite table</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="pushButton_2">
+            <property name="text">
+             <string>Save as xlsx file</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
         </item>
        </layout>
       </widget>

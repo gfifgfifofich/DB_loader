@@ -32,9 +32,10 @@ public:
     QMap<QString,QMap<QString,bool>> TableColumnMap;
 
     bool PostgresStyle = false;
+    bool QSLiteStyle = false;
 
     DataStorage TableColumnDS;
-    void UpdateTableColumns(QSqlDatabase* db);
+    void UpdateTableColumns(QSqlDatabase* db, QString dbname);
 
     void HighLightALl();
 

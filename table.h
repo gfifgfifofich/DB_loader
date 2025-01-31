@@ -41,13 +41,14 @@ public:
     std::vector<QString> Headers;
     QStringList headers;
     QString conName = "";
-    void runSqlAsync(QString conname,QString dbname,QString usrname, QString password, bool createconnection = false, bool runall = false);
+    void runSqlAsync(QString conname,QString driver,QString dbname,QString usrname, QString password, bool createconnection = false, bool runall = false);
 
-    void connectDB(QString conname,QString dbname,QString usrname, QString password);
+    void connectDB(QString conname,QString driver,QString dbname,QString usrname, QString password);
 
     void UpdateTable();
     QSqlDatabase tdb;
 
+    QString LastDriverName = "";
     QString LastDbName = "";
     bool executing = false;
 
@@ -140,6 +141,8 @@ private slots:
     void on_comboBox_currentTextChanged(const QString &arg1);
 
     void on_checkBox_checkStateChanged(const Qt::CheckState &arg1);
+
+    void on_SaveToSQLiteTable_clicked();
 
 private:
     bool closing = false;

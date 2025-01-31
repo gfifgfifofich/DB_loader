@@ -18,6 +18,7 @@
 #include <QShortcut>
 #include <fstream>
 #include <QDesktopServices>
+#include <QSqlDriver>
 
 inline DataStorage userDS;
 
@@ -56,19 +57,25 @@ Table::Table(QWidget *parent)
     QStringList strl;
     for( auto x : userDS.data["UserDBs"])
     {
-        qDebug() << x.first << "    ";
-        //ui->comboBox->addItem(x.first.c_str());
-        strl.push_back(x.first.c_str());
+        strl.push_back((x.first + " " +  x.second).c_str());
+        strl.back() = strl.back().trimmed();
     }
     ui->comboBox->addItems(strl);
     ui->comboBox->setCurrentText(userDS.GetProperty("User","lastDBName").c_str());
-    ui->lineEdit_2->setText(userDS.GetProperty("User","name").c_str());
-    ui->lineEdit_3->setText(userDS.GetProperty("User","password").c_str());
+    strl.clear();
+    for( auto x : userDS.data["UserDrivers"])
+    {
+        strl.push_back((x.second).c_str());
+        strl.back() = strl.back().trimmed();
+    }
+    ui->comboBoxDriver->addItems(strl);
+    ui->comboBoxDriver->setCurrentText(userDS.GetProperty("User","lastDriver").c_str());
+
     userDS.Save("userdata.txt");
 
 
 
-    connectDB(conName , ui->comboBox->currentText(),ui->lineEdit_2->text(),ui->lineEdit_3->text());
+    connectDB(conName ,ui->comboBoxDriver->currentText(), ui->comboBox->currentText(),ui->lineEdit_2->text(),ui->lineEdit_3->text());
 
 
     QFile file("stock.sql");
@@ -132,7 +139,7 @@ void Table::IterButtonPressed()
         tbl->show();
         thrnum++;
         tbl->conName = QVariant(thrnum).toString();
-        tbl->runSqlAsync(QVariant(thrnum).toString(), ui->comboBox->currentText(), ui->lineEdit_2->text(),  ui->lineEdit_3->text(),true,true);
+        tbl->runSqlAsync(QVariant(thrnum).toString(), ui->comboBoxDriver->currentText(),ui->comboBox->currentText(), ui->lineEdit_2->text(),  ui->lineEdit_3->text(),true,true);
         tbl->show();
     }
 }
@@ -146,7 +153,7 @@ void Table::OpenNewWindow()
     tbl->show();
     thrnum++;
     tbl->conName = QVariant(thrnum).toString();
-    tbl->runSqlAsync(QVariant(thrnum).toString(), ui->comboBox->currentText(), ui->lineEdit_2->text(),  ui->lineEdit_3->text(),true);
+    tbl->runSqlAsync(QVariant(thrnum).toString(),ui->comboBoxDriver->currentText(), ui->comboBox->currentText(), ui->lineEdit_2->text(),  ui->lineEdit_3->text(),true);
     tbl->show();
 }
 
@@ -358,13 +365,88 @@ void Table::SaveToFile()
 
 }
 
-void Table::connectDB(QString conname,QString dbname,QString usrname, QString password)
+void Table::connectDB(QString conname,QString driver, QString dbname,QString usrname, QString password)
 {
     tdb.close();
-    tdb = QSqlDatabase::addDatabase("QODBC",conname);
-    tdb.setDatabaseName(dbname);
-    tdb.setUserName(usrname);
-    tdb.setPassword(password);
+    bool sqlite = false;
+    QString dbSchemaName = "NoName";
+    if(driver.trimmed() != "LOCAL_SQLITE_DB")
+        tdb = QSqlDatabase::addDatabase("QODBC",conname);
+    else
+    {
+        tdb = QSqlDatabase::addDatabase("QSQLITE",conname);
+        dbname = "SQLiteDB.db";
+        dbSchemaName = "SQLiteDB";
+        usrname = " ";
+        password = " ";
+        tdb.setDatabaseName("SQLiteDB.db");
+        sqlite = true;
+    }
+
+    if(!sqlite){
+    QString connectString = "Driver={";
+    connectString.append(driver.trimmed()); // "Oracle in OraClient12Home1_32bit"
+    connectString.append("};");
+    if(!cd->highlighter->PostgresStyle)
+    {
+        connectString.append("DBQ=" );
+        connectString.append(dbname.trimmed() );
+        connectString.append(";");
+        connectString.append("UID=");
+        connectString.append(usrname.trimmed());
+        connectString.append(";");
+        connectString.append("PWD=");
+        connectString.append(password.trimmed());
+        connectString.append(";");
+
+
+        QStringList strl = connectString.trimmed().split(';');
+        QString filename;
+        if(strl.size() > 1)
+        {
+            strl = strl[1].split('/');
+            if(strl.size() > 1)
+                dbSchemaName = strl[1];
+            else if(strl.size() > 0)
+                dbSchemaName = strl[0];
+        }
+
+    }
+    else
+    {
+        QString server;
+        QString port;
+        QString database;
+        QStringList strl = dbname.trimmed().split(':');
+        if(strl.size() > 0)
+            server = strl[0];
+        if(strl.size() > 1)
+        {
+            strl = strl[1].split('/');
+
+            if(strl.size() > 0)
+                port = strl[0];
+            if(strl.size() > 1)
+                database = strl[1];
+            dbSchemaName = database;
+        }
+
+        connectString.append("Server=" );
+        connectString.append(server.trimmed());
+        connectString.append(";Port=" );
+        connectString.append(port.trimmed());
+        connectString.append(";Database=" );
+        connectString.append(database.trimmed());
+        connectString.append(";Uid=" );
+        connectString.append(usrname.trimmed());
+        connectString.append(";Pwd=" );
+        connectString.append(password.trimmed());
+        connectString.append(";" );
+    }
+    tdb.setDatabaseName(connectString);
+    qDebug() << connectString;
+    }
+    cd->highlighter->QSLiteStyle = sqlite;
     bool ok = tdb.open();
     if(ok)
     {
@@ -377,20 +459,52 @@ void Table::connectDB(QString conname,QString dbname,QString usrname, QString pa
         userDS.Load("userdata.txt");
         userDS.GetObject(ui->comboBox->currentText().toStdString())["name"] = ui->lineEdit_2->text().toStdString();
         userDS.GetObject(ui->comboBox->currentText().toStdString())["password"] = ui->lineEdit_3->text().toStdString();
-
+        userDS.data["User"]["lastDriver"] = ui->comboBoxDriver->currentText().toStdString();
         userDS.data["User"]["lastDBName"] = ui->comboBox->currentText().toStdString();
+
+        QString LastTmpDriverName =  ui->comboBoxDriver->currentText();
+        QString LastTmpDbName = ui->comboBox->currentText();
+
         userDS.data["User"]["name"] = ui->lineEdit_2->text().toStdString();
         userDS.data["User"]["password"] = ui->lineEdit_3->text().toStdString();
+        userDS.Save("userdata.txt");
+
+        QStringList strl;
+        userDS.data["UserDBs"][ui->comboBox->currentText().toStdString()];
+        for( auto x : userDS.data["UserDBs"])
+        {
+            strl.push_back((x.first + " " + x.second).c_str());
+            strl.back() = strl.back().trimmed();
+        }
+        ui->comboBox->clear();
+        ui->comboBox->addItems(strl);
+
+        strl.clear();
+
+        for( auto x : userDS.data["UserDrivers"])
+        {
+            strl.push_back(x.second.c_str());
+            strl.back() = strl.back().trimmed();
+        }
+
+        if(!strl.contains(ui->comboBoxDriver->currentText()))
+            userDS.data["UserDrivers"][std::to_string(ui->comboBoxDriver->count())] = ui->comboBoxDriver->currentText().toStdString();
+        ui->comboBoxDriver->clear();
+        ui->comboBoxDriver->addItems(strl);
+
+        ui->comboBox->setCurrentText(LastTmpDbName );
+        ui->comboBoxDriver->setCurrentText( LastTmpDriverName);
 
         userDS.Save("userdata.txt");
         if(LastDbName != dbname)
         {
-            cd->highlighter->UpdateTableColumns(&tdb);
+            cd->highlighter->UpdateTableColumns(&tdb,dbSchemaName);
 
             cd->setPlainText(cd->toPlainText());
             cd->setPlainText(cd->toPlainText());
         }
         LastDbName = dbname;
+        LastDriverName = LastTmpDriverName;
 
     }
     else
@@ -399,7 +513,7 @@ void Table::connectDB(QString conname,QString dbname,QString usrname, QString pa
 
 void Table::on_pushButton_clicked()
 {
-    connectDB("", ui->comboBox->currentText(),ui->lineEdit_2->text(),ui->lineEdit_3->text());
+    connectDB("", ui->comboBoxDriver->currentText(),ui->comboBox->currentText(),ui->lineEdit_2->text(),ui->lineEdit_3->text());
 }
 
 
@@ -409,7 +523,7 @@ void Func(Table* tbl)
     return;
 }
 
-void  Table::runSqlAsync(QString conname,QString dbname,QString usrname, QString password, bool createconnection, bool runall)
+void  Table::runSqlAsync(QString conname,QString driver,QString dbname,QString usrname, QString password, bool createconnection, bool runall)
 {
     if(executing)
         return;
@@ -464,6 +578,7 @@ void  Table::runSqlAsync(QString conname,QString dbname,QString usrname, QString
 
 
     userDS.Load("userdata.txt");
+    userDS.GetObject("User")["lastDriver"] = ui->comboBoxDriver->currentText().toStdString();
     userDS.GetObject("User")["lastDBName"] = ui->comboBox->currentText().toStdString();
     userDS.GetObject("User")["name"] = ui->lineEdit_2->text().toStdString();
     userDS.GetObject("User")["password"] = ui->lineEdit_3->text().toStdString();
@@ -475,7 +590,7 @@ void  Table::runSqlAsync(QString conname,QString dbname,QString usrname, QString
 
     if(createconnection)
     {
-        connectDB(conname,dbname,usrname,password);
+        connectDB(conname,driver,dbname,usrname,password);
     }
     QTextCursor cursor = cd->textCursor();
     cursor.setPosition(sqlstart, QTextCursor::MoveAnchor);
@@ -491,7 +606,7 @@ void  Table::runSqlAsync(QString conname,QString dbname,QString usrname, QString
 
 void Table::on_pushButton_3_clicked()
 {
-    runSqlAsync(conName , ui->comboBox->currentText(),ui->lineEdit_2->text(),ui->lineEdit_3->text(), true);
+    runSqlAsync(conName ,ui->comboBoxDriver->currentText(), ui->comboBox->currentText(),ui->lineEdit_2->text(),ui->lineEdit_3->text(), true);
 
 }
 
@@ -516,4 +631,142 @@ void Table::on_checkBox_checkStateChanged(const Qt::CheckState &arg1)
 
 
 
+void Table::on_SaveToSQLiteTable_clicked()
+{// everything has SQLITE_ prefix to ensure no queries will run on main db's
+
+    QSqlDatabase tmpdb = QSqlDatabase::addDatabase("QSQLITE","SQLITE db connection");
+    tmpdb.setDatabaseName("SQLiteDB.db");
+    tmpdb.open();
+    QSqlQuery SQLITE_q(tmpdb);
+
+
+    QString SQLITE_sql = "Drop table ";
+    SQLITE_sql += ui->lineEdit->text();
+    SQLITE_sql += ";";
+    if(SQLITE_q.exec(SQLITE_sql))
+        qDebug()<< "Dropped sqlite table";
+    else
+        qDebug()<< "Failed to save to sqlite: " <<SQLITE_q.lastError().text();
+
+    SQLITE_sql = "Create table ";
+    SQLITE_sql += ui->lineEdit->text();
+
+    SQLITE_sql += " ( ";
+    for(int i=0;i<headers.size();i++)
+    {
+        SQLITE_sql += headers[i];
+
+        SQLITE_sql += " text ";
+
+        if(i+1<headers.size())
+            SQLITE_sql += ", ";
+    }
+    SQLITE_sql += " ); ";
+    qDebug()<< SQLITE_sql;
+
+    if(SQLITE_q.exec(SQLITE_sql))
+        qDebug()<< "Created sqlite table";
+    else
+        qDebug()<< "Failed to save to sqlite: " <<SQLITE_q.lastError().text();
+
+
+    /* form a string
+     *
+      INSERT INTO 'tablename'
+          SELECT 'data1' AS 'column1', 'data2' AS 'column2'
+UNION ALL SELECT 'data1', 'data2'
+UNION ALL SELECT 'data1', 'data2'
+
+     */
+
+    SQLITE_sql = "Insert into ";
+    SQLITE_sql += ui->lineEdit->text();
+    SQLITE_sql += " Select ";
+
+
+    if(tableData.size()>0)
+    {
+        bool first = true;
+        for(int a=0;a<tableData[0].size();a++)
+        {
+            if(!first)
+                SQLITE_sql += ",";
+            first = false;
+            SQLITE_sql += " '";
+            SQLITE_sql += tableData[0][a].toString();
+            SQLITE_sql += "' ";
+            SQLITE_sql += " as ";
+            SQLITE_sql += " '";
+            SQLITE_sql += headers[a];
+            SQLITE_sql += "' ";
+        }
+        //SQLITE_sql += '\n';
+    }
+
+
+    int lasti=0;
+    for(int i=1;i<tableData.size();i++)
+    {
+
+        SQLITE_sql += " union all Select ";
+        bool first = true;
+        for(int a=0;a<tableData[i].size();a++)
+        {
+            if(!first)
+                SQLITE_sql += ",";
+            first = false;
+            int row =i+2;
+            int column =a+1;
+            bool is_text = false;
+            tableData[i][a].toDouble(&is_text);
+            is_text = !is_text;
+
+            //if(is_text)
+
+            SQLITE_sql += " '";
+            SQLITE_sql += tableData[i][a].toString();
+            SQLITE_sql += "' ";
+
+            //if(is_text)
+        }
+        if(i - lasti > 300)
+        {
+            lasti = i+1;
+            if(!SQLITE_q.exec (SQLITE_sql))
+                qDebug()<< "Failed to save to sqlite: " <<SQLITE_q.lastError().text();
+
+            SQLITE_sql = "Insert into ";
+            SQLITE_sql += ui->lineEdit->text();
+            SQLITE_sql += " Select ";
+
+
+            if(tableData.size()>lasti)
+            {
+                bool first = true;
+                for(int a=0;a<tableData[lasti].size();a++)
+                {
+                    if(!first)
+                        SQLITE_sql += ",";
+                    first = false;
+                    SQLITE_sql += " '";
+                    SQLITE_sql += tableData[lasti][a].toString();
+                    SQLITE_sql += "' ";
+                    SQLITE_sql += " as ";
+                    SQLITE_sql += " '";
+                    SQLITE_sql += headers[a];
+                    SQLITE_sql += "' ";
+                }
+                //SQLITE_sql += '\n';
+            }
+
+            i+=1;
+        }
+
+    }
+    //qDebug() << SQLITE_sql;
+    if(!SQLITE_q.exec (SQLITE_sql))
+        qDebug()<< "Failed to save to sqlite: " <<SQLITE_q.lastError().text();
+
+    tmpdb.close();
+}
 

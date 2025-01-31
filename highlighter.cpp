@@ -1,8 +1,10 @@
 #include "highlighter.h"
 #include "Patterns.h"
 #include <qdir.h>
+#include <qsqlerror.h>
 #include <qsqlquery.h>
 #include <qsqlrecord.h>
+#include <QSqlDriver>
 Highlighter::Highlighter(QTextDocument *parent)
     : QSyntaxHighlighter(parent)
 {
@@ -242,7 +244,7 @@ void Highlighter::highlightBlock(const QString &text)
 }
 
 
-void Highlighter::UpdateTableColumns(QSqlDatabase* db)
+void Highlighter::UpdateTableColumns(QSqlDatabase* db, QString dbname)
 {
     ColumnMap.clear();
     TableAliasMapPerRow.clear();
@@ -250,12 +252,15 @@ void Highlighter::UpdateTableColumns(QSqlDatabase* db)
     dbPatterns.clear();
     TableColumnMap.clear();
     TableColumnDS.data.clear();
+    if(!QSLiteStyle)
+    {
+    QStringList strl = db->databaseName().split(';');
+    QString filename = dbname;
 
-    QString filename = db->databaseName() + QString(".txt");
+    filename += QString(".txt");
     if(QFile::exists(filename))
     {
         TableColumnDS.Load(filename.toStdString());
-        qDebug()<<"Loaded schema from file " << filename;
     }
     else
     {
@@ -291,7 +296,27 @@ void Highlighter::UpdateTableColumns(QSqlDatabase* db)
         TableColumnDS.Save(filename.toStdString());
         qDebug()<<filename;
     }
+    }
+    else
+    {
 
+        db->open();
+        QStringList tblnames = db->driver()->tables(QSql::AllTables);
+        for(auto tbl : tblnames)
+        {
+            TableColumnDS.data[tbl.toStdString()];
+        }
+        for(auto tbn : tblnames)
+        {
+            QSqlRecord rec = db->driver()->record(tbn);
+            int reccount = rec.count();
+            for(int a=0,total = reccount; a<total;a++)
+            {
+                TableColumnDS.data[tbn.toStdString()][rec.fieldName(a).toStdString()];
+            }
+        }
+
+    }
 
     for(auto x : TableColumnDS.data)
     {
@@ -299,6 +324,7 @@ void Highlighter::UpdateTableColumns(QSqlDatabase* db)
         {
             TableColumnMap[x.first.c_str()][y.first.c_str()] = true;
             ColumnMap[y.first.c_str()] = true;
+
         }
         dbPatterns.push_back(x.first.c_str());
     }
