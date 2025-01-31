@@ -31,6 +31,8 @@ stock.sql - Открывается при запуске программы, х�
 
 тестировались с Oracle, Postgres и SQLite 
 
+Импорт из .csv в sqlite - https://github.com/pawelsalawa/sqlitestudio
+
 # Build
 ```bash
   mkdir build
