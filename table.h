@@ -46,6 +46,9 @@ public:
     void connectDB(QString conname,QString driver,QString dbname,QString usrname, QString password);
 
     void UpdateTable();
+
+    void RunAsScript(int startfrom = 0);
+
     QSqlDatabase tdb;
 
     QString LastDriverName = "";
@@ -110,7 +113,8 @@ public:
     };
 
     QString autofilename = "";
-    bool autosave = false;
+    bool autosaveXLSX = false;
+    bool autosaveSQLITE = false;
     void SaveToFile();
 
     iter_Window iw;
@@ -144,6 +148,8 @@ private slots:
 
     void on_SaveToSQLiteTable_clicked();
 
+    void subWindowDone();
+
 private:
     bool closing = false;
     Ui::Table *ui;
@@ -152,6 +158,8 @@ private:
 
 signals:
     void execdReady();
+signals:
+    void TableUpdated();
 };
 
 #endif // TABLE_H

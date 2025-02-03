@@ -20,6 +20,7 @@
 #include <QDesktopServices>
 #include <QSqlDriver>
 
+
 inline DataStorage userDS;
 
 Table::Table(QWidget *parent)
@@ -70,6 +71,18 @@ Table::Table(QWidget *parent)
     }
     ui->comboBoxDriver->addItems(strl);
     ui->comboBoxDriver->setCurrentText(userDS.GetProperty("User","lastDriver").c_str());
+
+    if((userDS.GetPropertyAsBool("Flags","Postgre")))
+        ui->checkBox->setCheckState( Qt::CheckState::Checked);
+    else
+        ui->checkBox->setCheckState( Qt::CheckState::Unchecked);
+    if((userDS.GetPropertyAsBool("Flags","Script")))
+        ui->CheckBoxScript->setCheckState( Qt::CheckState::Checked);
+    else
+        ui->CheckBoxScript->setCheckState( Qt::CheckState::Unchecked);
+
+
+
 
     userDS.Save("userdata.txt");
 
@@ -135,7 +148,7 @@ void Table::IterButtonPressed()
         tbl->autofilename += "_";
         tbl->autofilename += QVariant(it).toString();
         tbl->autofilename += ".xlsx";
-        tbl->autosave = true;
+        tbl->autosaveXLSX = true;
         tbl->show();
         thrnum++;
         tbl->conName = QVariant(thrnum).toString();
@@ -225,12 +238,21 @@ void Table::UpdateTable()
     }
     ui->statuslabel->setText("table updated.");
     tableDataMutex.unlock();
-    if(autosave)
+    if(autosaveXLSX)
     {
         ui->lineEdit->setText(autofilename);
 
         SaveToFile();
     }
+
+    if(autosaveSQLITE)
+    {
+
+        ui->lineEdit->setText(autofilename);
+
+        on_SaveToSQLiteTable_clicked();
+    }
+    emit TableUpdated();
 }
 
 
@@ -457,6 +479,7 @@ void Table::connectDB(QString conname,QString driver, QString dbname,QString usr
         ui->lineEdit_3->setText(password);
 
         userDS.Load("userdata.txt");
+        userDS.data["Flags"]["Postgre"] = "1";
         userDS.GetObject(ui->comboBox->currentText().toStdString())["name"] = ui->lineEdit_2->text().toStdString();
         userDS.GetObject(ui->comboBox->currentText().toStdString())["password"] = ui->lineEdit_3->text().toStdString();
         userDS.data["User"]["lastDriver"] = ui->comboBoxDriver->currentText().toStdString();
@@ -467,7 +490,23 @@ void Table::connectDB(QString conname,QString driver, QString dbname,QString usr
 
         userDS.data["User"]["name"] = ui->lineEdit_2->text().toStdString();
         userDS.data["User"]["password"] = ui->lineEdit_3->text().toStdString();
+
+
+        if(ui->checkBox->checkState()== Qt::Checked)
+            userDS.data["Flags"]["Postgre"] = "1";
+        else
+            userDS.data["Flags"]["Postgre"] = "0";
+
+        if(ui->CheckBoxScript->checkState()== Qt::Checked)
+            userDS.data["Flags"]["Script"] = "1";
+        else
+            userDS.data["Flags"]["Script"] = "0";
+
+
+
         userDS.Save("userdata.txt");
+
+
 
         QStringList strl;
         userDS.data["UserDBs"][ui->comboBox->currentText().toStdString()];
@@ -495,6 +534,14 @@ void Table::connectDB(QString conname,QString driver, QString dbname,QString usr
         ui->comboBox->setCurrentText(LastTmpDbName );
         ui->comboBoxDriver->setCurrentText( LastTmpDriverName);
 
+        if(ui->checkBox->checkState()== Qt::Checked)
+            userDS.data["Flags"]["Postgre"] = "1";
+        else
+            userDS.data["Flags"]["Postgre"] = "0";
+        if(ui->CheckBoxScript->checkState()== Qt::Checked)
+            userDS.data["Flags"]["Script"] = "1";
+        else
+            userDS.data["Flags"]["Script"] = "0";
         userDS.Save("userdata.txt");
         if(LastDbName != dbname)
         {
@@ -523,45 +570,256 @@ void Func(Table* tbl)
     return;
 }
 
-void  Table::runSqlAsync(QString conname,QString driver,QString dbname,QString usrname, QString password, bool createconnection, bool runall)
-{
-    if(executing)
-        return;
-    executing = true;
-    ui->statuslabel->setText("running sql...");
-    int sqlstart = 0;
-    int sqlend = cd->toPlainText().size();
-    if(cd->textCursor().selectedText().size() <= 5)
-    {
-        sqlCode = "";
-        QString text = cd->toPlainText();
-        int start = cd->textCursor().position()-1;
-        while(start>0 && text[start]!=';')
-            start--;
-        if(text[start]==';')
-            start++;
-        int iter = start;
-        sqlstart = start;
-        sqlCode.push_back(text[iter]);
-        iter++;
-        while(iter<text.size())
-        {
-            sqlCode.push_back(text[iter]);
-            sqlend = start;
-            if((text[iter]==';'))
-                break;
-            iter++;
-        }
-        qDebug()<<"sql start "<<start;
-        qDebug()<<"sql start "<<iter-1;
-    }
-    else
-        sqlCode = cd->textCursor().selectedText();
 
-    if(runall)
+inline int active_Windows =0;
+inline bool waiting = false;
+inline int waitongpos = 0;
+
+
+void Table::subWindowDone()
+{
+    active_Windows -=1;
+    qDebug()<<"active_Windows called: "<< active_Windows;
+    if(active_Windows<0)
     {
-        sqlCode = cd->toPlainText();
-    }//qDebug()<<"sql"<<sqlCode;
+        qDebug()<<"active_Windows count less than 0, something went wrong";
+    }
+
+    if(waiting && active_Windows <= 0)
+    {
+        waiting = false;
+        qDebug()<<"resuming";
+        RunAsScript(waitongpos);
+    }
+
+}
+
+
+void Table::RunAsScript(int startfrom)
+{
+    userDS.data["Flags"]["Script"] = "0";
+    ui->CheckBoxScript->setCheckState(Qt::Unchecked);
+
+    QString text = cd->toPlainText();
+    bool in_comand = false;
+    bool in_Select = false;
+    bool in_Set = false;
+    bool in_XLSXSave = false;
+    bool in_SQLITESave = false;
+    bool prev_is_newline = true;
+    bool newTokenAdded = false;
+    bool newVariableAdded = false;
+    bool in_brakets = false;
+    bool WaitNextLine = false;
+    bool readSqlUntillNextCommand = false;
+    int state = 0;
+    QStringList variables;
+    QStringList set_variables;
+    QString     save_text;
+
+    QStringList tokens;
+    QString lastSQL = "";
+    for(int i=startfrom;i<text.size();i++)
+    {
+
+        if(WaitNextLine && text[i] != '\n')
+        {
+            continue;
+        }
+        else if (WaitNextLine && text[i] == '\n')
+        {
+            WaitNextLine = false;
+            in_comand = false;
+
+            continue;// next line reached
+        }
+        if(readSqlUntillNextCommand)
+            lastSQL.push_back(text[i]);
+
+        if(newVariableAdded && (in_XLSXSave || in_SQLITESave) && in_Select)
+        {
+            qDebug()<<"";
+            qDebug()<<"SelectDB Comand";
+            if(variables.size()<4)
+                qDebug() << "less than 4 variables in selectDB";
+            else
+                qDebug()<<variables;
+            qDebug()<<lastSQL;
+            qDebug()<<"";
+            qDebug()<<"SaveToXLSX";
+            qDebug()<<save_text;
+            qDebug()<<"";
+            qDebug()<<i;
+            qDebug()<<text.size();
+            qDebug()<<"";
+
+            QString str = cd->toPlainText();
+            Table* tbl = new Table();
+            tbl->sqlCode = lastSQL;
+            tbl->cd->setPlainText(lastSQL);
+
+            active_Windows+=1;
+            tbl->autofilename = save_text;
+            tbl->autosaveXLSX = in_XLSXSave;
+            tbl->autosaveSQLITE = in_SQLITESave;
+            tbl->show();
+            thrnum++;
+            tbl->conName = QVariant(thrnum).toString();
+            tbl->connectDB(QVariant(thrnum).toString(), variables[0].trimmed(),variables[1].trimmed(), variables[2].trimmed(),  variables[3].trimmed());
+            tbl->runSqlAsync(QVariant(thrnum).toString(), variables[0].trimmed(),variables[1].trimmed(), variables[2].trimmed(),  variables[3].trimmed(),true,true);
+
+            tbl->show();
+
+            connect( tbl, SIGNAL(TableUpdated()), this, SLOT(subWindowDone()), Qt::QueuedConnection );
+
+
+
+
+            in_comand = false;
+            in_Select = false;
+            in_Set = false;
+            in_XLSXSave = false;
+            in_SQLITESave = false;
+            prev_is_newline = true;
+            newTokenAdded = false;
+            newVariableAdded = false;
+            in_brakets = false;
+            WaitNextLine = false;
+            readSqlUntillNextCommand = false;
+            state = 0;
+            variables.clear();
+            set_variables.clear();
+            tokens.clear();
+            save_text = "";
+            lastSQL = "";
+
+        }
+        if(text[i]=='\n' && !in_Select && !in_XLSXSave && !in_SQLITESave)
+        {// reset
+            in_comand = false;
+            in_Select = false;
+            in_Set = false;
+            in_XLSXSave = false;
+            in_SQLITESave = false;
+            prev_is_newline = false;
+            newTokenAdded = false;
+            newVariableAdded = false;
+            in_brakets = false;
+            WaitNextLine = false;
+            readSqlUntillNextCommand = false;
+            state = 0;
+            variables.clear();
+            tokens.clear();
+            state = 0;
+            continue;
+        }
+        if( i+1 < text.size() && text[i] == '-' && text[i+1] == '-')
+        {
+            i++;
+            in_comand = true;
+            continue;
+        }
+        if(in_comand)
+        {
+
+            if(readSqlUntillNextCommand)
+            {
+                while(lastSQL.back() !=';')
+                    lastSQL.resize(lastSQL.size()-1);
+            }
+            readSqlUntillNextCommand = false;
+
+            if(in_brakets)
+            {
+                variables.back().push_back(text[i]);
+            }
+
+            if(newVariableAdded)
+            {
+                if(in_Select && variables.size() == 4)
+                {
+                    // nextline, sql
+                    //WaitNextLine = true;
+                    readSqlUntillNextCommand = true;
+                    in_comand = false;
+
+                }
+            }
+
+
+            if(tokens.size() <=0)
+            {
+                tokens.push_back("");
+            }
+            if(text[i] == '{')
+            {
+                variables.push_back("");
+                in_brakets = true;
+                qDebug()<<"in_brakets";
+                continue;
+            }
+            if(text[i] == '}')
+            {
+                variables.back().resize(variables.back().size()-1);
+                if(in_SQLITESave || in_XLSXSave)
+                {
+                    save_text = variables.back();
+                }
+                in_brakets = false;
+                newVariableAdded = true;
+                qDebug()<<"variable " << variables.back();
+                continue;
+            }
+            if(text[i] == ' ')
+            {
+                qDebug()<<"tokens " << tokens.back();
+                newTokenAdded = true;
+            }
+            if(newTokenAdded)
+            {
+
+                qDebug()<<"Processing token " << tokens.back().trimmed();
+                if(tokens.back().trimmed() == "SelectDB")
+                {
+                    in_Select = true;
+                    lastSQL = "";
+                    qDebug()<<"in SelectDB";
+                }
+                if(tokens.back().trimmed() == "Set")
+                    in_Set = true;
+                if(in_Select && tokens.back().trimmed() == "XLSXSave")
+                {
+                    in_XLSXSave = true;
+                    qDebug()<<"in XLSXSave";
+
+                }
+                if(in_Select && tokens.back().trimmed() == "SQLITESave")
+                    in_SQLITESave = true;
+                if(tokens.back().trimmed() == "Wait" && active_Windows > 0)
+                {
+                    waiting = true;
+                    waitongpos = i;
+                    qDebug()<<"Waiting ";
+                    return;
+                }
+                state = 1;
+                tokens.push_back("");
+
+            }
+            tokens.back().push_back(text[i]);
+
+        }
+
+        newTokenAdded = false;
+        prev_is_newline = false;
+        newVariableAdded = false;
+        if(text[i] == '\n')
+            prev_is_newline =true;
+    }
+    waitongpos = 0;
+    userDS.Load("userdata.txt");
+    userDS.data["Flags"]["Script"] = "1";
+    userDS.Save("userdata.txt");
 
     QString str = "sqlBackup/";
     str += QTime::currentTime().toString();
@@ -576,6 +834,11 @@ void  Table::runSqlAsync(QString conname,QString driver,QString dbname,QString u
     stream2 << cd->toPlainText().toStdString();
     stream2.close();
 
+}
+
+
+void  Table::runSqlAsync(QString conname,QString driver,QString dbname,QString usrname, QString password, bool createconnection, bool runall)
+{
 
     userDS.Load("userdata.txt");
     userDS.GetObject("User")["lastDriver"] = ui->comboBoxDriver->currentText().toStdString();
@@ -586,21 +849,107 @@ void  Table::runSqlAsync(QString conname,QString driver,QString dbname,QString u
     userDS.GetObject(ui->comboBox->currentText().toStdString())["name"] = ui->lineEdit_2->text().toStdString();
     userDS.GetObject(ui->comboBox->currentText().toStdString())["password"] = ui->lineEdit_3->text().toStdString();
 
+    if(ui->checkBox->checkState() == Qt::Checked)
+        userDS.data["Flags"]["Postgre"] = "1";
+    else
+        userDS.data["Flags"]["Postgre"] = "0";
+    if(ui->CheckBoxScript->checkState()== Qt::Checked)
+        userDS.data["Flags"]["Script"] = "1";
+    else
+        userDS.data["Flags"]["Script"] = "0";
+
     userDS.Save("userdata.txt");
 
-    if(createconnection)
+    if(executing)
+        return;
+
+
+
+    if(ui->CheckBoxScript->checkState() != Qt::Checked || runall)
     {
-        connectDB(conname,driver,dbname,usrname,password);
+
+        executing = true;
+        ui->statuslabel->setText("running sql...");
+        int sqlstart = 0;
+        int sqlend = cd->toPlainText().size();
+        if(cd->textCursor().selectedText().size() <= 5)
+        {
+            sqlCode = "";
+            QString text = cd->toPlainText();
+            int start = cd->textCursor().position()-1;
+            while(start>0 && text[start]!=';')
+                start--;
+            if(text[start]==';')
+                start++;
+            int iter = start;
+            sqlstart = start;
+            sqlCode.push_back(text[iter]);
+            iter++;
+            while(iter<text.size())
+            {
+                sqlCode.push_back(text[iter]);
+                sqlend = start;
+                if((text[iter]==';'))
+                    break;
+                iter++;
+            }
+            qDebug()<<"sql start "<<start;
+            qDebug()<<"sql start "<<iter-1;
+        }
+        else
+            sqlCode = cd->textCursor().selectedText();
+
+        if(runall)
+        {
+            sqlCode = cd->toPlainText();
+        }//qDebug()<<"sql"<<sqlCode;
+
+        QString str = "sqlBackup/";
+        str += QTime::currentTime().toString();
+        str +=".sql";
+        str.replace(":"," ");
+        qDebug()<<str;
+        std::ofstream stream (str.toStdString());
+        stream << cd->toPlainText().toStdString();
+        stream.close();
+
+        std::ofstream stream2 ("stock.sql");
+        stream2 << cd->toPlainText().toStdString();
+        stream2.close();
+
+
+
+
+        if(createconnection)
+        {
+            connectDB(conname,driver,dbname,usrname,password);
+        }
+        QTextCursor cursor = cd->textCursor();
+        cursor.setPosition(sqlstart, QTextCursor::MoveAnchor);
+        cursor.setPosition(sqlend+1, QTextCursor::KeepAnchor);
+
+        if(thr!=nullptr)
+            thr->terminate();
+
+        thr = QThread::create(Func,this);
+        thr->start();
     }
-    QTextCursor cursor = cd->textCursor();
-    cursor.setPosition(sqlstart, QTextCursor::MoveAnchor);
-    cursor.setPosition(sqlend+1, QTextCursor::KeepAnchor);
+    else
+    {
+        QString str = "sqlBackup/";
+        str += QTime::currentTime().toString();
+        str +=".sql";
+        str.replace(":"," ");
+        qDebug()<<str;
+        std::ofstream stream (str.toStdString());
+        stream << cd->toPlainText().toStdString();
+        stream.close();
 
-    if(thr!=nullptr)
-        thr->terminate();
-
-    thr = QThread::create(Func,this);
-    thr->start();
+        std::ofstream stream2 ("stock.sql");
+        stream2 << cd->toPlainText().toStdString();
+        stream2.close();
+        RunAsScript();
+    }
 }
 
 

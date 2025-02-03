@@ -629,11 +629,25 @@
          <number>5</number>
         </property>
         <item>
-         <widget class="QPushButton" name="pushButton_3">
-          <property name="text">
-           <string>exec</string>
+         <layout class="QHBoxLayout" name="horizontalLayout_5">
+          <property name="bottomMargin">
+           <number>5</number>
           </property>
-         </widget>
+          <item>
+           <widget class="QPushButton" name="pushButton_3">
+            <property name="text">
+             <string>exec</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="CheckBoxScript">
+            <property name="text">
+             <string>Run as script</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
         </item>
         <item>
          <layout class="QHBoxLayout" name="horizontalLayout_2">
