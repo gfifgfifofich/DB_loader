@@ -394,6 +394,7 @@ void CodeEditor::FillsuggestName()
         cursor.insertText("\"");
 
 }
+//keyPressEvent();
 
 
 
