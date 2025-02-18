@@ -136,7 +136,7 @@ std::string DataStorage::ToString()
     return File;
 }
 
-void DataStorage::Load(std::string filename)
+bool DataStorage::Load(std::string filename)
 {
     data.clear();
 
@@ -144,7 +144,7 @@ void DataStorage::Load(std::string filename)
     if (!f.is_open())
     {
         std::cout << "ERROR LOADING SaveFile: Unable to load " << filename;
-        return;
+        return false;
     }
 
     std::string lastObject = "NULL";
@@ -194,5 +194,5 @@ void DataStorage::Load(std::string filename)
 
     }
 
-
+    return true;
 }

@@ -7,6 +7,7 @@
 #include <QSqlResult>
 #include <QSqlRecord>
 #include "codeeditor.h"
+#include <QtCharts/QtCharts>
 #include <qcombobox.h>
 #include <qlabel.h>
 #include <qlineedit.h>
@@ -16,7 +17,6 @@
 #include <QLayout>
 #include <QCheckBox>
 #include <QSpinBox>
-
 
 namespace Ui {
 class Table;
@@ -33,17 +33,45 @@ public:
     QString sqlCode = "";
     QSqlDatabase* dataBase = nullptr;
     QThread* thr = nullptr;
+    QThread* thr2 = nullptr;
     void closeEvent(QCloseEvent* ev) override;
     CodeEditor* cd = nullptr;
-
     QMutex tableDataMutex;
-    std::vector<std::vector<QVariant>> tableData;
+    QVector<std::vector<QVariant>> tableData;
     std::vector<QString> Headers;
     QStringList headers;
     QString conName = "";
+
+    QChart* chrt = new QChart;
+    QValueAxis* ax = new QValueAxis;
+    QValueAxis* ax2 = new QValueAxis;
+    QDateTimeAxis* axdt = new QDateTimeAxis;
+    QLineSeries* ls = new QLineSeries;
+    QChartView* cv = new QChartView;
+
+    bool bottomAxisIsDate = false;
+    bool b_showgraph = false;
+    bool b_showhistory = false;
+    bool b_showWorkspaces = false;
+
+    bool b_SaveAsWorkSpace = false;
+
+    QStringList workspaceDependenices;
+    qint64 LastWorkspaceUpdateInterval = 10;//12*60*60; // 12 hours
+    qint64 LastWorkspaceUpdate = 0;
+    QString LastWorkspaceName = "WorkSpace0";
+    QString tmpFileName = "";
+    QString tmpSql = "";
+
     void runSqlAsync(QString conname,QString driver,QString dbname,QString usrname, QString password, bool createconnection = false, bool runall = false);
 
     void connectDB(QString conname,QString driver,QString dbname,QString usrname, QString password);
+    QString t_conname = "";
+    QString t_driver = "";
+    QString t_dbname = "";
+    QString t_usrname = "";
+    QString t_password = "";
+    bool reconect_on_exec = false;
 
     void UpdateTable();
 
@@ -121,6 +149,8 @@ public:
 
     QVBoxLayout* merge_layout = nullptr;
 
+    void Init(QString conname,QString driver,QString dbname,QString usrname, QString password, QString sql = "", QString SaveFileName = "excel/tmp.xlsx");
+
 private slots:
     void on_pushButton_2_clicked();
 
@@ -149,6 +179,19 @@ private slots:
     void on_SaveToSQLiteTable_clicked();
 
     void subWindowDone();
+
+    void ShowGraph();
+    void UpdateGraphGraph();
+    void CopySelectionFormTable();
+
+
+    void on_listWidget_currentTextChanged(const QString &currentText);
+
+    void ShowHistoryWindow();
+
+    void ShowWorkspacesWindow();
+    void SaveWorkspace();
+    void on_lineEdit_4_textChanged(const QString &arg1);
 
 private:
     bool closing = false;
