@@ -322,7 +322,6 @@ void Table::CopySelectionFormTable()
 
 void Table::ShowGraph()
 {
-    QApplication::clipboard()->setText("asdasdasdasda");
     if(b_showgraph)
     {
         cv->hide();
