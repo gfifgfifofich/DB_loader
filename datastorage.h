@@ -33,7 +33,7 @@ public:
     void SetProperty(std::string ObjectName, std::string Property, float value);
 
     void Save(std::string filename);
-    void Load(std::string filename);
+    bool Load(std::string filename);
     std::string ToString();
 };
 

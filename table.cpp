@@ -19,6 +19,11 @@
 #include <fstream>
 #include <QDesktopServices>
 #include <QSqlDriver>
+#include <QApplication>
+#include <QAbstractItemModel>
+#include <QItemSelectionModel>
+#include <QModelIndexList>
+
 
 //#include <QtQml/qqmlengine.h>
 //#include <QtQuick/qquickview.h>
@@ -28,17 +33,32 @@
 //#include <qquickitem.h>
 /*
 
- sometiems nukes userdata.txt on fast laucnh
- crash on iterator init
 
+
+
+
+save with datetime
 
 Remove postgre toggle, detect by drivername.toLower().contains("postgre") || drivername.toLower().contains("psql");
 add dates, datatypes
 multiline edit
+workspaces
 
-+ sometimes goes to infinite loop on script lunch
-
-
+datasources - table {sqliteTableName, sqlCode, updateInterval, lastUpdate}
+if used_in_code, and current - lastUpdate > updateInterval
+    run sqlCode,
+    save as sqliteTableName
+dataSources
+(
+sqliteTableName text primary key,
+sqlDriver text,
+sqlDBName text,
+sqlUserName text,
+sqlPassword text,
+sqlCode text,
+updateInterval int, -- minuts
+lastUpdate datetime
+)
 */
 
 class TableLauncher : public QObject
@@ -55,6 +75,7 @@ public:
 };
 
 inline DataStorage userDS;
+inline DataStorage historyDS;
 
 Table::Table(QWidget *parent)
     : QMainWindow(parent)
@@ -66,19 +87,25 @@ Table::Table(QWidget *parent)
     cd = new CodeEditor();
     ui->horizontalLayout_3->addWidget(cd);
 
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_E), this, SLOT(on_pushButton_3_clicked()));
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Enter), this, SLOT(on_pushButton_3_clicked()));
+    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_R), this, SLOT(on_pushButton_3_clicked()));
+    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Return), this, SLOT(on_pushButton_3_clicked()));
 
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_S), this, SLOT(on_pushButton_2_clicked()));
+    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_E), this, SLOT(on_pushButton_2_clicked()));
+    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_S), this, SLOT(SaveWorkspace()));
+
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_O), this, SLOT(OpenFile()));
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Space), this, SLOT(FillSuggest()));
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_N), this, SLOT(OpenNewWindow()));
 
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_I), this, SLOT(ShowIterateWindow()));
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_G), this, SLOT(ShowGraph()));
+    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_C), this, SLOT(CopySelectionFormTable()));
 
 
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_H), this, SLOT(ShowHistoryWindow()));
+    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_W), this, SLOT(ShowWorkspacesWindow()));
+
+
 
     //QQuickView* g_viewer = new QQuickView;
     //g_viewer->setTitle(QStringLiteral("HelloGraphs"));
@@ -154,52 +181,104 @@ Table::Table(QWidget *parent)
     connect( cd, SIGNAL(s_suggestedName()), this, SLOT(updatesuggestion()), Qt::QueuedConnection );
     connect( this, SIGNAL(execdReady()), this, SLOT(ThreadReady()), Qt::QueuedConnection );
 
-    userDS.Load("userdata.txt");
-
-
-    QStringList strl;
-    for( auto x : userDS.data["UserDBs"])
+    if(userDS.Load("userdata.txt"))
     {
-        strl.push_back((x.first + " " +  x.second).c_str());
-        strl.back() = strl.back().trimmed();
+
+
+        QStringList strl;
+        for( auto x : userDS.data["UserDBs"])
+        {
+            strl.push_back((x.first + " " +  x.second).c_str());
+            strl.back() = strl.back().trimmed();
+        }
+        ui->comboBox->addItems(strl);
+        ui->comboBox->setCurrentText(userDS.GetProperty("User","lastDBName").c_str());
+        strl.clear();
+        for( auto x : userDS.data["UserDrivers"])
+        {
+            strl.push_back((x.second).c_str());
+            strl.back() = strl.back().trimmed();
+        }
+        ui->comboBoxDriver->addItems(strl);
+        ui->comboBoxDriver->setCurrentText(userDS.GetProperty("User","lastDriver").c_str());
+
+        if((userDS.GetPropertyAsBool("Flags","Script")))
+            ui->CheckBoxScript->setCheckState( Qt::CheckState::Checked);
+        else
+            ui->CheckBoxScript->setCheckState( Qt::CheckState::Unchecked);
+
+
+
+
+        userDS.Save("userdata.txt");
     }
-    ui->comboBox->addItems(strl);
-    ui->comboBox->setCurrentText(userDS.GetProperty("User","lastDBName").c_str());
-    strl.clear();
-    for( auto x : userDS.data["UserDrivers"])
-    {
-        strl.push_back((x.second).c_str());
-        strl.back() = strl.back().trimmed();
-    }
-    ui->comboBoxDriver->addItems(strl);
-    ui->comboBoxDriver->setCurrentText(userDS.GetProperty("User","lastDriver").c_str());
-
-    if((userDS.GetPropertyAsBool("Flags","Postgre")))
-        ui->checkBox->setCheckState( Qt::CheckState::Checked);
-    else
-        ui->checkBox->setCheckState( Qt::CheckState::Unchecked);
-    if((userDS.GetPropertyAsBool("Flags","Script")))
-        ui->CheckBoxScript->setCheckState( Qt::CheckState::Checked);
-    else
-        ui->CheckBoxScript->setCheckState( Qt::CheckState::Unchecked);
-
-
-
-
-    userDS.Save("userdata.txt");
-
 
 
     //connectDB(conName ,ui->comboBoxDriver->currentText(), ui->comboBox->currentText(),ui->lineEdit_2->text(),ui->lineEdit_3->text());
 
 
-    QFile file("stock.sql");
+    if(!LastWorkspaceName.endsWith(".sql"))
+        LastWorkspaceName+=".sql";
+    QFile file("workspaces/" + LastWorkspaceName);
     if (file.open(QFile::ReadOnly | QFile::Text))
         cd->setPlainText(file.readAll());
 
     cd->setPlainText(cd->toPlainText());
 
 
+    QString text = cd->toPlainText();
+    if(text.startsWith("-- {"))
+    {
+        QStringList tokens;
+        int i = 0;
+        bool inbrakets = false;
+        while(i < text.size())
+        {
+            if(text[i] == '{')
+            {
+                tokens.push_back("");
+                inbrakets = true;
+                i++;
+                continue;
+            }
+            if(text[i] == '}')
+            {
+                tokens.back() = tokens.back().trimmed();
+                inbrakets = true;
+                if(tokens.size() == 7)
+                    break;
+                i++;
+                continue;
+            }
+            if(inbrakets)
+            {
+                tokens.back().push_back(text[i]);
+            }
+            i++;
+
+        }
+        if(tokens.size() >= 7)
+        {
+            workspaceDependenices.clear();
+            ui->comboBoxDriver->setCurrentText(tokens[0].trimmed());
+            ui->comboBox->setCurrentText(tokens[1].trimmed());
+            ui->lineEdit_2->setText(tokens[2].trimmed());
+            ui->lineEdit_3->setText(tokens[3].trimmed());
+
+
+            t_driver =   tokens[0].trimmed();
+            t_dbname =   tokens[1].trimmed();
+            t_usrname =  tokens[2].trimmed();
+            t_password = tokens[3].trimmed();
+            LastWorkspaceUpdateInterval = QVariant(tokens[4].trimmed()).toULongLong();
+            LastWorkspaceUpdate = QVariant(tokens[5].trimmed()).toULongLong();
+            workspaceDependenices = tokens[6].trimmed().split(',');
+
+
+        }
+    }
+
+    cd->setFocus();
 }
 void Table::Init(QString conname,QString driver,QString dbname,QString usrname, QString password, QString sql, QString SaveFileName)
 {
@@ -209,13 +288,41 @@ void Table::Init(QString conname,QString driver,QString dbname,QString usrname, 
     ui->lineEdit_3->setText(password);
     ui->lineEdit->setText(SaveFileName);
     cd->setPlainText(sql);
+    ui->lineEdit_4->setText(LastWorkspaceName);
     sqlCode = sql;
     ui->CheckBoxScript->setCheckState(Qt::Unchecked);
 }
 
+void Table::CopySelectionFormTable()
+{
+    QModelIndexList indexes = ui->tableWidget->selectionModel()->selectedIndexes();
+    QAbstractItemModel * model = ui->tableWidget->model();
+    QModelIndex previous = indexes.first();
+    indexes.removeFirst();
+    QString selected_text =  model->data(previous).toString();
+    bool first = true;
+    for(auto current : indexes)
+    {
+        if (current.row() != previous.row())
+        {
+            selected_text.append('\n');
+        }
+        else
+        {
+            selected_text.append('\t');
+        }
+        QVariant data = model->data(current);
+        QString text = data.toString();
+        selected_text.append(text);
+
+        previous = current;
+    }
+    QApplication::clipboard()->setText(selected_text);
+}
 
 void Table::ShowGraph()
 {
+    QApplication::clipboard()->setText("asdasdasdasda");
     if(b_showgraph)
     {
         cv->hide();
@@ -454,28 +561,36 @@ void Table::UpdateTable()
     qDebug()<<headers.size();
     ui->tableWidget->setColumnCount(headers.size());
     qDebug()<<"column count";
+    int tabl_size = 5000;
+    if(tableData.size()>0)
+        tabl_size  = tableData[0].size();
+
     if(viewall)
-        ui->tableWidget->setRowCount(tableData.size());
-    else if(tableData.size() > 500)
-        ui->tableWidget->setRowCount(500);
+        ui->tableWidget->setRowCount(tabl_size );
+    else if(tabl_size  > 5000)
+        ui->tableWidget->setRowCount(5000);
     else
-        ui->tableWidget->setRowCount(tableData.size());
+        ui->tableWidget->setRowCount(tabl_size );
 
     qDebug()<<"rowcount";
     ui->tableWidget->setHorizontalHeaderLabels(headers);
     qDebug()<<"labels";
-    for(int i=0;(i<tableData.size() && viewall) || (!viewall && i<tableData.size() && i<500);i++)
+    for(int i=0;i<tableData.size();i++)
     {
-        for (int a=0; a<tableData[i].size();a++)
+        for (int a=0; (viewall && a<tableData[i].size()) || (a<tableData[i].size() && !viewall && a < 5000);a++)
         {
             QTableWidgetItem *item = new QTableWidgetItem(tableData[i][a].toString(),tableData[i][a].typeId());
-            ui->tableWidget->setItem(i, a, item);
+            ui->tableWidget->setItem(a, i, item);
         }
     }
     QString msg = "table updated. size:";
     msg += QVariant(tableData.size()).toString();
     msg += " : ";
-    msg += QVariant(headers.size()).toString();
+    if(tableData.size()>0)
+        msg += QVariant(tableData[0].size()).toString();
+    else
+        msg += "0";
+
     ui->statuslabel->setText(msg);
     tableDataMutex.unlock();
     if(autosaveXLSX)
@@ -484,7 +599,12 @@ void Table::UpdateTable()
 
         SaveToFile();
     }
-
+    if(b_SaveAsWorkSpace)
+    {
+        autofilename = LastWorkspaceName;
+        if(autofilename.endsWith(".sql"))
+            autofilename.resize(autofilename.size()-4);
+    }
     if(autosaveSQLITE)
     {
 
@@ -539,18 +659,16 @@ void Table::exec()
         int i=0;
 
         tableData.clear();
+        tableData.resize(headers.size());
         while(q.next())
         {
             if(closing)
                 return;
-            tableData.emplace_back();
-            tableData.back().reserve(headers.size());
             for(int a=0,total = q.record().count(); a<total;a++)
             {
-                tableData.back().push_back(q.value(a));
+                tableData[a].push_back(q.value(a));
             }
             i++;
-            //qDebug() << "wrk"<<i;
         }
     }
     else
@@ -572,6 +690,7 @@ void Table::exec()
     q.clear();
     q.finish();
     qDebug() << "Execd";
+    qDebug() << tableData.size() << "  " << tableData[0].size();
     executing = false;
     emit execdReady();
 
@@ -600,6 +719,9 @@ void Table::SaveToFile()
     ui->statuslabel->setText("saving...");
     QXlsx::Document* xlsxR3 = new QXlsx::Document();
 
+    if(tableData.size()<=0)
+        return;
+
     qDebug() << "saving";
     qDebug() << "ui->tableWidget->rowCount()"<<ui->tableWidget->rowCount();
     qDebug() << "ui->tableWidget->columnCount()"<<ui->tableWidget->columnCount();
@@ -616,23 +738,45 @@ void Table::SaveToFile()
 
         xlsxR3->write(1,i+1,var);
     }
-
     //int datasaved = 0;
-    for(int i=0;i<tableData.size();i++)
-    {
-        for(int a=0;a<tableData[i].size();a++)
+
+    if(tableData.size() > 0 && tableData[0].size() <=1'000'000)
+        for(int i=0;i<tableData.size();i++)
         {
-
-            int row =i+2 - rowoffset;
-            int column =a+1;
-
-            xlsxR3->write(row,column,tableData[i][a]);
-
+            for(int a=0;a<tableData[i].size();a++)
+            {
+                int row = a + 2 - rowoffset;
+                int column = i + 1;
+                xlsxR3->write(row,column,tableData[i][a]);
+            }
         }
-        if(i+2 - rowoffset > 1'000'000)
+    else
+    {
+        bool stop = false;
+        int start = 0;
+        int end = 1'000'000;
+        while(!stop)
         {
+            qDebug()<<start << end;
+            for(int i=0;i<tableData.size();i++)
+            {
+                for(int a=start ;a<end ;a++)
+                {
+                    int row = a + 2 - start;
+                    int column = i + 1;
+                    xlsxR3->write(row,column,tableData[i][a]);
+                }
+            }
+
+            if(end >= tableData[0].size())
+                break;
             sheetnumber++;
-            rowoffset = i + 1;
+
+            start = end;
+            end += 1'000'000;
+            if(end > tableData[0].size())
+                end = tableData[0].size();
+
             QString sheetname = "Sheet";
             sheetname += QVariant(sheetnumber).toString();
             xlsxR3->addSheet(sheetname);
@@ -640,12 +784,40 @@ void Table::SaveToFile()
             for(int asdi=0;asdi<ui->tableWidget->columnCount();asdi++)
             {
                 QVariant var = ui->tableWidget->horizontalHeaderItem(asdi)->text();
-
                 xlsxR3->write(1,asdi+1,var);
             }
-
         }
     }
+
+    //for(int i=0;i<tableData.size();i++)
+    //{
+    //    for(int a=0;a<tableData[i].size();a++)
+    //    {
+
+    //        int row =i+2 - rowoffset;
+    //        int column =a+1;
+
+    //        xlsxR3->write(row,column,tableData[i][a]);
+
+    //    }
+    //    if(i+2 - rowoffset > 1'000'000)
+    //    {
+    //        sheetnumber++;
+    //        rowoffset = i + 1;
+    //        QString sheetname = "Sheet";
+    //        sheetname += QVariant(sheetnumber).toString();
+    //        xlsxR3->addSheet(sheetname);
+    //        xlsxR3->selectSheet(sheetname);
+    //        for(int asdi=0;asdi<ui->tableWidget->columnCount();asdi++)
+    //        {
+    //            QVariant var = ui->tableWidget->horizontalHeaderItem(asdi)->text();
+
+    //            xlsxR3->write(1,asdi+1,var);
+    //        }
+
+    //    }
+    //}
+
     xlsxR3->addSheet("SQL");
     xlsxR3->selectSheet("SQL");
     xlsxR3->write(1,1,"SQL QUERY");
@@ -677,25 +849,25 @@ void Table::connectDB(QString conname,QString driver, QString dbname,QString usr
             tdb = QSqlDatabase::addDatabase("QOCI",conname);
             tdb.setConnectOptions("OCI_ATTR_PREFETCH_ROWS=1000");
             oracle = true;
-            ui->checkBox->setCheckState(Qt::Unchecked);
+            //ui->checkBox->setCheckState(Qt::Unchecked);
         }
         else if(driver =="QPSQL")
         {
             tdb = QSqlDatabase::addDatabase("QPSQL",conname);
             postgre = true;
             cd->highlighter->PostgresStyle = true;
-            ui->checkBox->setCheckState(Qt::Checked);
+            //ui->checkBox->setCheckState(Qt::Checked);
         }
         else
         {
             tdb = QSqlDatabase::addDatabase("QODBC",conname);
             ODBC = true;
-            ui->checkBox->setCheckState(Qt::Unchecked);
+           // ui->checkBox->setCheckState(Qt::Unchecked);
         }
     }
     else
     {
-        ui->checkBox->setCheckState(Qt::Unchecked);
+       // ui->checkBox->setCheckState(Qt::Unchecked);
         tdb = QSqlDatabase::addDatabase("QSQLITE",conname);
         dbname = "SQLiteDB.db";
         dbSchemaName = "SQLiteDB";
@@ -813,80 +985,87 @@ void Table::connectDB(QString conname,QString driver, QString dbname,QString usr
         ui->lineEdit_2->setText(usrname);
         ui->lineEdit_3->setText(password);
 
-        userDS.Load("userdata.txt");
-        userDS.data["Flags"]["Postgre"] = "1";
-        userDS.GetObject(ui->comboBox->currentText().toStdString())["name"] = ui->lineEdit_2->text().toStdString();
-        userDS.GetObject(ui->comboBox->currentText().toStdString())["password"] = ui->lineEdit_3->text().toStdString();
-        userDS.data["User"]["lastDriver"] = ui->comboBoxDriver->currentText().toStdString();
-        userDS.data["User"]["lastDBName"] = ui->comboBox->currentText().toStdString();
+        t_driver = driver;
+        t_dbname = dbname;
+        t_usrname =  usrname;
+        t_password = password;
 
-        QString LastTmpDriverName =  ui->comboBoxDriver->currentText();
-        QString LastTmpDbName = ui->comboBox->currentText();
-
-        userDS.data["User"]["name"] = ui->lineEdit_2->text().toStdString();
-        userDS.data["User"]["password"] = ui->lineEdit_3->text().toStdString();
-
-
-        if(ui->checkBox->checkState()== Qt::Checked)
+        if(userDS.Load("userdata.txt"))
+        {
             userDS.data["Flags"]["Postgre"] = "1";
-        else
-            userDS.data["Flags"]["Postgre"] = "0";
+            userDS.GetObject(ui->comboBox->currentText().toStdString())["name"] = ui->lineEdit_2->text().toStdString();
+            userDS.GetObject(ui->comboBox->currentText().toStdString())["password"] = ui->lineEdit_3->text().toStdString();
+            userDS.data["User"]["lastDriver"] = ui->comboBoxDriver->currentText().toStdString();
+            userDS.data["User"]["lastDBName"] = ui->comboBox->currentText().toStdString();
 
-        if(ui->CheckBoxScript->checkState()== Qt::Checked)
-            userDS.data["Flags"]["Script"] = "1";
-        else
-            userDS.data["Flags"]["Script"] = "0";
+            QString LastTmpDriverName =  ui->comboBoxDriver->currentText();
+            QString LastTmpDbName = ui->comboBox->currentText();
+
+            userDS.data["User"]["name"] = ui->lineEdit_2->text().toStdString();
+            userDS.data["User"]["password"] = ui->lineEdit_3->text().toStdString();
+
+
+            //if(ui->checkBox->checkState()== Qt::Checked)
+            //    userDS.data["Flags"]["Postgre"] = "1";
+            //else
+            //    userDS.data["Flags"]["Postgre"] = "0";
+
+            if(ui->CheckBoxScript->checkState()== Qt::Checked)
+                userDS.data["Flags"]["Script"] = "1";
+            else
+                userDS.data["Flags"]["Script"] = "0";
 
 
 
 
 
 
-        QStringList strl;
-        userDS.data["UserDBs"][ui->comboBox->currentText().toStdString()];
-        for( auto x : userDS.data["UserDBs"])
-        {
-            strl.push_back((x.first + " " + x.second).c_str());
-            strl.back() = strl.back().trimmed();
+            QStringList strl;
+            userDS.data["UserDBs"][ui->comboBox->currentText().toStdString()];
+            for( auto x : userDS.data["UserDBs"])
+            {
+                strl.push_back((x.first + " " + x.second).c_str());
+                strl.back() = strl.back().trimmed();
+            }
+            ui->comboBox->clear();
+            ui->comboBox->addItems(strl);
+
+            strl.clear();
+
+            for( auto x : userDS.data["UserDrivers"])
+            {
+                strl.push_back(x.second.c_str());
+                strl.back() = strl.back().trimmed();
+            }
+
+            if(!strl.contains(ui->comboBoxDriver->currentText()))
+                userDS.data["UserDrivers"][std::to_string(ui->comboBoxDriver->count())] = ui->comboBoxDriver->currentText().toStdString();
+            ui->comboBoxDriver->clear();
+            ui->comboBoxDriver->addItems(strl);
+
+            ui->comboBox->setCurrentText(LastTmpDbName );
+            ui->comboBoxDriver->setCurrentText( LastTmpDriverName);
+
+            //if(ui->checkBox->checkState()== Qt::Checked)
+            //    userDS.data["Flags"]["Postgre"] = "1";
+            //else
+            //    userDS.data["Flags"]["Postgre"] = "0";
+            if(ui->CheckBoxScript->checkState()== Qt::Checked)
+                userDS.data["Flags"]["Script"] = "1";
+            else
+                userDS.data["Flags"]["Script"] = "0";
+            userDS.Save("userdata.txt");
+
+            if(LastDbName != dbname)
+            {
+                cd->highlighter->UpdateTableColumns(&tdb,dbSchemaName);
+
+                cd->setPlainText(cd->toPlainText());
+                cd->setPlainText(cd->toPlainText());
+            }
+            LastDbName = dbname;
+            LastDriverName = LastTmpDriverName;
         }
-        ui->comboBox->clear();
-        ui->comboBox->addItems(strl);
-
-        strl.clear();
-
-        for( auto x : userDS.data["UserDrivers"])
-        {
-            strl.push_back(x.second.c_str());
-            strl.back() = strl.back().trimmed();
-        }
-
-        if(!strl.contains(ui->comboBoxDriver->currentText()))
-            userDS.data["UserDrivers"][std::to_string(ui->comboBoxDriver->count())] = ui->comboBoxDriver->currentText().toStdString();
-        ui->comboBoxDriver->clear();
-        ui->comboBoxDriver->addItems(strl);
-
-        ui->comboBox->setCurrentText(LastTmpDbName );
-        ui->comboBoxDriver->setCurrentText( LastTmpDriverName);
-
-        if(ui->checkBox->checkState()== Qt::Checked)
-            userDS.data["Flags"]["Postgre"] = "1";
-        else
-            userDS.data["Flags"]["Postgre"] = "0";
-        if(ui->CheckBoxScript->checkState()== Qt::Checked)
-            userDS.data["Flags"]["Script"] = "1";
-        else
-            userDS.data["Flags"]["Script"] = "0";
-        userDS.Save("userdata.txt");
-        if(LastDbName != dbname)
-        {
-            cd->highlighter->UpdateTableColumns(&tdb,dbSchemaName);
-
-            cd->setPlainText(cd->toPlainText());
-            cd->setPlainText(cd->toPlainText());
-        }
-        LastDbName = dbname;
-        LastDriverName = LastTmpDriverName;
-
     }
     else
         qDebug() << "nope: "<< tdb.lastError().text().toStdString();
@@ -1062,8 +1241,11 @@ void Table::RunAsScript(int startfrom)
             if(readSqlUntillNextCommand)
             {
                 int maxcount = 100;
-                while(lastSQL.back() !=';')
+                while(lastSQL.back() !=';' && maxcount > 0)
+                {
                     lastSQL.resize(lastSQL.size()-1);
+                    maxcount--;
+                }
             }
             readSqlUntillNextCommand = false;
 
@@ -1159,11 +1341,19 @@ void Table::RunAsScript(int startfrom)
             prev_is_newline =true;
     }
     waitongpos = 0;
-    userDS.Load("userdata.txt");
-    userDS.data["Flags"]["Script"] = "1";
-    userDS.Save("userdata.txt");
-
+    if(userDS.Load("userdata.txt"))
+    {
+        userDS.data["Flags"]["Script"] = "1";
+        userDS.Save("userdata.txt");
+    }
     QString str = "sqlBackup/";
+    QDate dt = QDate::currentDate();
+    str += QVariant(dt.year()).toString();
+    str += "_";
+    str += QVariant(dt.month()).toString();
+    str += "_";
+    str += QVariant(dt.day() ).toString();
+    str += "_";
     str += QTime::currentTime().toString();
     str +=".sql";
     str.replace(":","_");
@@ -1172,10 +1362,7 @@ void Table::RunAsScript(int startfrom)
     stream << cd->toPlainText().toStdString();
     stream.close();
 
-    std::ofstream stream2 ("stock.sql");
-    stream2 << cd->toPlainText().toStdString();
-    stream2.close();
-
+    SaveWorkspace();
     active_Windows =0;
     waiting = false;
     waitongpos = 0;
@@ -1185,26 +1372,27 @@ void Table::RunAsScript(int startfrom)
 void  Table::runSqlAsync(QString conname,QString driver,QString dbname,QString usrname, QString password, bool createconnection, bool runall)
 {
 
-    userDS.Load("userdata.txt");
-    userDS.GetObject("User")["lastDriver"] = ui->comboBoxDriver->currentText().toStdString();
-    userDS.GetObject("User")["lastDBName"] = ui->comboBox->currentText().toStdString();
-    userDS.GetObject("User")["name"] = ui->lineEdit_2->text().toStdString();
-    userDS.GetObject("User")["password"] = ui->lineEdit_3->text().toStdString();
+    if(userDS.Load("userdata.txt"))
+    {
+        userDS.GetObject("User")["lastDriver"] = ui->comboBoxDriver->currentText().toStdString();
+        userDS.GetObject("User")["lastDBName"] = ui->comboBox->currentText().toStdString();
+        userDS.GetObject("User")["name"] = ui->lineEdit_2->text().toStdString();
+        userDS.GetObject("User")["password"] = ui->lineEdit_3->text().toStdString();
 
-    userDS.GetObject(ui->comboBox->currentText().toStdString())["name"] = ui->lineEdit_2->text().toStdString();
-    userDS.GetObject(ui->comboBox->currentText().toStdString())["password"] = ui->lineEdit_3->text().toStdString();
+        userDS.GetObject(ui->comboBox->currentText().toStdString())["name"] = ui->lineEdit_2->text().toStdString();
+        userDS.GetObject(ui->comboBox->currentText().toStdString())["password"] = ui->lineEdit_3->text().toStdString();
 
-    if(ui->checkBox->checkState() == Qt::Checked)
-        userDS.data["Flags"]["Postgre"] = "1";
-    else
-        userDS.data["Flags"]["Postgre"] = "0";
-    if(ui->CheckBoxScript->checkState()== Qt::Checked)
-        userDS.data["Flags"]["Script"] = "1";
-    else
-        userDS.data["Flags"]["Script"] = "0";
+        if(cd->highlighter->PostgresStyle)
+            userDS.data["Flags"]["Postgre"] = "1";
+        else
+            userDS.data["Flags"]["Postgre"] = "0";
+        if(ui->CheckBoxScript->checkState()== Qt::Checked)
+            userDS.data["Flags"]["Script"] = "1";
+        else
+            userDS.data["Flags"]["Script"] = "0";
 
-    userDS.Save("userdata.txt");
-
+        userDS.Save("userdata.txt");
+    }
     if(executing)
         return;
 
@@ -1222,6 +1410,8 @@ void  Table::runSqlAsync(QString conname,QString driver,QString dbname,QString u
             sqlCode = "";
             QString text = cd->toPlainText();
             int start = cd->textCursor().position()-1;
+            if(start<0)
+                start = 0;
             while(start>0 && text[start]!=';')
                 start--;
             if(text[start]==';')
@@ -1242,12 +1432,141 @@ void  Table::runSqlAsync(QString conname,QString driver,QString dbname,QString u
             qDebug()<<"sql start "<<iter-1;
         }
         else
-            sqlCode = cd->textCursor().selectedText();
+            sqlCode = tr(cd->textCursor().selectedText().toLocal8Bit());
 
         if(runall)
         {
             sqlCode = cd->toPlainText();
         }
+
+        if(!ui->ignoreDepsCheckBox->isChecked())
+        {
+            qDebug()<<"Processing used datasources";
+            std::vector<QStringList> filestorun;
+            qDebug()<<workspaceDependenices;
+            for(int i=0;i< workspaceDependenices.size();i++)
+            {
+                QString wsname = workspaceDependenices[i];
+                qDebug()<<wsname ;
+                QString filename = "workspaces/" + workspaceDependenices[i];
+                if(!filename.endsWith(".sql"))
+                    filename+=".sql";
+                QString text = "";
+                QFile file(filename);
+                if (file.open(QFile::ReadOnly | QFile::Text))
+                    text = file.readAll();
+
+                if(text.startsWith("-- {"))
+                {
+                    QStringList tokens;
+                    QString sql = "";
+                    int i = 0;
+                    bool inbrakets = false;
+                    bool gotnewline = false;
+                    bool stoptokens = false;
+                    while(i < text.size())
+                    {
+                        //if(!gotnewline && text[i] == '\n')
+                        //{
+                        //    gotnewline = true;
+                        //    i++;
+                        //    continue;
+                        //}
+                        sql+=text[i];
+                        if(!stoptokens)
+                        {
+                            if(text[i] == '{')
+                            {
+                                tokens.push_back("");
+                                inbrakets = true;
+                                i++;
+                                continue;
+                            }
+                            if(text[i] == '}')
+                            {
+                                tokens.back() = tokens.back().trimmed();
+                                inbrakets = false;
+                                if(tokens.size() == 7)
+                                    stoptokens = true;
+                                i++;
+                                continue;
+                            }
+                            if(inbrakets)
+                            {
+                                tokens.back().push_back(text[i]);
+                            }
+                        }
+                        if(stoptokens && text[i] == ';' || i + 1 == text.size())
+                        {
+                            tokens.push_back(sql);
+                            qDebug()<<"sql is " << tokens.size()-1 << " code " << sql;
+                            break;
+                        }
+                        //if(gotnewline)
+                        i++;
+
+                    }
+                    qDebug()<<"tokens.size()"<<tokens.size();
+                    if(tokens.size() >= 7)
+                    {
+
+                        qint64 dsWorkspaceUpdateInterval = QVariant(tokens[4].trimmed()).toULongLong();
+                        qint64 dsWorkspaceUpdate = QVariant(tokens[5].trimmed()).toULongLong();
+                        qDebug()<<QDateTime::currentDateTime().toSecsSinceEpoch() - dsWorkspaceUpdate;
+                        qDebug()<< "dsWorkspaceUpdateInterval "<<dsWorkspaceUpdateInterval;
+                        if(QDateTime::currentDateTime().toSecsSinceEpoch() - dsWorkspaceUpdate >= dsWorkspaceUpdateInterval)
+                        {
+                            qDebug()<<"tokens.size()"<<tokens.size();
+                            tokens.push_back(wsname);
+                            qDebug()<<"tokens.size()"<<tokens.size();
+                            filestorun.push_back(tokens);
+                            qDebug()<<"filestorun.size()"<<filestorun.size();
+
+                        }
+                    }
+                }
+            }
+            qDebug()<<filestorun.size();
+            for(int i=0;i<filestorun.size();i++)
+            {
+                //qDebug()<<filestorun[i];
+                t_driver =   filestorun[i][0].trimmed();
+                t_dbname =   filestorun[i][1].trimmed();
+                t_usrname =  filestorun[i][2].trimmed();
+                t_password = filestorun[i][3].trimmed();
+
+                QString str = cd->toPlainText();
+                Table* tbl = new Table();
+                tbl->sqlCode = filestorun[i][7];
+                tbl->cd->setPlainText(filestorun[i][7]);
+
+
+                tbl->LastWorkspaceName = filestorun[i].back();
+
+                //tbl->autofilename = filestorun[i].back();
+                //if(tbl->autofilename.endsWith(".sql"))
+                //    tbl->autofilename.resize(tbl->autofilename.size()-4);
+
+                tbl->autosaveSQLITE = true;
+                tbl->show();
+                tbl->b_SaveAsWorkSpace = true;
+                thrnum++;
+                tbl->workspaceDependenices.clear();
+                tbl->conName = QVariant(thrnum).toString();
+                tbl->LastWorkspaceUpdateInterval = QVariant(filestorun[i][4].trimmed()).toULongLong();
+                tbl->Init(QVariant(thrnum).toString(), t_driver,t_dbname, t_usrname,  t_password ,filestorun[i][7],filestorun[i].back());
+                tbl->workspaceDependenices.clear(); // ignore deps in other ds
+                tbl->show();
+            }
+
+            if(filestorun.size()>0)
+            {
+                executing = false;
+                ui->statuslabel->setText("Dependencies not satisfied");
+                return;
+            }
+        }
+
         qDebug()<<"Executing sql:";
         qDebug()<<sqlCode;
         qDebug()<<"";
@@ -1255,6 +1574,13 @@ void  Table::runSqlAsync(QString conname,QString driver,QString dbname,QString u
             sqlCode.resize(sqlCode.size()-1);
 
         QString str = "sqlBackup/";
+        QDate dt = QDate::currentDate();
+        str += QVariant(dt.year()).toString();
+        str += "_";
+        str += QVariant(dt.month()).toString();
+        str += "_";
+        str += QVariant(dt.day() ).toString();
+        str += "_";
         str += QTime::currentTime().toString();
         str +=".sql";
         str.replace(":","_");
@@ -1262,16 +1588,15 @@ void  Table::runSqlAsync(QString conname,QString driver,QString dbname,QString u
         std::ofstream stream (str.toStdString());
         stream << cd->toPlainText().toStdString();
         stream.close();
-
-        std::ofstream stream2 ("stock.sql");
-        stream2 << cd->toPlainText().toStdString();
-        stream2.close();
+        SaveWorkspace();
 
 
-        userDS.Load("sqlHistoryList.txt");
-        userDS.data["wSQL_BACKUP_LIST"][str.toStdString()] = str.toStdString();
-        userDS.Save("sqlHistoryList.txt");
 
+        if(historyDS.Load("sqlHistoryList.txt"))
+        {
+            historyDS.data["wSQL_BACKUP_LIST"][str.toStdString()] = str.toStdString();
+            historyDS.Save("sqlHistoryList.txt");
+        }
 
 
 
@@ -1304,6 +1629,13 @@ void  Table::runSqlAsync(QString conname,QString driver,QString dbname,QString u
     else
     {
         QString str = "sqlBackup/";
+        QDate dt = QDate::currentDate();
+        str += QVariant(dt.year()).toString();
+        str += "_";
+        str += QVariant(dt.month()).toString();
+        str += "_";
+        str += QVariant(dt.day() ).toString();
+        str += "_";
         str += QTime::currentTime().toString();
         str +=".sql";
         str.replace(":","_");
@@ -1312,13 +1644,14 @@ void  Table::runSqlAsync(QString conname,QString driver,QString dbname,QString u
         stream << cd->toPlainText().toStdString();
         stream.close();
 
-        userDS.Load("sqlHistoryList.txt");
-        userDS.data["wSQL_BACKUP_LIST"][str.toStdString()] = str.toStdString();
-        userDS.Save("sqlHistoryList.txt");
+        if(historyDS.Load("sqlHistoryList.txt"))
+        {
+            historyDS.data["wSQL_BACKUP_LIST"][str.toStdString()] = str.toStdString();
+            historyDS.Save("sqlHistoryList.txt");
+        }
 
-        std::ofstream stream2 ("stock.sql");
-        stream2 << cd->toPlainText().toStdString();
-        stream2.close();
+
+        SaveWorkspace();
         active_Windows =0;
         waiting = false;
         waitongpos = 0;
@@ -1334,8 +1667,8 @@ void Table::on_pushButton_3_clicked()
 
 void Table::on_comboBox_currentTextChanged(const QString &arg1)
 {
-    userDS.Load("userdata.txt");
-
+    if(!userDS.Load("userdata.txt"))
+        return;
     ui->lineEdit_2->setText(userDS.GetProperty(ui->comboBox->currentText().toStdString(),"name").c_str());
     ui->lineEdit_3->setText(userDS.GetProperty(ui->comboBox->currentText().toStdString(),"password").c_str());
 
@@ -1400,16 +1733,16 @@ UNION ALL SELECT 'data1', 'data2'
     SQLITE_sql += " Select ";
 
 
-    if(tableData.size()>0)
+    if(tableData.size()>0 && tableData[0].size()>0)
     {
         bool first = true;
-        for(int a=0;a<tableData[0].size();a++)
+        for(int a=0;a<tableData.size();a++)
         {
             if(!first)
                 SQLITE_sql += ",";
             first = false;
             SQLITE_sql += " '";
-            SQLITE_sql += tableData[0][a].toString();
+            SQLITE_sql += tableData[a][0].toString();
             SQLITE_sql += "' ";
             SQLITE_sql += " as ";
             SQLITE_sql += " '";
@@ -1418,15 +1751,18 @@ UNION ALL SELECT 'data1', 'data2'
         }
         //SQLITE_sql += '\n';
     }
-
-
+    else
+    {
+        return;
+    }
+    qDebug() << SQLITE_sql;
     int lasti=0;
-    for(int i=1;i<tableData.size();i++)
+    for(int i=1;i<tableData[0].size();i++)
     {
 
         SQLITE_sql += " union all Select ";
         bool first = true;
-        for(int a=0;a<tableData[i].size();a++)
+        for(int a=0;a<tableData.size();a++)
         {
             if(!first)
                 SQLITE_sql += ",";
@@ -1434,13 +1770,13 @@ UNION ALL SELECT 'data1', 'data2'
             int row =i+2;
             int column =a+1;
             bool is_text = false;
-            tableData[i][a].toDouble(&is_text);
+            tableData[a][i].toDouble(&is_text);
             is_text = !is_text;
 
             //if(is_text)
 
             SQLITE_sql += " '";
-            SQLITE_sql += tableData[i][a].toString();
+            SQLITE_sql += tableData[a][i].toString();
             SQLITE_sql += "' ";
 
             //if(is_text)
@@ -1456,16 +1792,16 @@ UNION ALL SELECT 'data1', 'data2'
             SQLITE_sql += " Select ";
 
 
-            if(tableData.size()>lasti)
+            if(tableData[0].size()>lasti)
             {
                 bool first = true;
-                for(int a=0;a<tableData[lasti].size();a++)
+                for(int a=0;a<tableData.size();a++)
                 {
                     if(!first)
                         SQLITE_sql += ",";
                     first = false;
                     SQLITE_sql += " '";
-                    SQLITE_sql += tableData[lasti][a].toString();
+                    SQLITE_sql += tableData[a][lasti].toString();
                     SQLITE_sql += "' ";
                     SQLITE_sql += " as ";
                     SQLITE_sql += " '";
@@ -1492,32 +1828,221 @@ void Table::on_listWidget_currentTextChanged(const QString &currentText)
         cd->setPlainText(tmpSql);
     else
     {
-        QFile file(currentText);
+        QString filename = currentText;
+        if(b_showWorkspaces)
+        {
+            filename = "workspaces/" + currentText;
+            LastWorkspaceName = currentText;
+            ui->lineEdit_4->setText(currentText);
+        }
+        QFile file(filename);
         if (file.open(QFile::ReadOnly | QFile::Text))
             cd->setPlainText(file.readAll());
+        if(b_showWorkspaces)
+        {
+            QString text = cd->toPlainText();
+            if(text.startsWith("-- {"))
+            {
+                QStringList tokens;
+                int i = 0;
+                bool inbrakets = false;
+                while(i < text.size())
+                {
+                    if(text[i] == '{')
+                    {
+                        tokens.push_back("");
+                        inbrakets = true;
+                        i++;
+                        continue;
+                    }
+                    if(text[i] == '}')
+                    {
+                        tokens.back() = tokens.back().trimmed();
+                        inbrakets = true;
+                        if(tokens.size() == 7)
+                            break;
+                        i++;
+                        continue;
+                    }
+                    if(inbrakets)
+                    {
+                        tokens.back().push_back(text[i]);
+                    }
+                    i++;
+
+                }
+                if(tokens.size() == 7)
+                {
+                    workspaceDependenices.clear();
+                    ui->comboBoxDriver->setCurrentText(tokens[0].trimmed());
+                    ui->comboBox->setCurrentText(tokens[1].trimmed());
+                    ui->lineEdit_2->setText(tokens[2].trimmed());
+                    ui->lineEdit_3->setText(tokens[3].trimmed());
+
+
+                    t_driver =   tokens[0].trimmed();
+                    t_dbname =   tokens[1].trimmed();
+                    t_usrname =  tokens[2].trimmed();
+                    t_password = tokens[3].trimmed();
+                    LastWorkspaceUpdateInterval =10;// QVariant(tokens[4].trimmed()).toULongLong();
+                    LastWorkspaceUpdate = QVariant(tokens[5].trimmed()).toULongLong();
+                    workspaceDependenices = tokens[6].trimmed().split(',');
+
+
+                }
+            }
+        }
     }
 }
-
 void Table::ShowHistoryWindow()
 {
+    b_showWorkspaces = false;
     b_showhistory = !b_showhistory;
     if(b_showhistory)
     {
-        userDS.Load("sqlHistoryList.txt");
-        std::map sqlbackupmap = userDS.data["wSQL_BACKUP_LIST"];
-        tmpSql = cd->toPlainText();
-        ui->listWidget->clear();
-        ui->listWidget->addItem("tmp");
-        for(auto x : sqlbackupmap)
+        if(historyDS.Load("sqlHistoryList.txt"))
         {
-            ui->listWidget->addItem(x.first.c_str());
+            std::map sqlbackupmap = historyDS.data["wSQL_BACKUP_LIST"];
+            tmpSql = cd->toPlainText();
+            ui->listWidget->clear();
+            ui->listWidget->addItem("tmp");
+            for(auto x : sqlbackupmap)
+            {
+                ui->listWidget->addItem(x.first.c_str());
+            }
+            ui->listWidget->sortItems(Qt::DescendingOrder);
+            historyDS.Save("sqlHistoryList.txt");
         }
-        ui->listWidget->sortItems(Qt::DescendingOrder);
-        userDS.Save("sqlHistoryList.txt");
+        ui->listWidget->setFocus();
         ui->listWidget->show();
     }
     if(!b_showhistory)
     {
         ui->listWidget->hide();
+        cd->setFocus();
     }
+}
+
+void Table::SaveWorkspace()
+{
+    if(!LastWorkspaceName.endsWith(".sql"))
+        LastWorkspaceName+=".sql";
+    std::ofstream stream2 ((QString("workspaces/") + LastWorkspaceName).toLocal8Bit().toStdString());
+    QString text = cd->toPlainText();
+    stream2.clear();
+    QStringList tokens;
+    if(text.startsWith("-- {"))
+    {
+
+        QString sql = "";
+        int i = 0;
+        bool inbrakets = false;
+        bool gotnewline = false;
+        bool stoptokens = false;
+        while(i < text.size() && !stoptokens)
+        {
+            if(!stoptokens)
+            {
+                if(text[i] == '{')
+                {
+                    tokens.push_back("");
+                    inbrakets = true;
+                    i++;
+                    continue;
+                }
+                if(text[i] == '}')
+                {
+                    tokens.back() = tokens.back().trimmed();
+                    inbrakets = false;
+                    if(tokens.size() == 7)
+                        stoptokens = true;
+                    i++;
+                    continue;
+                }
+                if(inbrakets)
+                {
+                    tokens.back().push_back(text[i]);
+                }
+            }
+            i++;
+
+        }
+        qDebug()<<"tokens.size()"<<tokens.size();
+        if(tokens.size() >= 7)
+        {
+            workspaceDependenices = tokens.back().trimmed().split(',');
+
+        }
+        if(tokens.size() > 4)
+            LastWorkspaceUpdateInterval = QVariant(tokens[4]).toULongLong();
+
+        QString text2 = text;
+        text.clear();
+        text.reserve(text2.size());
+        int newlinecounter = 0;
+        for(int i=0;i<text2.size();i++)
+        {
+            if(newlinecounter < 1)
+            {
+                if(text2[i] == '\n')
+                    newlinecounter += 1;
+            }
+            else
+            {
+                text.push_back(text2[i]);
+
+            }
+        }
+    }
+
+    stream2 << "-- {" << ui->comboBoxDriver->currentText().toStdString() << "} ";
+    stream2 << " {" <<   ui->comboBox->currentText().toStdString() << "} ";
+    stream2 << " {" <<   ui->lineEdit_2->text().toStdString() << "} ";
+    stream2 << " {" <<   ui->lineEdit_3->text().toStdString() << "}";
+    stream2 << " {" << std::to_string(LastWorkspaceUpdateInterval) << "}";
+    stream2 << " {" << QDateTime::currentSecsSinceEpoch() << "}";
+    stream2 << " {";
+    for(int i=0;i < workspaceDependenices.size();i++)
+    {
+        stream2 << workspaceDependenices[i].toStdString();
+        if(i+1 < workspaceDependenices.size())
+            stream2 << ",";
+    }
+    stream2 <<     "}\n";
+    stream2 << text.toStdString();
+    stream2.close();
+
+}
+
+void Table::ShowWorkspacesWindow()
+{
+    b_showhistory = false;
+    b_showWorkspaces = !b_showWorkspaces;
+    if(b_showWorkspaces)
+    {
+        QDir directory("workspaces");
+        QStringList strl = directory.entryList();
+        SaveWorkspace();
+
+        ui->listWidget->clear();
+        for(auto x : strl)
+        {
+            if(x !="." && x !=".." )
+            ui->listWidget->addItem(x);
+        }
+        ui->listWidget->sortItems(Qt::DescendingOrder);
+
+        //ui->listWidget->setFocus();
+        ui->listWidget->show();
+    }
+    if(!b_showWorkspaces)
+    {
+        ui->listWidget->hide();
+        cd->setFocus();
+    }
+}
+
+void Table::on_lineEdit_4_textChanged(const QString &arg1)
+{
+    LastWorkspaceName = arg1;
 }

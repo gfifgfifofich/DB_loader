@@ -52,7 +52,14 @@ public:
     bool bottomAxisIsDate = false;
     bool b_showgraph = false;
     bool b_showhistory = false;
+    bool b_showWorkspaces = false;
 
+    bool b_SaveAsWorkSpace = false;
+
+    QStringList workspaceDependenices;
+    qint64 LastWorkspaceUpdateInterval = 10;//12*60*60; // 12 hours
+    qint64 LastWorkspaceUpdate = 0;
+    QString LastWorkspaceName = "WorkSpace0";
     QString tmpFileName = "";
     QString tmpSql = "";
 
@@ -175,10 +182,16 @@ private slots:
 
     void ShowGraph();
     void UpdateGraphGraph();
+    void CopySelectionFormTable();
 
 
     void on_listWidget_currentTextChanged(const QString &currentText);
+
     void ShowHistoryWindow();
+
+    void ShowWorkspacesWindow();
+    void SaveWorkspace();
+    void on_lineEdit_4_textChanged(const QString &arg1);
 
 private:
     bool closing = false;
