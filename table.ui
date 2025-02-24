@@ -542,6 +542,9 @@
           <property name="placeholderText">
            <string>Select database</string>
           </property>
+          <property name="frame">
+           <bool>true</bool>
+          </property>
          </widget>
         </item>
         <item>

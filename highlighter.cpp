@@ -150,6 +150,8 @@ void Highlighter::highlightBlock(const QString &text)
 
     bool prevWordIsTable = false;
 
+
+
     TableAliasMapPerRow[currentBlock().blockNumber()].clear();
     if(PostgresStyle) // convert strings back to normal, without ""
     {
@@ -182,15 +184,20 @@ void Highlighter::highlightBlock(const QString &text)
     }
 
     TableColumnAliasMap.clear();
+    TableColumnAliasMap_lower.clear();
     for(auto ta : TableAliasMapPerRow)
     {
         for(auto i : ta.keys())
         {
             TableColumnAliasMap[i] = ta[i].PrevWord;
+            TableColumnAliasMap_lower[i.toLower()] = ta[i].PrevWord.toLower();
         }
     }
 
-    for(auto i : textintervals)
+
+
+    if(PostgresStyle)
+        for(auto i : textintervals)
     {
         QTextCharFormat format;
         format.setForeground( QColor::fromRgbF(0.95f,0.95f,0.85f,1.0f));
@@ -240,6 +247,60 @@ void Highlighter::highlightBlock(const QString &text)
             format = quotationFormat;
         setFormat(i.start,i.end, format);
     }
+    else
+    {
+        for(auto i : textintervals)
+        {
+            QTextCharFormat format;
+            format.setForeground( QColor::fromRgbF(0.95f,0.95f,0.85f,1.0f));
+
+            if(i.type == -1)
+            {
+                if(keywordPatterns.contains(i.text.toLower(),Qt::CaseInsensitive))
+                {
+                    format = keywordFormat;
+                }
+                else if(TableColumnMap_lower.contains(i.text.toLower()) || TableColumnAliasMap_lower.contains(i.text.toLower()))
+                {
+                    format = classFormat;
+                }
+                else if(TableColumnMap_lower.contains(i.PrevWord.toLower()))
+                {if(TableColumnMap_lower[i.PrevWord.toLower()].contains(i.text.toLower()))
+                    {
+                        format = NameFormat;
+                    }}
+                else if(TableColumnAliasMap_lower.contains(i.PrevWord.toLower()))
+                {if(TableColumnMap_lower[TableColumnAliasMap[i.PrevWord.toLower()]].contains(i.text.toLower()))
+                    {
+                        format = NameFormat;
+                    }}
+                else if(ColumnMap_lower.contains(i.text.toLower()))
+                {
+                    format = NameFormat;
+                }
+
+                if(i.text == "*" || i.text == "=" || i.text == ">" || i.text == "<" || i.text == "<>" || i.text == "!=" || i.text == "+" || i.text == "-" )
+                    format = keywordFormat;
+                if(i.text == ";")
+                    format = keywordFormat;
+                if(i.text == "(" ||i.text == ")")
+                    format = keywordFormat;
+
+                if(i.is_number)
+                {
+                    format = keywordFormat;
+                    format.setForeground( QColor::fromRgbF(0.45f,0.65f,0.85f,1.0f));
+                }
+
+            }
+            else if(i.type == 1)
+                format = multiLineCommentFormat;
+            else if(i.type == 2 || i.type == 3)
+                format = quotationFormat;
+            setFormat(i.start,i.end, format);
+        }
+    }
+
 
 }
 
@@ -249,8 +310,12 @@ void Highlighter::UpdateTableColumns(QSqlDatabase* db, QString dbname)
     ColumnMap.clear();
     TableAliasMapPerRow.clear();
     TableColumnAliasMap.clear();
-    dbPatterns.clear();
     TableColumnMap.clear();
+
+    TableColumnAliasMap_lower.clear();
+    TableColumnMap_lower.clear();
+
+    dbPatterns.clear();
     TableColumnDS.data.clear();
     if(!QSLiteStyle)
     {
@@ -323,7 +388,9 @@ void Highlighter::UpdateTableColumns(QSqlDatabase* db, QString dbname)
         for(auto y : x.second)
         {
             TableColumnMap[x.first.c_str()][y.first.c_str()] = true;
+            TableColumnMap_lower[QVariant(x.first.c_str()).toString().toLower()][QVariant(y.first.c_str()).toString().toLower()] = true;
             ColumnMap[y.first.c_str()] = true;
+            ColumnMap_lower[QVariant(y.first.c_str()).toString().toLower()] = true;
 
         }
         dbPatterns.push_back(x.first.c_str());

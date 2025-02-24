@@ -24,33 +24,13 @@ int main(int argc, char *argv[])
     return app.exec();
 }
 
-
 /*
-#include <QApplication>
-
-#include <QCoreApplication>
-#include <QDebug>
-#include <QDir>
-#include <QVariant>
-#include <QtCore>
-#include <QtGlobal>
-#include "Patterns.h"
-#include "Table.h"
-using namespace std;
-
-inline int thrnum;
-int main(int argc, char *argv[])
-{
-
-    fillPaterns();
-    QApplication a(argc, argv);
-    a.setStyle("fusion");
-
-    Table w;
-    thrnum++;
-    w.conName = QVariant(thrnum).toString();
-    w.show();
-    return a.exec();
-}
-
+TODO:
+    create separate class for handling tableData (save, import)
+    create separate class for handling all DataBase stuff (queries), using tableData
+    only then, re-create UI as frontend for tableData & queries
+    then re-create UI in QML/JavaScript, to create proper QML/JavaScript interface
+Optional:
+    add more highlighting features
+    add separate keywords per database type (Oracle, Postgres SQlLite)
 */

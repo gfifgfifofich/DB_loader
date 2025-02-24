@@ -33,6 +33,7 @@ private slots:
     void suggestName();
     void fillName();
 
+    void CommentSelected();
 
 signals:
     void s_suggestedName();

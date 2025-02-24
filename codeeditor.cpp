@@ -380,9 +380,10 @@ void CodeEditor::FillsuggestName()
     }
     qDebug() << word;
     bool CursedStarSymbolDetected = false;
-    if(start-1 >=0 && text[start-1] =='*')
+    if(start-1 >=0 && (text[start-1] =='*' || text[start-1] =='>'|| text[start-1] =='<'|| text[start-1] =='='|| text[start-1] =='+'|| text[start-1] =='-'))
         CursedStarSymbolDetected = true;
     qDebug()<< "Pasted: "<<lastSuggestedWord;
+    cursor.beginEditBlock();
     cursor.setPosition(start, QTextCursor::MoveAnchor);
     cursor.setPosition(end+1, QTextCursor::KeepAnchor);
     if(CursedStarSymbolDetected)
@@ -392,10 +393,51 @@ void CodeEditor::FillsuggestName()
     cursor.insertText(lasttext);
     if(postgreSQL && lasttexttablecolumn)
         cursor.insertText("\"");
+    cursor.endEditBlock();
 
 }
-//keyPressEvent();
 
+void CodeEditor::CommentSelected()
+{
+    QTextCursor cursor = textCursor();
+    int s_start = cursor.selectionStart();
+    int s_end = cursor.selectionEnd();
+
+    cursor.setPosition(s_start);
+    int b_start = cursor.block().blockNumber();
+    cursor.setPosition(s_end);
+    int b_end = cursor.block().blockNumber();
+
+    bool uncoment = false;
+    cursor.setPosition(s_start);
+
+    if(cursor.block().text().startsWith("--"))
+        uncoment = true;
+    else
+        uncoment = false;
+
+
+    QTextBlock tb = cursor.block();
+
+    cursor.beginEditBlock();
+    while(tb.blockNumber() <= blockCount() && tb.isValid()  && tb.blockNumber() <= b_end)
+    {
+        cursor.setPosition(tb.position());
+        if(uncoment && tb.text().startsWith("--"))
+        {
+            cursor.deleteChar();
+            cursor.deleteChar();
+        }
+        else if (!tb.text().startsWith("--"))
+        {
+            cursor.insertText("--");
+        }
+
+        tb = tb.next();
+    }
+    cursor.endEditBlock();
+
+}
 
 
 
