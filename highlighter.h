@@ -27,9 +27,13 @@ public:
     QMap<QString,bool> ColumnMap;
     QMap<int,QMap<QString,TextInterval>> TableAliasMapPerRow;
     QMap<QString,QString> TableColumnAliasMap; // key-alias-name / key-table-name
-
-    QVector<QString> dbPatterns;
     QMap<QString,QMap<QString,bool>> TableColumnMap;
+    QVector<QString> dbPatterns;
+
+    QMap<QString,bool> ColumnMap_lower;
+    QMap<QString,QString> TableColumnAliasMap_lower; // key-alias-name / key-table-name
+    QMap<QString,QMap<QString,bool>> TableColumnMap_lower;
+
 
     bool PostgresStyle = false;
     bool QSLiteStyle = false;

@@ -57,7 +57,7 @@ public:
     bool b_SaveAsWorkSpace = false;
 
     QStringList workspaceDependenices;
-    qint64 LastWorkspaceUpdateInterval = 10;//12*60*60; // 12 hours
+    qint64 LastWorkspaceUpdateInterval = 12*60*60; // 12 hours
     qint64 LastWorkspaceUpdate = 0;
     QString LastWorkspaceName = "WorkSpace0";
     QString tmpFileName = "";
@@ -143,6 +143,7 @@ public:
     QString autofilename = "";
     bool autosaveXLSX = false;
     bool autosaveSQLITE = false;
+    bool TableUpdatedForGraph = false;
     void SaveToFile();
 
     iter_Window iw;
@@ -183,6 +184,7 @@ private slots:
     void ShowGraph();
     void UpdateGraphGraph();
     void CopySelectionFormTable();
+    void CopySelectionFormTableSql();
 
 
     void on_listWidget_currentTextChanged(const QString &currentText);

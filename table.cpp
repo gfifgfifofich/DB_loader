@@ -23,42 +23,17 @@
 #include <QAbstractItemModel>
 #include <QItemSelectionModel>
 #include <QModelIndexList>
-
-
-//#include <QtQml/qqmlengine.h>
-//#include <QtQuick/qquickview.h>
-//
-//#include <QtQml/qqmlengine.h>
-//#include <QtQuick/qquickview.h>
-//#include <qquickitem.h>
+#include <QPdfWriter>
 /*
 
-
-
-
-
-save with datetime
-
-Remove postgre toggle, detect by drivername.toLower().contains("postgre") || drivername.toLower().contains("psql");
 add dates, datatypes
-multiline edit
-workspaces
 
-datasources - table {sqliteTableName, sqlCode, updateInterval, lastUpdate}
-if used_in_code, and current - lastUpdate > updateInterval
-    run sqlCode,
-    save as sqliteTableName
-dataSources
-(
-sqliteTableName text primary key,
-sqlDriver text,
-sqlDBName text,
-sqlUserName text,
-sqlPassword text,
-sqlCode text,
-updateInterval int, -- minuts
-lastUpdate datetime
-)
+multiline edit
+highlighter per db
+highlight brackets &shit
+
+implemented through workspaces///////datasources - table {sqliteTableName, sqlCode, updateInterval, lastUpdate}
+
 */
 
 class TableLauncher : public QObject
@@ -100,12 +75,12 @@ Table::Table(QWidget *parent)
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_I), this, SLOT(ShowIterateWindow()));
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_G), this, SLOT(ShowGraph()));
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_C), this, SLOT(CopySelectionFormTable()));
+    new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_C), this, SLOT(CopySelectionFormTableSql()));
+    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_B), cd, SLOT(CommentSelected()));
 
 
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_H), this, SLOT(ShowHistoryWindow()));
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_W), this, SLOT(ShowWorkspacesWindow()));
-
-
 
     //QQuickView* g_viewer = new QQuickView;
     //g_viewer->setTitle(QStringLiteral("HelloGraphs"));
@@ -152,17 +127,18 @@ Table::Table(QWidget *parent)
     ls->setName("axis 1");
     ls->setUseOpenGL();
     chrt->addSeries(ls);
+    cv->setRenderHint(QPainter::Antialiasing,true);
     cv->backgroundBrush().setColor(Qt::black);
     chrt->setBackgroundBrush(cv->backgroundBrush());
     cv->setChart(chrt);
     cv->hide();
+    b_showgraph = false;
     bottomAxisIsDate = false;
 
     //QQuickView viewer;
 
 
 
-    b_showgraph = true;
 
     iw.Init();
     ui->horizontalLayout_3->addLayout(&iw.iter_layout);
@@ -279,6 +255,15 @@ Table::Table(QWidget *parent)
     }
 
     cd->setFocus();
+
+
+
+
+
+
+
+
+
 }
 void Table::Init(QString conname,QString driver,QString dbname,QString usrname, QString password, QString sql, QString SaveFileName)
 {
@@ -322,6 +307,14 @@ void Table::CopySelectionFormTable()
 
 void Table::ShowGraph()
 {
+    if(TableUpdatedForGraph)
+    {
+        UpdateGraphGraph();
+        TableUpdatedForGraph = false;
+        return;
+    }
+    TableUpdatedForGraph = false;
+
     if(b_showgraph)
     {
         cv->hide();
@@ -336,19 +329,36 @@ void Table::ShowGraph()
 }
 void Table::UpdateGraphGraph()
 {
+    ls->setMarkerSize(100);
+    ls->setPointLabelsVisible(true);
+    //ls->setPointLabelsColor(Qt::white);
+    //ls->setColor(Qt::red);
+    ls->setName("axis 1");
+    ls->setUseOpenGL();
+    //cv->chart()->setAnimationDuration(300);
+    cv->chart()->setTheme(QChart::ChartThemeDark);
+    cv->chart()->setBackgroundRoundness(10);
+    cv->chart()->setAnimationOptions(QChart::NoAnimation);
+    //cv->chart()->setTitle("Graph");
+
+    //cv->backgroundBrush().setColor(Qt::black);
+    //chrt->setBackgroundBrush(cv->backgroundBrush());
+    //cv->setChart(chrt);
+    cv->setRenderHint(QPainter::Antialiasing,true);
+
     ax->applyNiceNumbers();
     ax->setObjectName("asdasdzxczxcz");
-    ax->setLabelsColor(Qt::white);
-    ax2->applyNiceNumbers();
+    //ax->setLabelsColor(Qt::white);
+    //ax2->applyNiceNumbers();
     ax2->setObjectName("asdasd");
-    ax2->setLabelsColor(Qt::white);
+    //ax2->setLabelsColor(Qt::white);
     ls->clear();
     long int maxi = 0;
     long int mini = QDateTime::currentSecsSinceEpoch();
     QDateTime maxdt = QDateTime::currentDateTime();
     QDateTime mindt = QDateTime::currentDateTime();
-    float maxf = -100000000.0f;
-    float minf = 100000000.0f;
+    double maxf = -100000000.0f;
+    double minf = 100000000.0f;
     if(tableData.size() <=0)
         return;
     if(tableData[0].size() <1)
@@ -360,49 +370,58 @@ void Table::UpdateGraphGraph()
     else
         bottomAxisIsDate = false;
 
-    for(int i=0;i<tableData.size();i++)
+    for(int i=0;i<tableData[0].size();i++)
     {
-        if(tableData[i][0].toFloat() > maxf)
-            maxf = tableData[i][0].toFloat();
-        if(tableData[i][0].toFloat() < minf)
-            minf = tableData[i][0].toFloat();
         if(!bottomAxisIsDate)
-            maxi = i;
-        else
         {
-            if(tableData[i][1].toFloat() > maxf)
-                maxf = tableData[i][1].toFloat();
-            if(tableData[i][1].toFloat() < minf)
-                minf = tableData[i][1].toFloat();
+            if(tableData[0][i].toFloat() > maxf)
+                maxf = tableData[0][i].toFloat();
+            if(tableData[0][i].toFloat() < minf)
+                minf = tableData[0][i].toFloat();
 
-            if(tableData[i][0].toDateTime().toSecsSinceEpoch() > maxi)
+            maxi = i;
+        }
+        else if(tableData.size() > 1)
+        {
+            if(tableData[1][i].toFloat() > maxf)
+                maxf = tableData[1][i].toFloat();
+            if(tableData[1][i].toFloat() < minf)
+                minf = tableData[1][i].toFloat();
+
+            if(tableData[0][i].toDateTime().toSecsSinceEpoch() > maxi)
             {
-                maxi = tableData[i][0].toDateTime().toSecsSinceEpoch();
-                maxdt = tableData[i][0].toDateTime();
+                maxi = tableData[0][i].toDateTime().toSecsSinceEpoch();
+                maxdt = tableData[0][i].toDateTime();
             }
-            if(tableData[i][0].toDateTime().toSecsSinceEpoch() < mini)
+            if(tableData[0][i].toDateTime().toSecsSinceEpoch() < mini)
             {
-                mini = tableData[i][0].toDateTime().toSecsSinceEpoch();
-                mindt = tableData[i][0].toDateTime();
+                mini = tableData[0][i].toDateTime().toSecsSinceEpoch();
+                mindt = tableData[0][i].toDateTime();
             }
         }
 
     }
+    qDebug()<<mindt ;
+    qDebug()<<maxdt ;
+
+    qDebug()<<minf ;
+    qDebug()<<maxf ;
     if(minf > 0.0f)
         minf=  0.0f;
 
     maxf *= 1.05f;
     if(!bottomAxisIsDate)
-        for(int i=0;i<tableData.size();i++)
+        for(int i=0;i<tableData[0].size();i++)
         {
-            ls->append(i/float(maxi) * 100,(tableData[i][0].toReal()) / (maxf-minf) * 100);
+            ls->append(i/float(maxi) * 100,(tableData[0][i].toReal()) / (maxf-minf) * 100);
         }
     else
     {
-        for(int i=0;i<tableData.size();i++)
+        for(int i=0;i<tableData[1].size();i++)
         {
-            qDebug()<<(tableData[i][0].toDateTime().toSecsSinceEpoch()-mini)/double(maxi - mini) * 100.0f;
-            ls->append((tableData[i][0].toDateTime().toSecsSinceEpoch()-mini)/double(maxi - mini) * 100.0f,(tableData[i][1].toReal()) / (maxf-minf) * 100);
+            qDebug()<<(tableData[0][i].toDateTime().toSecsSinceEpoch()-mini)/double(maxi - mini) * 100.0f;
+
+            ls->append((tableData[0][i].toDateTime().toSecsSinceEpoch()-mini)/double(maxi - mini) * 100.0f,(tableData[1][i].toReal()) / (maxf-minf) * 100);
         }
     }
     ax->setMax(maxf);
@@ -422,15 +441,9 @@ void Table::UpdateGraphGraph()
         axdt->setMax(maxdt);
         axdt->setMin(mindt);
     }
-    ls->setMarkerSize(100);
-    ls->setPointLabelsVisible(true);
-    ls->setPointLabelsColor(Qt::white);
-    ls->setColor(Qt::red);
-    ls->setName("axis 1");
-    ls->setUseOpenGL();
-    cv->backgroundBrush().setColor(Qt::black);
-    chrt->setBackgroundBrush(cv->backgroundBrush());
-    //cv->setChart(chrt);
+
+
+
 }
 
 inline int thrnum;
@@ -443,12 +456,13 @@ void Table::IterButtonPressed()
     int secs = QTime::currentTime().minute() * 60 + QTime::currentTime().second();
     int secswas = lastMultiRunPress.minute() * 60 + lastMultiRunPress.second();
 
-    if(secs - secswas < 5)
-        return;
-    lastMultiRunPress = QTime::currentTime();
     int start = iw.sb1.value();
     int end = iw.sb2.value();
     int step = iw.sb3.value();
+
+    if(secs - secswas < 5 || step == 0)
+        return;
+    lastMultiRunPress = QTime::currentTime();
     for(int it = start; it <=end;it+=step)
     {
         QString formatedSql = "";
@@ -475,15 +489,27 @@ void Table::IterButtonPressed()
 
         tbl->autofilename = ui->lineEdit->text();
         if(tbl->autofilename.endsWith(".xlsx"))
+        {
             tbl->autofilename.resize(tbl->autofilename.size()-5);
-        tbl->autofilename += "_";
-        tbl->autofilename += QVariant(it).toString();
-        tbl->autofilename += ".xlsx";
-        tbl->autosaveXLSX = true;
+            tbl->autofilename += "_";
+            tbl->autofilename += QVariant(it).toString();
+            tbl->autofilename += ".xlsx";
+            tbl->autosaveXLSX = true;
+            tbl->autosaveSQLITE = false;
+        }
+        else
+        {
+            tbl->autosaveXLSX = false;
+            tbl->autosaveSQLITE = true;
+            tbl->autofilename += "_";
+            tbl->autofilename += QVariant(it).toString();
+        }
+
         tbl->show();
         thrnum++;
         tbl->conName = QVariant(thrnum).toString();
         tbl->Init(QVariant(thrnum).toString(), ui->comboBoxDriver->currentText(),ui->comboBox->currentText(), ui->lineEdit_2->text(),  ui->lineEdit_3->text(),formatedSql,autofilename);
+        tbl->runSqlAsync(QVariant(thrnum).toString(), ui->comboBoxDriver->currentText(),ui->comboBox->currentText(), ui->lineEdit_2->text(),  ui->lineEdit_3->text(),true,true);
         tbl->show();
     }
 }
@@ -560,14 +586,14 @@ void Table::UpdateTable()
     qDebug()<<headers.size();
     ui->tableWidget->setColumnCount(headers.size());
     qDebug()<<"column count";
-    int tabl_size = 5000;
+    int tabl_size = 25000;
     if(tableData.size()>0)
         tabl_size  = tableData[0].size();
 
     if(viewall)
         ui->tableWidget->setRowCount(tabl_size );
-    else if(tabl_size  > 5000)
-        ui->tableWidget->setRowCount(5000);
+    else if(tabl_size  > 25000)
+        ui->tableWidget->setRowCount(25000);
     else
         ui->tableWidget->setRowCount(tabl_size );
 
@@ -576,7 +602,7 @@ void Table::UpdateTable()
     qDebug()<<"labels";
     for(int i=0;i<tableData.size();i++)
     {
-        for (int a=0; (viewall && a<tableData[i].size()) || (a<tableData[i].size() && !viewall && a < 5000);a++)
+        for (int a=0; (viewall && a<tableData[i].size()) || (a<tableData[i].size() && !viewall && a < 25000);a++)
         {
             QTableWidgetItem *item = new QTableWidgetItem(tableData[i][a].toString(),tableData[i][a].typeId());
             ui->tableWidget->setItem(a, i, item);
@@ -611,6 +637,11 @@ void Table::UpdateTable()
 
         on_SaveToSQLiteTable_clicked();
     }
+    if(b_showgraph)
+        if(tableData.size()>0 and tableData[0].size() > 0 and tableData[0].size() < 10000)
+            UpdateGraphGraph();
+    //TableUpdatedForGraph = true;
+
     emit TableUpdated();
 }
 
@@ -816,7 +847,6 @@ void Table::SaveToFile()
 
     //    }
     //}
-
     xlsxR3->addSheet("SQL");
     xlsxR3->selectSheet("SQL");
     xlsxR3->write(1,1,"SQL QUERY");
@@ -846,30 +876,28 @@ void Table::connectDB(QString conname,QString driver, QString dbname,QString usr
         if(driver =="QOCI")
         {
             tdb = QSqlDatabase::addDatabase("QOCI",conname);
-            tdb.setConnectOptions("OCI_ATTR_PREFETCH_ROWS=1000");
+            tdb.setConnectOptions("OCI_ATTR_PREFETCH_ROWS=200");
             oracle = true;
-            //ui->checkBox->setCheckState(Qt::Unchecked);
         }
         else if(driver =="QPSQL")
         {
             tdb = QSqlDatabase::addDatabase("QPSQL",conname);
             postgre = true;
             cd->highlighter->PostgresStyle = true;
-            //ui->checkBox->setCheckState(Qt::Checked);
         }
         else
         {
             tdb = QSqlDatabase::addDatabase("QODBC",conname);
             ODBC = true;
-           // ui->checkBox->setCheckState(Qt::Unchecked);
         }
     }
     else
     {
-       // ui->checkBox->setCheckState(Qt::Unchecked);
         tdb = QSqlDatabase::addDatabase("QSQLITE",conname);
-        dbname = "SQLiteDB.db";
-        dbSchemaName = "SQLiteDB";
+       if(!dbname.endsWith(".db"))
+            dbname = "SQLiteDB.db";
+
+        dbSchemaName = dbname.split('.')[0]; // all before first dot
         usrname = " ";
         password = " ";
         tdb.setDatabaseName("SQLiteDB.db");
@@ -1823,6 +1851,9 @@ UNION ALL SELECT 'data1', 'data2'
 
 void Table::on_listWidget_currentTextChanged(const QString &currentText)
 {
+    if(b_showWorkspaces && currentText =="")
+        return;
+
     if(currentText == "tmp")
         cd->setPlainText(tmpSql);
     else
@@ -2011,6 +2042,26 @@ void Table::SaveWorkspace()
     stream2 << text.toStdString();
     stream2.close();
 
+
+    //const QString filename("C:/Users/pavel.kholkovskiy/Documents/untitled/build/Release/Desktop-Release/test.pdf");
+    //QString testData = "test";
+    //QPdfWriter pdfwriter(filename);
+    //pdfwriter.setPageSize(QPageSize(QPageSize::A4));
+    //pdfwriter.setResolution(200);
+    //QPainter painter(&pdfwriter);
+    //QSize s = cv->size();
+
+    //cv->chart()->addSeries(ls);
+    //cv->show();
+    //QPixmap pix = cv->grab();
+    //int h = painter.window().height()*0.4;
+    //int w = h * 1.3;
+    //int x = (painter.window().width() / 2) - (w/2);
+    //int y = (painter.window().height() / 2) - (h/2);
+    //cv->resize(w, h);
+    ////painter.drawPixmap(x, y, w, h, pix);
+    //cv->render(&painter);
+    //cv->resize(s);
 }
 
 void Table::ShowWorkspacesWindow()
@@ -2045,3 +2096,40 @@ void Table::on_lineEdit_4_textChanged(const QString &arg1)
 {
     LastWorkspaceName = arg1;
 }
+
+void Table::CopySelectionFormTableSql()
+{
+    QModelIndexList indexes = ui->tableWidget->selectionModel()->selectedIndexes();
+    QAbstractItemModel * model = ui->tableWidget->model();
+    int column_count = model->columnCount();
+    QModelIndex previous = indexes.first();
+    indexes.removeFirst();
+    QString selected_text =  "";
+
+    selected_text.append(" '");
+    selected_text.append(model->data(previous).toString());
+    selected_text.append("', \n");
+    bool first = true;
+    qDebug()<<"ctr+shift+c'ed";
+    qDebug()<<"column_count " << column_count;
+
+     for(auto current : indexes)
+     {
+         QVariant data = model->data(current);
+         QString text = data.toString();
+         selected_text.append(" '");
+         selected_text.append(text);
+         selected_text.append("', \n");
+
+         previous = current;
+     }
+     QApplication::clipboard()->setText(selected_text);
+     return;
+
+}
+
+
+
+
+
+
