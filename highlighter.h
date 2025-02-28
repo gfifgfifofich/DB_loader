@@ -15,7 +15,15 @@ struct TextInterval
     int type = 0;
     bool is_number = false;
 };
+struct S_TextInterval
+{
+    int start = 0;
+    int end = 0;
+    QString text = "";
+};
 inline QVector<TextInterval> textintervals;
+
+
 
 class Highlighter : public QSyntaxHighlighter
 {
@@ -28,15 +36,22 @@ public:
     QMap<int,QMap<QString,TextInterval>> TableAliasMapPerRow;
     QMap<QString,QString> TableColumnAliasMap; // key-alias-name / key-table-name
     QMap<QString,QMap<QString,bool>> TableColumnMap;
+
     QVector<QString> dbPatterns;
+
+    QVector<QString> SQLitedbPatterns;
+    QVector<QString> OracledbPatterns;
+    QVector<QString> PostgredbPatterns;
 
     QMap<QString,bool> ColumnMap_lower;
     QMap<QString,QString> TableColumnAliasMap_lower; // key-alias-name / key-table-name
     QMap<QString,QMap<QString,bool>> TableColumnMap_lower;
 
+    // tokens in current sql query, from ; to ; or from 0 to end
+    QVector<S_TextInterval> tokens;
 
     bool PostgresStyle = false;
-    bool QSLiteStyle = false;
+    bool QSLiteStyle  = false;
 
     DataStorage TableColumnDS;
     void UpdateTableColumns(QSqlDatabase* db, QString dbname);

@@ -36,8 +36,9 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         Patterns.cpp
         Patterns.h
         datastorage.h datastorage.cpp
-        graph.qml
-        GraphStuff.qml
+        tabledata.h tabledata.cpp
+        databaseconnection.h databaseconnection.cpp
+        loaderwidnow.h loaderwidnow.cpp loaderwidnow.ui
 
     )
 # Define target properties for Android with Qt 6 as:
