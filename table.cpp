@@ -36,6 +36,8 @@ implemented through workspaces///////datasources - table {sqliteTableName, sqlCo
 
 */
 
+inline QString appfilename;
+
 class TableLauncher : public QObject
 {
 public:
@@ -81,6 +83,9 @@ Table::Table(QWidget *parent)
 
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_H), this, SLOT(ShowHistoryWindow()));
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_W), this, SLOT(ShowWorkspacesWindow()));
+
+    connect( cd, SIGNAL(s_suggestedName()), this, SLOT(updatesuggestion()), Qt::QueuedConnection );
+    connect( this, SIGNAL(execdReady()), this, SLOT(ThreadReady()), Qt::QueuedConnection );
 
     //QQuickView* g_viewer = new QQuickView;
     //g_viewer->setTitle(QStringLiteral("HelloGraphs"));
@@ -154,8 +159,6 @@ Table::Table(QWidget *parent)
 
     connect( &iw.button, SIGNAL(pressed()), this, SLOT(IterButtonPressed()));
 
-    connect( cd, SIGNAL(s_suggestedName()), this, SLOT(updatesuggestion()), Qt::QueuedConnection );
-    connect( this, SIGNAL(execdReady()), this, SLOT(ThreadReady()), Qt::QueuedConnection );
 
     if(userDS.Load("userdata.txt"))
     {
@@ -447,8 +450,7 @@ void Table::UpdateGraphGraph()
 }
 
 inline int thrnum;
-
-QTime lastMultiRunPress = QTime::currentTime();
+inline QTime lastMultiRunPress;
 
 void Table::IterButtonPressed()
 {
@@ -516,15 +518,15 @@ void Table::IterButtonPressed()
 
 void Table::OpenNewWindow()
 {
-    QString str = cd->toPlainText();
-    Table* tbl = new Table();
-    tbl->sqlCode = "";
-    tbl->cd->setPlainText("");
-    tbl->show();
-    thrnum++;
-    tbl->conName = QVariant(thrnum).toString();
-    tbl->runSqlAsync(QVariant(thrnum).toString(),ui->comboBoxDriver->currentText(), ui->comboBox->currentText(), ui->lineEdit_2->text(),  ui->lineEdit_3->text(),true);
-    tbl->show();
+
+    QString str= appfilename;
+    qDebug()<<"opening:" << str;
+
+    if(QDesktopServices::openUrl(QUrl::fromLocalFile(str)))
+        ui->statuslabel->setText("Opening file.");
+    else
+        ui->statuslabel->setText("error opening file.");
+
 }
 
 void Table::ShowIterateWindow()
@@ -644,8 +646,6 @@ void Table::UpdateTable()
 
     emit TableUpdated();
 }
-
-
 
 void Table::ThreadReady()
 {
@@ -1396,7 +1396,7 @@ void Table::RunAsScript(int startfrom)
     ui->statuslabel->setText("Script finished");
 }
 
-void  Table::runSqlAsync(QString conname,QString driver,QString dbname,QString usrname, QString password, bool createconnection, bool runall)
+void Table::runSqlAsync(QString conname,QString driver,QString dbname,QString usrname, QString password, bool createconnection, bool runall)
 {
 
     if(userDS.Load("userdata.txt"))
@@ -1650,6 +1650,22 @@ void  Table::runSqlAsync(QString conname,QString driver,QString dbname,QString u
             }
         }
 
+        QString SIDsql = "SELECT  s.sid, s.serial#, s.sql_id, s.username, s.program FROM v$session s WHERE  s.type != 'BACKGROUND' AND S.USERNAME = 'PLHOLKOVSKIY'";
+
+        QSqlQuery SIDquery(tdb);
+        if(SIDquery.exec(SIDsql))
+        {
+            SIDquery.next();
+            sid = SIDquery.value(0).toInt();// sid
+            serial = SIDquery.value(1).toInt();// serial
+            //SIDquery.value(2);// sql_id
+            qDebug()<<"updated sid and serial, sid "<<sid << "   ser " << serial;
+
+        }
+        else
+            qDebug()<<"failed to run SID sql, "<<SIDquery.lastError();
+
+
         thr = QThread::create(Func,this);
         thr->start();
     }
@@ -1676,7 +1692,6 @@ void  Table::runSqlAsync(QString conname,QString driver,QString dbname,QString u
             historyDS.data["wSQL_BACKUP_LIST"][str.toStdString()] = str.toStdString();
             historyDS.Save("sqlHistoryList.txt");
         }
-
 
         SaveWorkspace();
         active_Windows =0;
@@ -2127,9 +2142,3 @@ void Table::CopySelectionFormTableSql()
      return;
 
 }
-
-
-
-
-
-

@@ -28,6 +28,8 @@ class Table : public QMainWindow
 
 public:
     explicit Table(QWidget *parent = nullptr);
+    int sid  = -1, serial  = -1, sql_ID = -1; // probably wont be able to use sqlid
+
     ~Table();
     void exec();
     QString sqlCode = "";
@@ -195,6 +197,7 @@ private slots:
     void SaveWorkspace();
     void on_lineEdit_4_textChanged(const QString &arg1);
 
+
 private:
     bool closing = false;
     Ui::Table *ui;
@@ -208,4 +211,3 @@ signals:
 };
 
 #endif // TABLE_H
-

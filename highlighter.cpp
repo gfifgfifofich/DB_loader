@@ -41,6 +41,21 @@ Highlighter::Highlighter(QTextDocument *parent)
 
 void Highlighter::highlightBlock(const QString &text)
 {
+    ////select*from //gets punished
+
+    //// "select * from table t where rownum < 100 and t.var=100;\n"
+    //tokens.clear();
+    //QStringList words = text.split(' '); // "select" "*" "from" "table" "where" "rownum" "<" "100;\n" "and" "t.var=100";
+    //for(auto s : words)
+    //{
+    //    if(!s.contains('.') && !s.contains('>') && !s.contains('<') && !s.contains('!') && !s.contains('=') && !s.contains('+') && !s.contains('-') && !s.contains('*')&& !s.contains('(') && !s.contains(')'))
+    //    {
+    //        // its a word
+    //        tokens.push_back(s);
+    //    }
+    //}
+
+
     textintervals.clear();
 
 
@@ -317,50 +332,58 @@ void Highlighter::UpdateTableColumns(QSqlDatabase* db, QString dbname)
 
     dbPatterns.clear();
     TableColumnDS.data.clear();
+
+    if(PostgresStyle)
+        keywordPatterns = PostgrePatterns;
+    else if(QSLiteStyle)
+        keywordPatterns = SQLitePatterns;
+    else
+        keywordPatterns = OraclePatterns;
+
     if(!QSLiteStyle)
     {
-    QStringList strl = db->databaseName().split(';');
-    QString filename = dbname;
+        QStringList strl = db->databaseName().split(';');
+        QString filename = dbname;
 
-    filename += QString(".txt");
-    if(QFile::exists(filename))
-    {
-        TableColumnDS.Load(filename.toStdString());
-    }
-    else
-    {
-        QString sql = "";
-        QFile fl("user_get_tables_columns_script.sql");
-        fl.open(QFile::OpenModeFlag::ReadOnly);
-        sql = fl.readAll();
-
-        db->open();
-        QSqlQuery q(*db);
-
-
-        if(q.exec(sql))
+        filename += QString(".txt");
+        if(QFile::exists(filename))
         {
-
-            while(q.next())
-            {
-                QString c_a = "";
-                QString c_b = "";
-                for(int a=0, total = q.record().count();a<total;++a)
-                {
-                    if(a==0)
-                        c_a = q.value(a).toString();
-                    if(a==1)
-                        c_b = q.value(a).toString();
-                }
-                TableColumnDS.data[c_a.toStdString()][c_b.toStdString()];
-            }
-            qDebug()<<TableColumnDS.data.size()  << filename;
+            TableColumnDS.Load(filename.toStdString());
         }
         else
-            qDebug()<<"error in sql: \n " << sql;
-        TableColumnDS.Save(filename.toStdString());
-        qDebug()<<filename;
-    }
+        {
+            QString sql = "";
+            QFile fl("user_get_tables_columns_script.sql");
+            fl.open(QFile::OpenModeFlag::ReadOnly);
+            sql = fl.readAll();
+
+            db->open();
+            QSqlQuery q(*db);
+
+
+            if(q.exec(sql))
+            {
+
+                while(q.next())
+                {
+                    QString c_a = "";
+                    QString c_b = "";
+                    for(int a=0, total = q.record().count();a<total;++a)
+                    {
+                        if(a==0)
+                            c_a = q.value(a).toString();
+                        if(a==1)
+                            c_b = q.value(a).toString();
+                    }
+                    TableColumnDS.data[c_a.toStdString()][c_b.toStdString()];
+                }
+                qDebug()<<TableColumnDS.data.size()  << filename;
+            }
+            else
+                qDebug()<<"error in sql: \n " << sql;
+            TableColumnDS.Save(filename.toStdString());
+            qDebug()<<filename;
+        }
     }
     else
     {
