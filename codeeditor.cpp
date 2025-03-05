@@ -12,14 +12,10 @@
 #include "highlighter.h"
 
 inline DataStorage userDS;
-
+inline QColor braccketHighlightColor = QColor(Qt::GlobalColor::darkRed).lighter(35);
 CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent)
 {
     lineNumberArea = new LineNumberArea(this);
-
-    connect(this, &CodeEditor::blockCountChanged, this, &CodeEditor::updateLineNumberAreaWidth);
-    connect(this, &CodeEditor::updateRequest, this, &CodeEditor::updateLineNumberArea);
-    connect(this, &CodeEditor::cursorPositionChanged, this, &CodeEditor::highlightCurrentLine);
 
     updateLineNumberAreaWidth(0);
     highlightCurrentLine();
@@ -33,10 +29,32 @@ CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent)
     highlighter = new Highlighter(document());
 
 
+
     connect(this,&CodeEditor::cursorPositionChanged,this,&CodeEditor::suggestName, Qt::QueuedConnection );
 
+    connect(this, &CodeEditor::blockCountChanged, this, &CodeEditor::updateLineNumberAreaWidth);
+    connect(this, &CodeEditor::updateRequest, this, &CodeEditor::updateLineNumberArea);
+
+    connect(this, &CodeEditor::cursorPositionChanged, this, &CodeEditor::highlightCurrentLine);
+
+
+    //connect( cd, SIGNAL(s_suggestedName()), this, SLOT(updatesuggestion()), Qt::QueuedConnection );
 
     connect( this, SIGNAL(tabDetected()), this, SLOT(fillName()), Qt::QueuedConnection );
+
+    if(userDS.Load("userdata.txt"))
+    {
+        QStringList strl = QString(userDS.data["UserTheme"]["BracketHighlightColor"].c_str()).split(',');
+        QColor col = QColor(Qt::GlobalColor::darkRed).lighter(35);
+        for(int i=0;i<strl.size();i++)
+        {
+            if(i==0) col.setRed(QVariant(strl[i]).toInt());
+            if(i==1) col.setGreen(QVariant(strl[i]).toInt());
+            if(i==2) col.setBlue(QVariant(strl[i]).toInt());
+            if(i==3) col.setAlpha(QVariant(strl[i]).toInt());
+        }
+        braccketHighlightColor = col;
+    }
 }
 
 int CodeEditor::lineNumberAreaWidth()
@@ -52,8 +70,9 @@ int CodeEditor::lineNumberAreaWidth()
 
     return space;
 }
-void CodeEditor::updateLineNumberAreaWidth(int /* newBlockCount */)
+void CodeEditor::updateLineNumberAreaWidth(int  /*newBlockCount */)
 {
+    //highlighter->OnBlockCountChanged(newBlockCount);
     setViewportMargins(lineNumberAreaWidth(), 0, 0, 0);
 }
 void CodeEditor::updateLineNumberArea(const QRect &rect, int dy)
@@ -75,6 +94,11 @@ void CodeEditor::resizeEvent(QResizeEvent *e)
 }
 void CodeEditor::highlightCurrentLine()
 {
+    QString text = toPlainText();
+    int cursor_position = textCursor().position();
+
+    bool validCursorPos = cursor_position >=0 && cursor_position <text.size();
+
     QList<QTextEdit::ExtraSelection> extraSelections;
 
     if (!isReadOnly()) {
@@ -89,9 +113,89 @@ void CodeEditor::highlightCurrentLine()
         extraSelections.append(selection);
     }
 
+    //always highlight brackets
+    if(validCursorPos && (text[cursor_position] == '(' || (cursor_position-1 >0 && text[cursor_position-1] == '(')))
+    {
+        QTextEdit::ExtraSelection bracketSelection;
+
+        int bracketStart = cursor_position;
+        if(cursor_position-1 >0 && text[cursor_position-1] == '(')
+            bracketStart = cursor_position-1;
+
+
+        int bracketEnd = cursor_position;
+        int bracketCount = 0;
+        for (int i = bracketStart; i < text.size(); i++)
+        {
+            if(text[i]=='(')
+                bracketCount ++;
+            if(text[i]==')')
+                bracketCount --;
+            if(bracketCount <=0)
+            {
+                bracketEnd=i;
+                break;
+            }
+            if (i ==  text.size()-1)
+            {
+                bracketEnd=i;
+                break;
+            }
+        }
+
+        QColor lineColor = braccketHighlightColor ;
+        bracketSelection.format.setBackground(lineColor.lighter());
+        bracketSelection.cursor = textCursor();
+        bracketSelection.cursor.clearSelection();
+        bracketSelection.cursor.setPosition(bracketStart, QTextCursor::MoveAnchor);
+        bracketSelection.cursor.setPosition(bracketEnd+1, QTextCursor::KeepAnchor);
+
+        extraSelections.append(bracketSelection);
+    }
+    else if(validCursorPos && (text[cursor_position] == ')' || (cursor_position-1 >0 && text[cursor_position-1] == ')')))
+    {
+        QTextEdit::ExtraSelection bracketSelection;
+
+        int bracketStart = cursor_position;
+        if(cursor_position-1 >0 && text[cursor_position-1] == ')')
+            bracketStart = cursor_position-1;
+
+
+        int bracketEnd = cursor_position;
+        int bracketCount = 0;
+        for (int i = bracketStart; i >= 0; i--)
+        {
+            if(text[i]=='(')
+                bracketCount ++;
+            if(text[i]==')')
+                bracketCount --;
+            if(bracketCount >=0)
+            {
+                bracketEnd=i;
+                break;
+            }
+            if (i == 0)
+            {
+                bracketEnd=i;
+                break;
+            }
+        }
+
+        QColor lineColor = braccketHighlightColor ;
+        bracketSelection.format.setBackground(lineColor.lighter());
+        bracketSelection.cursor = textCursor();
+        bracketSelection.cursor.clearSelection();
+        bracketSelection.cursor.setPosition(bracketEnd, QTextCursor::MoveAnchor);
+        bracketSelection.cursor.setPosition(bracketStart+1, QTextCursor::KeepAnchor);
+
+        extraSelections.append(bracketSelection);
+    }
+
+    setExtraSelections(extraSelections);
+
+
     setExtraSelections(extraSelections);
 }
-
 void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
 {
     QPainter painter(lineNumberArea);
@@ -116,6 +220,54 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
 }
 
 
+void CodeEditor::replace(int _from, int _to, QString _what, QString _with)
+{// better to reimplement to work from cursors, not just text replacing
+    if(_from > _to)
+        return;
+    if(_what.size() < 1 || _with.size()<1)
+        return;
+
+    QString text = toPlainText();
+
+    QTextCursor cursor = textCursor();
+    cursor.beginEditBlock();
+    cursor.setPosition(1);
+
+    int w_start = 0;
+    int w_end = 0;
+    int match = 0;
+    int replace_count = 0;
+    int sizeDiff =  _with.size() - _what.size();
+    int lineNumber = 0;
+    for(int i=0;i < text.size();i++)
+    {
+        if(text[i] == '\n')
+            lineNumber++;
+        if(lineNumber >= _from -1 && lineNumber < _to)
+        {
+            if(text[i] == _what[match])
+            {
+                if(match == 0)
+                    w_start = i + (sizeDiff * replace_count);
+                match++;
+            }
+            else
+                match = 0;
+            if(match == _what.size())
+            {
+                match = 0;
+                w_end = i + (sizeDiff * replace_count);
+                cursor.setPosition(w_start, QTextCursor::MoveAnchor);
+                cursor.setPosition(w_end+1, QTextCursor::KeepAnchor);
+
+                cursor.insertText(_with);
+                replace_count++;
+            }
+        }
+    }
+    cursor.endEditBlock();
+
+}
 void CodeEditor::suggestName()
 {
 
@@ -327,13 +479,10 @@ void CodeEditor::suggestName()
     emit s_suggestedName();
 
 }
-
 void CodeEditor::fillName()
 {
     FillsuggestName();
 }
-
-
 void CodeEditor::FillsuggestName()
 {
     QTextCursor cursor = textCursor();

@@ -29,11 +29,15 @@ class Highlighter : public QSyntaxHighlighter
 {
     Q_OBJECT
 
+private:
+    int prevBlockCount = false;
+    int currentBlockCount  = false;
+    int BlockCountDiff  = false;
+    bool newBlockCount = false;
 public:
     Highlighter(QTextDocument *parent = 0);
 
     QMap<QString,bool> ColumnMap;
-    QMap<int,QMap<QString,TextInterval>> TableAliasMapPerRow;
     QMap<QString,QString> TableColumnAliasMap; // key-alias-name / key-table-name
     QMap<QString,QMap<QString,bool>> TableColumnMap;
 
@@ -48,16 +52,21 @@ public:
     QMap<QString,QMap<QString,bool>> TableColumnMap_lower;
 
     // tokens in current sql query, from ; to ; or from 0 to end
-    QVector<S_TextInterval> tokens;
+    QMap<int,QVector<S_TextInterval>> tokens;
+    QMap<int,QMap<QString,TextInterval>> TableAliasMapPerRow;
+
+
 
     bool PostgresStyle = false;
     bool QSLiteStyle  = false;
+    QString dbSchemaName = "";
 
     DataStorage TableColumnDS;
     void UpdateTableColumns(QSqlDatabase* db, QString dbname);
 
     void HighLightALl();
 
+    void OnBlockCountChanged(int newBlockCount) ;
 protected:
     void highlightBlock(const QString &text) override;
 
@@ -80,5 +89,6 @@ private:
     QTextCharFormat multiLineCommentFormat;
     QTextCharFormat quotationFormat;
     QTextCharFormat functionFormat;
+
 };
 #endif // HIGHLIGHTER_H

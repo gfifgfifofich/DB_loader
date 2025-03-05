@@ -27,9 +27,9 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(untitled
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
-        codeeditor.cpp codeeditor.h datastorage.cpp datastorage.h highlighter.cpp highlighter.h linenumberarea.cpp linenumberarea.h Patterns.cpp Patterns.h table.cpp table.h
+        codeeditor.cpp codeeditor.h datastorage.cpp datastorage.h highlighter.cpp highlighter.h linenumberarea.cpp linenumberarea.h Patterns.cpp Patterns.h
         codeeditor.cpp
-        table.h table.cpp table.ui
+
         linenumberarea.h linenumberarea.cpp
         codeeditor.h codeeditor.cpp
         highlighter.h highlighter.cpp
@@ -39,6 +39,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         tabledata.h tabledata.cpp
         databaseconnection.h databaseconnection.cpp
         loaderwidnow.h loaderwidnow.cpp loaderwidnow.ui
+        table.h table.cpp
+        replacedialog.h replacedialog.cpp replacedialog.ui
 
     )
 # Define target properties for Android with Qt 6 as:

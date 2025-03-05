@@ -174,6 +174,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
 
 void DatabaseConnection::execSql(QString sql)
 {
+    stopNow = false;// to be shure we wont reject query right after exec
     if(sql.size() <=0)
         sql = sqlCode;
     tableDataMutex.lock();
@@ -191,15 +192,16 @@ void DatabaseConnection::execSql(QString sql)
     QString str = sql;
     qDebug() << "creating query";
     emit queryBeginCreating();
-    QSqlQuery q(str,db);
+    QSqlQuery q(db);
     qDebug() << "created query";
 
     q.setForwardOnly(true);
-    q.prepare(str);
+    //qDebug() << "prepearing query";
+    //q.prepare(str);
     data.headers.clear();
 
 
-    qDebug() << "EXECUTING query";
+    qDebug() << "executing query";
     emit queryBeginExecuting();
     if(q.exec(str))
     {
@@ -208,7 +210,6 @@ void DatabaseConnection::execSql(QString sql)
         for(int a=0,total = q.record().count(); a<total;a++)
             data.headers << q.record().fieldName(a);
         int i=0;
-
         data.data.clear();
         data.data.resize(data.headers.size());
         while(q.next())
@@ -230,7 +231,7 @@ void DatabaseConnection::execSql(QString sql)
                     var = str;
                     int integ = var.toInt(&isint);
                     var = str;
-                    if((!dt.isValid() || dt.isNull()) && isdouble && QVariant(integ).toString().size()>9)
+                    if((!dt.isValid() || dt.isNull()) && isdouble && str.size()>9)
                     {
                         isdouble = false;
                         forcetext = true;
@@ -251,11 +252,20 @@ void DatabaseConnection::execSql(QString sql)
                             var = QVariant(var.toInt());
                         }
                     }
+                    else
+                        var = str;
                 }
 
                 data.data[a].push_back(var);
             }
             i++;
+            if(stopAt500Lines && i > 500)
+                break;
+            if(stopNow)
+            {
+                stopNow=false;
+                break;
+            }
         }
     }
     else

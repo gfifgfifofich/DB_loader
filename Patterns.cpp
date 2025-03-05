@@ -8,8 +8,6 @@
 void fillPaterns()
 {
 
-
-    PostgrePatterns.push_back("a");
     PostgrePatterns.push_back("abort;");
     PostgrePatterns.push_back("abs");
     PostgrePatterns.push_back("absent");
@@ -72,7 +70,6 @@ void fillPaterns()
     PostgrePatterns.push_back("breadth");
     PostgrePatterns.push_back("btrim");
     PostgrePatterns.push_back("by");
-    PostgrePatterns.push_back("c");
     PostgrePatterns.push_back("cache");
     PostgrePatterns.push_back("call");
     PostgrePatterns.push_back("called");
@@ -296,7 +293,6 @@ void fillPaterns()
     PostgrePatterns.push_back("function");
     PostgrePatterns.push_back("functions");
     PostgrePatterns.push_back("fusion");
-    PostgrePatterns.push_back("g");
     PostgrePatterns.push_back("general");
     PostgrePatterns.push_back("generated");
     PostgrePatterns.push_back("get");
@@ -372,7 +368,6 @@ void fillPaterns()
     PostgrePatterns.push_back("json_table");
     PostgrePatterns.push_back("json_table_primitive");
     PostgrePatterns.push_back("json_value");
-    PostgrePatterns.push_back("k");
     PostgrePatterns.push_back("keep");
     PostgrePatterns.push_back("key");
     PostgrePatterns.push_back("keys");
@@ -414,7 +409,6 @@ void fillPaterns()
     PostgrePatterns.push_back("lower");
     PostgrePatterns.push_back("lpad");
     PostgrePatterns.push_back("ltrim");
-    PostgrePatterns.push_back("m");
     PostgrePatterns.push_back("map");
     PostgrePatterns.push_back("mapping");
     PostgrePatterns.push_back("match");
@@ -445,7 +439,6 @@ void fillPaterns()
     PostgrePatterns.push_back("move");
     PostgrePatterns.push_back("multiset");
     PostgrePatterns.push_back("mumps");
-    PostgrePatterns.push_back("name");
     PostgrePatterns.push_back("names");
     PostgrePatterns.push_back("namespace");
     PostgrePatterns.push_back("national");
@@ -512,7 +505,6 @@ void fillPaterns()
     PostgrePatterns.push_back("overriding");
     PostgrePatterns.push_back("owned");
     PostgrePatterns.push_back("owner");
-    PostgrePatterns.push_back("p");
     PostgrePatterns.push_back("pad");
     PostgrePatterns.push_back("parallel");
     PostgrePatterns.push_back("parameter");
@@ -858,7 +850,6 @@ void fillPaterns()
 
 
     OraclePatterns.push_back("guard");
-    OraclePatterns.push_back("d");
     OraclePatterns.push_back("guaranteed");
     OraclePatterns.push_back("vector_read_trace");
     OraclePatterns.push_back("informational");
@@ -946,7 +937,6 @@ void fillPaterns()
     OraclePatterns.push_back("sys_xqinsert");
     OraclePatterns.push_back("sqlldr");
     OraclePatterns.push_back("sys_op_itr");
-    OraclePatterns.push_back("subscribe");
     OraclePatterns.push_back("ub2");
     OraclePatterns.push_back("clob");
     OraclePatterns.push_back("project");
@@ -974,7 +964,6 @@ void fillPaterns()
     OraclePatterns.push_back("of");
     OraclePatterns.push_back("freelists");
     OraclePatterns.push_back("database");
-    OraclePatterns.push_back("name");
     OraclePatterns.push_back("nls_comp");
     OraclePatterns.push_back("advisor");
     OraclePatterns.push_back("some");
@@ -1096,7 +1085,6 @@ void fillPaterns()
     OraclePatterns.push_back("subpartition");
     OraclePatterns.push_back("noparallel_index");
     OraclePatterns.push_back("con_name_to_id");
-    OraclePatterns.push_back("h");
     OraclePatterns.push_back("authid");
     OraclePatterns.push_back("audit");
     OraclePatterns.push_back("pfile");
@@ -1111,7 +1099,6 @@ void fillPaterns()
     OraclePatterns.push_back("sys_xqseqsub");
     OraclePatterns.push_back("paths");
     OraclePatterns.push_back("outer_join_to_inner");
-    OraclePatterns.push_back("p");
     OraclePatterns.push_back("mod");
     OraclePatterns.push_back("verify");
     OraclePatterns.push_back("wrapped");
@@ -1248,14 +1235,12 @@ void fillPaterns()
     OraclePatterns.push_back("xmlexists2");
     OraclePatterns.push_back("expr_corr_check");
     OraclePatterns.push_back("minus_null");
-    OraclePatterns.push_back("client");
     OraclePatterns.push_back("index_rrs");
     OraclePatterns.push_back("sync");
     OraclePatterns.push_back("dbms_stats");
     OraclePatterns.push_back("key");
     OraclePatterns.push_back("em");
     OraclePatterns.push_back("numtodsinterval");
-    OraclePatterns.push_back("e");
     OraclePatterns.push_back("unrestricted");
     OraclePatterns.push_back("corr");
     OraclePatterns.push_back("sys_xmlnodeid_getrid");
@@ -1366,7 +1351,6 @@ void fillPaterns()
     OraclePatterns.push_back("power");
     OraclePatterns.push_back("optimizer_goal");
     OraclePatterns.push_back("flashback");
-    OraclePatterns.push_back("(");
     OraclePatterns.push_back("sys_op_ref");
     OraclePatterns.push_back("coalesce");
     OraclePatterns.push_back("xmlcast");
@@ -1389,7 +1373,6 @@ void fillPaterns()
     OraclePatterns.push_back("no_basetable_multimv_rewrite");
     OraclePatterns.push_back("method");
     OraclePatterns.push_back("signal_function");
-    OraclePatterns.push_back("|");
     OraclePatterns.push_back("pq_map");
     OraclePatterns.push_back("char");
     OraclePatterns.push_back("packages");
@@ -1665,7 +1648,6 @@ void fillPaterns()
     OraclePatterns.push_back("no_parallel");
     OraclePatterns.push_back("singletask");
     OraclePatterns.push_back("ora_check_acl");
-    OraclePatterns.push_back("a");
     OraclePatterns.push_back("nl_sj");
     OraclePatterns.push_back("sys_xqnodename");
     OraclePatterns.push_back("dml_update");
@@ -1921,7 +1903,6 @@ void fillPaterns()
     OraclePatterns.push_back("ora_dst_affected");
     OraclePatterns.push_back("upper");
     OraclePatterns.push_back("to_aclid");
-    OraclePatterns.push_back("m");
     OraclePatterns.push_back("until");
     OraclePatterns.push_back("hashkeys");
     OraclePatterns.push_back("powermultiset");
@@ -1952,7 +1933,6 @@ void fillPaterns()
     OraclePatterns.push_back("no_index");
     OraclePatterns.push_back("cfile");
     OraclePatterns.push_back("faststart");
-    OraclePatterns.push_back(")");
     OraclePatterns.push_back("source_file_directory");
     OraclePatterns.push_back("no_decorrelate");
     OraclePatterns.push_back("on");
@@ -2215,7 +2195,6 @@ void fillPaterns()
     OraclePatterns.push_back("keys");
     OraclePatterns.push_back("minimize");
     OraclePatterns.push_back("sys_op_vecor");
-    OraclePatterns.push_back("k");
     OraclePatterns.push_back("coarse");
     OraclePatterns.push_back("json_textcontains");
     OraclePatterns.push_back("order");
@@ -2325,7 +2304,6 @@ void fillPaterns()
     OraclePatterns.push_back("localtimestamp");
     OraclePatterns.push_back("delegate");
     OraclePatterns.push_back("program");
-    OraclePatterns.push_back("g");
     OraclePatterns.push_back("sys_op_csr");
     OraclePatterns.push_back("corr_s");
     OraclePatterns.push_back("each");
@@ -2373,7 +2351,6 @@ void fillPaterns()
     OraclePatterns.push_back("class");
     OraclePatterns.push_back("rely");
     OraclePatterns.push_back("enable_parallel_dml");
-    OraclePatterns.push_back("t");
     OraclePatterns.push_back("skip");
     OraclePatterns.push_back("degree");
     OraclePatterns.push_back("no_cost_xml_query_rewrite");
@@ -2480,7 +2457,6 @@ void fillPaterns()
     OraclePatterns.push_back("low");
     OraclePatterns.push_back("nls_territory");
     OraclePatterns.push_back("sys_xqpolydiv");
-    OraclePatterns.push_back("u");
     OraclePatterns.push_back("batchsize");
     OraclePatterns.push_back("use_ttt_for_gsets");
     OraclePatterns.push_back("maxsize");

@@ -22,6 +22,9 @@ public:
     int prevTabTextSize;
 
     void FillsuggestName();
+
+
+    void replace(int _from, int _to, QString _what, QString _with);
 protected:
     void resizeEvent(QResizeEvent *event) override;
 

@@ -26,6 +26,9 @@ public:
     QString usrname =  "";
     QString password = "";
 
+    bool stopAt500Lines = false;
+    bool stopNow = false;
+
     bool sqlite = false;
     bool oracle = false;
     bool postgre = false;

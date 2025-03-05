@@ -146,8 +146,8 @@ void TableData::ImportFromSQLiteTable(QString fileName, QString tableName)
 
 bool TableData::ExportToCSV(QString fileName, char delimeter, bool firstRowHeader)
 {
-    std::fstream stream(fileName.toStdString());
-    stream.open(fileName.toStdString(),std::ios_base::out);
+    std::fstream stream((additionalSaveFileData + fileName).toStdString());
+    stream.open((additionalSaveFileData + fileName).toStdString(),std::ios_base::out);
     if(stream.is_open())
     {
         for(int i=0;i<headers.size();i++)
@@ -171,7 +171,7 @@ bool TableData::ExportToCSV(QString fileName, char delimeter, bool firstRowHeade
     }
     else
     {
-        qDebug() <<"failed to open file "<< fileName;
+        qDebug() <<"failed to open file "<< (additionalSaveFileData + fileName);
         return false;
     }
     stream.close();
@@ -255,7 +255,7 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
     xlsxR3.write(3,1,"all SQL Code");
     xlsxR3.write(4,1,allSqlCode );
     xlsxR3.selectSheet("Sheet1");
-    if(xlsxR3.saveAs(fileName))
+    if(xlsxR3.saveAs((additionalSaveFileData + fileName)))
     {
         qDebug()<<"saved.";
         return true;
@@ -300,8 +300,10 @@ bool TableData::ExportToSQLiteTable(QString tableName)
     if(SQLITE_q.exec(SQLITE_sql))
         qDebug()<< "Created sqlite table";
     else
+    {
         qDebug()<< "Failed to create sqlite table: " <<SQLITE_q.lastError().text();
-
+        return false;
+    }
 
 
 

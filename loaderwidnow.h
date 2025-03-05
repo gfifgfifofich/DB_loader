@@ -50,6 +50,11 @@ public:
     bool autosaveSQLITE = false;
 
 
+    QString _replacePrev_What = "";
+    QString _replacePrev_With = "";
+    int _replacePrev_from = 0;
+    int _replacePrev_to = 99999;
+
     struct iter_Window
     {
         QVBoxLayout iter_layout;
@@ -134,6 +139,7 @@ private slots:
 
     void updatesuggestion();
     void FillSuggest();
+    void replaceTool();
 
     void CopySelectionFormTable();
     void CopySelectionFormTableSql();
@@ -148,8 +154,10 @@ private slots:
     void on_DBNameComboBox_currentTextChanged(const QString &arg1);
 
     void on_ImportFromCSVButton_pressed();
-
     void on_importFromExcelButton_pressed();
+
+    void on_stopLoadingQueryButton_pressed();
+    void on_the500LinesCheckBox_checkStateChanged(const Qt::CheckState &arg1);
 
 private:
     Ui::LoaderWidnow *ui;

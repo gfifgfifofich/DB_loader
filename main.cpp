@@ -6,7 +6,7 @@
 #include <QtQuick/qquickview.h>
 #include "Patterns.h"
 #include "loaderwidnow.h"
-#include "Table.h"
+#include "table.h"
 inline int thrnum;
 
 inline QString appfilename;
