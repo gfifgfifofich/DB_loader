@@ -34,6 +34,7 @@ public:
 
     QString sqlCode = "";
     QString allSqlCode = "";
+    QString additionalSaveFileData = ""; // adds this in front of filename to ensure stuff. (except for SQLite tables)
 
 
     std::vector<std::vector<QVariant>> data; // slow

@@ -8,10 +8,15 @@
 #include <qsqlerror.h>
 #include <QDesktopServices>
 #include <QFileDialog>
+#include "replacedialog.h"
 
 /*
-add togglable "add db name into file name"
-add ability to stop downloading query at any point of downloading, mb togglable autopause at 500
++-                                         add togglable "add db name into file name" // feature added, not togglable
++                                          add ability to stop downloading query at any point of downloading, mb togglable autopause at 500
++                                          save only driver and db name in workspaces, fetch the rest from userdata, its safer
+themes from userdata
++                                          Highlight from bracket to bracket with codeEditor HighLight selection (will highlight background from bracket to bracket)
++                                          Replace window - replaces every "string" with other "string", yea
 */
 
 inline DataStorage userDS;
@@ -29,6 +34,8 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     cd = new CodeEditor();
     ui->CodeEditorLayout->addWidget(cd);
 
+    ui->stopLoadingQueryButton->hide();
+
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_R), this, SLOT(runSqlAsync())); // Run sql async
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Return), this, SLOT(runSqlAsync()));// Run sql async
 
@@ -37,8 +44,10 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_O), this, SLOT(OpenFile()));
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Space), this, SLOT(FillSuggest()));
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_N), this, SLOT(OpenNewWindow()));
+    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_F), this, SLOT(replaceTool()));
 
+
+    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_N), this, SLOT(OpenNewWindow()));
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_I), this, SLOT(ShowIterateWindow()));
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_G), this, SLOT(ShowGraph()));
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_C), this, SLOT(CopySelectionFormTable()));
@@ -88,8 +97,8 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     if (file.open(QFile::ReadOnly | QFile::Text))
         cd->setPlainText(file.readAll());
 
-    cd->setPlainText(cd->toPlainText());
-
+    //cd->setPlainText(cd->toPlainText());
+    cd->highlighter->rehighlight();
 
     QString text = cd->toPlainText();
     if(text.startsWith("-- {"))
@@ -236,8 +245,10 @@ void LoaderWidnow::on_ConnectButton_pressed()
             cd->highlighter->QSLiteStyle = dc.sqlite;//(driver == "QSQLite") || (driver == "LOCAL_SQLITE_DB");
             cd->highlighter->PostgresStyle = dc.postgre;//(driver == "QPSQL");
             cd->highlighter->UpdateTableColumns(&dc.db,str);
-            cd->setPlainText(cd->toPlainText()); // update highlighting
-            cd->setPlainText(cd->toPlainText());
+
+            cd->highlighter->rehighlight();
+            cd->highlighter->rehighlight();
+
         }
         ui->driverComboBox->setCurrentText(dc.driver);
         ui->DBNameComboBox->setCurrentText(dc.dbname);
@@ -485,19 +496,23 @@ void LoaderWidnow::onQueryBeginCreating()
 {
     qDebug()<<"onQueryBeginCreating()";
     ui->miscStatusLabel->setText("creating sql query...");
+    ui->stopLoadingQueryButton->hide();
 }
 void LoaderWidnow::onQueryBegin()
 {
     qDebug()<<"onQueryBegin()";
     ui->miscStatusLabel->setText("executing sql query...");
+    ui->stopLoadingQueryButton->hide();
 }
 void LoaderWidnow::onQuerySuccess()
 {
     qDebug()<<"onQuerySuccess()";
     ui->miscStatusLabel->setText("query success, downloading...");
+    ui->stopLoadingQueryButton->show();
 }
 void LoaderWidnow::UpdateTable()
 {
+    ui->stopLoadingQueryButton->hide();
     dc.tableDataMutex.lock();
     qDebug()<<"updating table";
     ui->miscStatusLabel->setText("updating table data...");
@@ -559,6 +574,8 @@ void LoaderWidnow::OpenFile()
 {
     qDebug()<<"OpenFile()";
     QString str= "excel/";
+    if(!cd->highlighter->dbSchemaName.contains('.'))
+        str += cd->highlighter->dbSchemaName;
     str+= ui->saveLineEdit->text();
     if(!str.endsWith(".xlsx"))
         str+= ".xlsx";
@@ -736,6 +753,26 @@ void LoaderWidnow::FillSuggest()
     cd->FillsuggestName();
 
 }
+void LoaderWidnow::replaceTool()
+{
+    qDebug() <<"replaceTool()";
+    replaceDialog rd;
+
+    rd.replaceWhat = _replacePrev_What;
+    rd.replaceWith = _replacePrev_With;
+    rd.start_line = _replacePrev_from;
+    rd.end_line = _replacePrev_to;
+    rd.Init();
+    if(rd.exec())
+    {// do the raplacing
+        cd->replace(rd.start_line,rd.end_line,rd.replaceWhat,rd.replaceWith);
+        qDebug() <<"replaced";
+    }
+    _replacePrev_What = rd.replaceWhat;
+    _replacePrev_With = rd.replaceWith;
+    _replacePrev_from = rd.start_line;
+    _replacePrev_to = rd.end_line;
+}
 
 void LoaderWidnow::SaveWorkspace()
 {
@@ -768,9 +805,7 @@ void LoaderWidnow::SaveWorkspace()
         }
     }
     stream2 << "-- {" << ui->driverComboBox->currentText().toStdString() << "} ";
-    stream2 << " {" <<   ui->DBNameComboBox->currentText().toStdString() << "} ";
-    stream2 << " {" <<   ui->userNameLineEdit->text().toStdString() << "} ";
-    stream2 << " {" <<   ui->passwordLineEdit->text().toStdString() << "}\n";
+    stream2 << " {" <<   ui->DBNameComboBox->currentText().toStdString() << "};\n";
     stream2 << text.toStdString();
     stream2.close();
 }
@@ -778,9 +813,15 @@ void LoaderWidnow::on_SaveXLSXButton_pressed()
 {
     qDebug()<<"on_SaveXLSXButton_pressed()";
     QString str = "excel/";
+    if(!cd->highlighter->dbSchemaName.contains('.'))
+        str += cd->highlighter->dbSchemaName;
     str += ui->saveLineEdit->text();
+    if(str.size() > 200)// backup against too long filenames, cuz windows
+        str.resize(200);
     if(!str.endsWith(".xlsx"))
         str += ".xlsx";
+    dc.data.sqlCode = dc.sqlCode;
+    dc.data.allSqlCode = cd->toPlainText();
     if(dc.data.ExportToExcel(str,0,0,0,0,true))
         ui->miscStatusLabel->setText(QString("Saved as XLSX ") + str);
     else
@@ -791,7 +832,11 @@ void LoaderWidnow::on_SaveCSVButton_pressed()
 {
     qDebug()<<"on_SaveCSVButton_pressed()";
     QString str = "CSV/";
+    if(!cd->highlighter->dbSchemaName.contains('.'))
+        str += cd->highlighter->dbSchemaName;
     str += ui->saveLineEdit->text();
+    if(str.size() > 200)// backup against too long filenames, cuz windows
+        str.resize(200);
     if(!str.endsWith(".csv"))
         str += ".csv";
     if(dc.data.ExportToCSV(str,';',true))
@@ -853,7 +898,7 @@ void LoaderWidnow::on_listWidget_currentTextChanged(const QString &currentText)
                     {
                         tokens.back() = tokens.back().trimmed();
                         inbrakets = true;
-                        if(tokens.size() == 4)
+                        if(tokens.size() == 2)
                             break;
                         i++;
                         continue;
@@ -865,20 +910,34 @@ void LoaderWidnow::on_listWidget_currentTextChanged(const QString &currentText)
                     i++;
 
                 }
-                if(tokens.size() >= 4)
+                if(tokens.size() >= 2)
                 {
                     ui->driverComboBox->setCurrentText(tokens[0].trimmed());
                     ui->DBNameComboBox->setCurrentText(tokens[1].trimmed());
-                    ui->userNameLineEdit->setText(tokens[2].trimmed());
-                    ui->passwordLineEdit->setText(tokens[3].trimmed());
 
 
-                    dc.driver =   tokens[0].trimmed();
-                    dc.dbname =   tokens[1].trimmed();
-                    dc.usrname =  tokens[2].trimmed();
-                    dc.password = tokens[3].trimmed();
+                    dc.driver = tokens[0].trimmed();
+                    dc.dbname = tokens[1].trimmed();
 
+                    if(userDS.Load("userdata.txt"))
+                    {
 
+                        dc.usrname = userDS.data[ui->DBNameComboBox->currentText().toStdString()]["name"].c_str();
+                        dc.password = userDS.data[ui->DBNameComboBox->currentText().toStdString()]["password"].c_str();
+
+                        ui->userNameLineEdit->setText(dc.usrname.trimmed());
+                        ui->passwordLineEdit->setText(dc.password.trimmed());
+                        dc.usrname = dc.usrname.trimmed();
+                        dc.password = dc.password.trimmed();
+                    }
+                    else
+                    {
+                        ui->userNameLineEdit->setText("");
+                        ui->passwordLineEdit->setText("");
+                        dc.usrname =  "";
+                        dc.password = "";
+
+                    }
                 }
             }
         }
@@ -905,5 +964,19 @@ void LoaderWidnow::on_importFromExcelButton_pressed()
     dc.data.ImportFromExcel(QFileDialog::getOpenFileName(),0,0,0,0,true);
     UpdateTable();
     ui->tableDBNameLabel->setText("Imported from Excel");
+}
+
+void LoaderWidnow::on_stopLoadingQueryButton_pressed()
+{
+    dc.stopNow = true;
+}
+void LoaderWidnow::on_the500LinesCheckBox_checkStateChanged(const Qt::CheckState &arg1)
+{
+    if(arg1 == Qt::Checked)
+    {
+        dc.stopAt500Lines = true;
+    }
+    else
+        dc.stopAt500Lines = false;
 }
 
