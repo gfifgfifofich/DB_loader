@@ -39,6 +39,8 @@ public:
 
     QMap<QString,bool> ColumnMap;
     QMap<QString,QString> TableColumnAliasMap; // key-alias-name / key-table-name
+    QMap<QString,QMap<QString,bool>> tmpTableColumnMap;
+    QMap<int,QMap<QString,QMap<QString,bool>>> tmpTableColumnMapPerRow;
     QMap<QString,QMap<QString,bool>> TableColumnMap;
 
     QVector<QString> dbPatterns;

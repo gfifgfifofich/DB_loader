@@ -958,7 +958,6 @@ void fillPaterns()
     OraclePatterns.push_back("enable_all");
     OraclePatterns.push_back("regr_syy");
     OraclePatterns.push_back("sys_get_aclids");
-    OraclePatterns.push_back("activity");
     OraclePatterns.push_back("db_role_change");
     OraclePatterns.push_back("sys_op_vvd");
     OraclePatterns.push_back("of");
@@ -2796,7 +2795,6 @@ void fillPaterns()
     OraclePatterns.push_back("change_dupkey_error_index");
     OraclePatterns.push_back("remove");
     OraclePatterns.push_back("nonschema");
-    OraclePatterns.push_back("job");
     OraclePatterns.push_back("piv_gb");
     OraclePatterns.push_back("per");
     OraclePatterns.push_back("docfidelity");

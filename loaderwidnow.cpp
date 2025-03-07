@@ -11,12 +11,18 @@
 #include "replacedialog.h"
 
 /*
+
 +-                                         add togglable "add db name into file name" // feature added, not togglable
 +                                          add ability to stop downloading query at any point of downloading, mb togglable autopause at 500
 +                                          save only driver and db name in workspaces, fetch the rest from userdata, its safer
-themes from userdata
-+                                          Highlight from bracket to bracket with codeEditor HighLight selection (will highlight background from bracket to bracket)
++                                          themes from userdata
 +                                          Replace window - replaces every "string" with other "string", yea
++                                          Highlight from bracket to bracket with codeEditor HighLight selection (will highlight background from bracket to bracket)
++                                          Highlighting of selected token
++- testing                                 fix subtables
++- requer constant correction              datatypes
++                                          tab press reg
+
 */
 
 inline DataStorage userDS;

@@ -225,35 +225,68 @@ void DatabaseConnection::execSql(QString sql)
                     QDateTime dt = var.toDateTime();
                     var = str;
                     bool isdouble = false;
+                    bool force_double = false;
                     bool isint = false;
                     bool forcetext = false;
                     double doub = var.toDouble(&isdouble);
                     var = str;
                     int integ = var.toInt(&isint);
                     var = str;
-                    if((!dt.isValid() || dt.isNull()) && isdouble && str.size()>9)
-                    {
-                        isdouble = false;
-                        forcetext = true;
+                    // passes through values like 12312.123123213123123123
+                    // fix implemented, currently testing
+                    if(str.count('.') + str.count(',') == 1)
+                    {// one coma/dot
+                        QStringList strl = str.split(',');
+                        if(strl.size()==2)
+                        {
+                            bool ok1 = false;
+                            bool ok2 = false;
+                            QVariant(strl[0]).toInt(&ok1);
+                            QVariant(strl[1]).toInt(&ok2);
+                            if(ok1 && ok2)
+                                force_double = true;
+                        }
+                        strl = str.split('.');
+                        if(strl.size()==2)
+                        {
+                            bool ok1 = false;
+                            bool ok2 = false;
+                            QVariant(strl[0]).toInt(&ok1);
+                            QVariant(strl[1]).toInt(&ok2);
+                            if(ok1 && ok2)
+                                force_double = true;
+                        }
                     }
-                    if(!forcetext)
+                    if(force_double )
                     {
-
-                        if(dt.isValid() && !dt.isNull())
-                        {// datetime
-                            var = QVariant(dt);
-                        }
-                        else if(isdouble)
-                        {
-                            var = QVariant(var.toDouble());
-                        }
-                        else if(isint)
-                        {
-                            var = QVariant(var.toInt());
-                        }
+                        var = QVariant(var.toDouble());
                     }
                     else
-                        var = str;
+                    {
+                        if((!dt.isValid() || dt.isNull()) && isdouble && str.size()>9)
+                        {
+                            isdouble = false;
+                            forcetext = true;
+                        }
+                        if(!forcetext)
+                        {
+
+                            if(dt.isValid() && !dt.isNull())
+                            {// datetime
+                                var = QVariant(dt);
+                            }
+                            else if(isdouble)
+                            {
+                                var = QVariant(var.toDouble());
+                            }
+                            else if(isint)
+                            {
+                                var = QVariant(var.toInt());
+                            }
+                        }
+                        else
+                            var = str;
+                    }
                 }
 
                 data.data[a].push_back(var);

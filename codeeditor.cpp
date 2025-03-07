@@ -10,9 +10,26 @@
 #include <QPaintDevice>
 #include "Patterns.h"
 #include "highlighter.h"
-
+#include <QFont>
+#include <QtGui>
 inline DataStorage userDS;
 inline QColor braccketHighlightColor = QColor(Qt::GlobalColor::darkRed).lighter(35);
+
+
+void CodeEditor::keyPressEvent(QKeyEvent *e)
+{
+    //16777217 tab
+    //16777220 return
+    //16777248 SHIFT
+    //16777249 ctrl
+    //qDebug()<< e->key();
+    if(e->key() == 16777217)
+    {
+        FillsuggestName();
+        return;
+    }
+    QPlainTextEdit::keyPressEvent(e);
+}
 CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent)
 {
     lineNumberArea = new LineNumberArea(this);
@@ -28,7 +45,7 @@ CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent)
 
     highlighter = new Highlighter(document());
 
-
+    setTabStopDistance(QFontMetricsF(this->font()).horizontalAdvance(' ') * 4);
 
     connect(this,&CodeEditor::cursorPositionChanged,this,&CodeEditor::suggestName, Qt::QueuedConnection );
 
@@ -191,10 +208,50 @@ void CodeEditor::highlightCurrentLine()
         extraSelections.append(bracketSelection);
     }
 
+    if(abs(textCursor().selectionEnd() - textCursor().selectionStart()) >= 1)// selected something
+    {
+        QTextEdit::ExtraSelection wordSelection;
+
+        int bracketStart = cursor_position;
+        if(cursor_position-1 >0 && text[cursor_position-1] == ')')
+            bracketStart = cursor_position-1;
+
+
+        QString selectedString = textCursor().selectedText();
+        qDebug() << "Selected: " << selectedString;
+        int match = 0;
+        int start = 0;
+        for (int i = 0; i < text.size(); i++)
+        {
+            if (text[i] == selectedString[match])
+            {
+                if(match == 0)
+                    start = i;
+                match ++;
+            }
+            else
+                match =0;
+
+            if (match >= selectedString.size())
+            {
+                match =0;
+                QTextEdit::ExtraSelection selection;
+                selection.format.setBackground(QColor(Qt::white).lighter(20));
+                selection.cursor = textCursor();
+                selection.cursor.clearSelection();
+                selection.cursor.setPosition(start, QTextCursor::MoveAnchor);
+                selection.cursor.setPosition(i+1, QTextCursor::KeepAnchor);
+
+
+                extraSelections.append(selection);
+            }
+        }
+
+    }
+
     setExtraSelections(extraSelections);
 
 
-    setExtraSelections(extraSelections);
 }
 void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
 {
@@ -281,15 +338,6 @@ void CodeEditor::suggestName()
     int start = curs;
     int end = curs;
 
-    if( (text.size() > curs && curs > 0 && text[curs] == '\t') && (prevTabPos != curs || prevTabTextSize != text.size()))
-    {
-        if(lastSuggestedWord.size()<2)
-            lastSuggestedWord = "    ";
-        prevTabPos = curs;
-        prevTabTextSize = text.size();
-        FillsuggestName();
-        return;
-    }
 
 
     while(text[curscop].isLetter() ||text[curscop] == '_'||text[curscop] == '\"'||text[curscop] == '$' )
@@ -365,6 +413,13 @@ void CodeEditor::suggestName()
             {
                 keys.push_back(ke);
             }
+        if(highlighter->tmpTableColumnMap.contains(PrevWord))
+            for(auto ke : highlighter->tmpTableColumnMap[PrevWord].keys())
+            {
+                if(highlighter->tmpTableColumnMap[PrevWord][ke])
+                    keys.push_back(ke);
+            }
+
     }
     else
     {
@@ -386,11 +441,16 @@ void CodeEditor::suggestName()
         {
             keys.push_back(ke);
         }
+        for(auto ke : highlighter->tmpTableColumnMap.keys())
+        {
+            keys.push_back(ke);
+        }
         for(auto ke : highlighter->TableColumnAliasMap.keys())
         {
             if(highlighter->TableColumnAliasMap.contains(ke))
                 keys.push_back(ke);
         }
+        //tmpTableColumnMap
     }
 
 
@@ -487,6 +547,11 @@ void CodeEditor::FillsuggestName()
 {
     QTextCursor cursor = textCursor();
     QString lasttext = lastSuggestedWord;
+    if(lasttext.size()<=1)
+    {
+        cursor.insertText("\t");
+        return;
+    }
     bool lasttexttablecolumn = lastwordisTableColumn;
     QString word = "";
     QString text = toPlainText();

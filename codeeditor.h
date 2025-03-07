@@ -27,7 +27,7 @@ public:
     void replace(int _from, int _to, QString _what, QString _with);
 protected:
     void resizeEvent(QResizeEvent *event) override;
-
+    void keyPressEvent(QKeyEvent *e) override;
 private slots:
     void updateLineNumberAreaWidth(int newBlockCount);
     void highlightCurrentLine();
