@@ -208,6 +208,84 @@ void CodeEditor::highlightCurrentLine()
         extraSelections.append(bracketSelection);
     }
 
+    if(validCursorPos && (text[cursor_position] == '{' || (cursor_position-1 >0 && text[cursor_position-1] == '{')))
+    {
+        QTextEdit::ExtraSelection bracketSelection;
+
+        int bracketStart = cursor_position;
+        if(cursor_position-1 >0 && text[cursor_position-1] == '{')
+            bracketStart = cursor_position-1;
+
+
+        int bracketEnd = cursor_position;
+        int bracketCount = 0;
+        for (int i = bracketStart; i < text.size(); i++)
+        {
+            if(text[i]=='{')
+                bracketCount ++;
+            if(text[i]=='}')
+                bracketCount --;
+            if(bracketCount <=0)
+            {
+                bracketEnd=i;
+                break;
+            }
+            if (i ==  text.size()-1)
+            {
+                bracketEnd=i;
+                break;
+            }
+        }
+
+        QColor lineColor = braccketHighlightColor ;
+        bracketSelection.format.setBackground(lineColor.lighter());
+        bracketSelection.cursor = textCursor();
+        bracketSelection.cursor.clearSelection();
+        bracketSelection.cursor.setPosition(bracketStart, QTextCursor::MoveAnchor);
+        bracketSelection.cursor.setPosition(bracketEnd+1, QTextCursor::KeepAnchor);
+
+        extraSelections.append(bracketSelection);
+    }
+    else if(validCursorPos && (text[cursor_position] == '}' || (cursor_position-1 >0 && text[cursor_position-1] == '}')))
+    {
+        QTextEdit::ExtraSelection bracketSelection;
+
+        int bracketStart = cursor_position;
+        if(cursor_position-1 >0 && text[cursor_position-1] == '}')
+            bracketStart = cursor_position-1;
+
+
+        int bracketEnd = cursor_position;
+        int bracketCount = 0;
+        for (int i = bracketStart; i >= 0; i--)
+        {
+            if(text[i]=='{')
+                bracketCount ++;
+            if(text[i]=='}')
+                bracketCount --;
+            if(bracketCount >=0)
+            {
+                bracketEnd=i;
+                break;
+            }
+            if (i == 0)
+            {
+                bracketEnd=i;
+                break;
+            }
+        }
+
+        QColor lineColor = braccketHighlightColor ;
+        bracketSelection.format.setBackground(lineColor.lighter());
+        bracketSelection.cursor = textCursor();
+        bracketSelection.cursor.clearSelection();
+        bracketSelection.cursor.setPosition(bracketEnd, QTextCursor::MoveAnchor);
+        bracketSelection.cursor.setPosition(bracketStart+1, QTextCursor::KeepAnchor);
+
+        extraSelections.append(bracketSelection);
+    }
+
+
     if(abs(textCursor().selectionEnd() - textCursor().selectionStart()) >= 1)// selected something
     {
         QTextEdit::ExtraSelection wordSelection;
@@ -236,7 +314,7 @@ void CodeEditor::highlightCurrentLine()
             {
                 match =0;
                 QTextEdit::ExtraSelection selection;
-                selection.format.setBackground(QColor(Qt::white).lighter(20));
+                selection.format.setBackground(QColor(Qt::white).lighter(25));
                 selection.cursor = textCursor();
                 selection.cursor.clearSelection();
                 selection.cursor.setPosition(start, QTextCursor::MoveAnchor);
@@ -423,6 +501,7 @@ void CodeEditor::suggestName()
     }
     else
     {
+        keys.append(subCommandPatterns);
         if(highlighter->TableColumnMap.contains(PrevWord))
             for(auto ke : highlighter->TableColumnMap[PrevWord].keys())
             {

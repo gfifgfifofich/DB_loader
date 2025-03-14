@@ -3,26 +3,16 @@
 
 #include <QObject>
 #include <QQuickItem>
+#include <qabstractitemmodel.h>
+#include <qsqldatabase.h>
+#include <qsqlquery.h>
+#include <QMutex>
 
-/*
-TableData
-    std::vector<std::vector<QVariant>> // slow
-    std::vector<std::vector<QString>> // test, maybe would be faster
-    std::vector<QString> headers
-    std::vector<int> types // columns types
+#include "QXlsx-master/QXlsx/header/xlsxdocument.h"
+#include "QXlsx-master/QXlsx/header/xlsxworkbook.h"
 
-    void ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHeader);
-    void ImportFromExcel(QString fileName, int x_start,int x_end,int y_start,int y_end, bool firstRowHeader);
-    void ImportFromSQLiteTable(QString fileName, QString tableName) // load table from sqlite quicker
 
-    void ExportToCSV(QString fileName, QChar delimeter, bool firstRowHeader);
-    void ExportToExcel(QString fileName, int x_start,int x_end,int y_start,int y_end, bool firstRowHeader);
-    void ExportToSQLiteTable(QString fileName, QString tableName)
-
-    Q_PROPERTY(int value READ value WRITE setValue NOTIFY valueChanged)
-*/
-
-class TableData : QObject
+class TableData : public QAbstractTableModel
 {
     Q_OBJECT
     QML_ELEMENT
@@ -36,8 +26,9 @@ public:
     QString allSqlCode = "";
     QString additionalSaveFileData = ""; // adds this in front of filename to ensure stuff. (except for SQLite tables)
 
+    QXlsx::Document* xlsxFile = nullptr; // used in point redact stuff, mostly just to pass QXlsx functionality to qml
 
-    std::vector<std::vector<QVariant>> data; // slow
+    QVector<QVector<QVariant>> tbldata; // slow // not slow, QXlsx is slow
     QStringList headers;
     std::vector<int> types; // columns types
 
@@ -50,6 +41,23 @@ public:
     Q_INVOKABLE bool ExportToExcel(QString fileName, int x_start,int x_end,int y_start,int y_end, bool firstRowHeader);
     Q_INVOKABLE bool ExportToSQLiteTable(QString tableName);
 
+    Q_INVOKABLE QVariant getObject(int x,int y);// qml functionality
+    Q_INVOKABLE int getSizeX();// qml functionality
+    Q_INVOKABLE int getSizeY();// qml functionality
+    Q_INVOKABLE void selectXLSXFile(QString filename);// qml functionality
+    Q_INVOKABLE void saveXLSXFile(QString filename);// qml functionality
+    Q_INVOKABLE void writeToXLSXFile(int x, int y, QVariant value);// qml functionality
+    Q_INVOKABLE QVariant readFromXLSXFile(int x, int y);// qml functionality
+
+
+    // move table(x_s,y_s,x_s,y_s) by dx, dy
+    // ExcelMove(0,0,10,10, 5,5); // move block 5 right 5 down
+    Q_INVOKABLE bool ExcelMove(QString table,int x_start,int x_end,int y_start,int y_end, int dx, int dy);
+
+    int rowCount(const QModelIndex & = QModelIndex()) const override;
+    int columnCount(const QModelIndex & = QModelIndex()) const override;
+    QVariant data(const QModelIndex &index, int role) const override;
+    QHash<int, QByteArray> roleNames() const override;
 
 signals:
     void ImportedFromCSV();

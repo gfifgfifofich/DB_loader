@@ -14,6 +14,8 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Sql)
 find_package(Qt6 REQUIRED COMPONENTS Charts)
 find_package(Qt6 REQUIRED COMPONENTS Graphs)
+find_package(Qt6 REQUIRED COMPONENTS Quick)
+find_package(Qt6 REQUIRED COMPONENTS QuickControls2)
 add_subdirectory(QXlsx-master/QXlsx)
 
 set(PROJECT_SOURCES
@@ -41,6 +43,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         loaderwidnow.h loaderwidnow.cpp loaderwidnow.ui
         table.h table.cpp
         replacedialog.h replacedialog.cpp replacedialog.ui
+        DBLoadScript.qml
+        databasetask.h databasetask.cpp
 
     )
 # Define target properties for Android with Qt 6 as:
@@ -66,6 +70,8 @@ target_link_libraries(untitled PRIVATE Qt${QT_VERSION_MAJOR}::Sql)
 target_link_libraries(untitled PRIVATE QXlsx::QXlsx)
 target_link_libraries(untitled PRIVATE Qt6::Charts)
 target_link_libraries(untitled PRIVATE Qt6::Graphs)
+target_link_libraries(untitled PRIVATE Qt6::Quick)
+target_link_libraries(untitled PRIVATE Qt6::QuickControls2)
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an

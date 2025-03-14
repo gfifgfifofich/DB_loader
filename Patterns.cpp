@@ -8,6 +8,10 @@
 void fillPaterns()
 {
 
+    subCommandPatterns.push_back("SubexecToUnionAllTable");
+    subCommandPatterns.push_back("SubexecToMagic");
+    subCommandPatterns.push_back("SubexecToArray");
+
     PostgrePatterns.push_back("abort;");
     PostgrePatterns.push_back("abs");
     PostgrePatterns.push_back("absent");
@@ -170,7 +174,6 @@ void fillPaterns()
     PostgrePatterns.push_back("cursor");
     PostgrePatterns.push_back("cursor_name");
     PostgrePatterns.push_back("cycle");
-    PostgrePatterns.push_back("data");
     PostgrePatterns.push_back("database");
     PostgrePatterns.push_back("datalink");
     PostgrePatterns.push_back("date");
@@ -2103,7 +2106,6 @@ void fillPaterns()
     OraclePatterns.push_back("scheduler");
     OraclePatterns.push_back("native");
     OraclePatterns.push_back("gby_conc_rollup");
-    OraclePatterns.push_back("data");
     OraclePatterns.push_back("object");
     OraclePatterns.push_back("bitmap_and");
     OraclePatterns.push_back("result_cache");

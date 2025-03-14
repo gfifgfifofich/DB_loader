@@ -9,8 +9,10 @@
 #include <QDesktopServices>
 #include <QFileDialog>
 #include "replacedialog.h"
+#include <QQmlApplicationEngine>
 
 /*
+- improve speed of xlsx export (import is 'fine')
 
 +-                                         add togglable "add db name into file name" // feature added, not togglable
 +                                          add ability to stop downloading query at any point of downloading, mb togglable autopause at 500
@@ -19,10 +21,81 @@
 +                                          Replace window - replaces every "string" with other "string", yea
 +                                          Highlight from bracket to bracket with codeEditor HighLight selection (will highlight background from bracket to bracket)
 +                                          Highlighting of selected token
-+- testing                                 fix subtables
-+- requer constant correction              datatypes
+++- testing                                fix subtables
++- constant correction                     datatypes
 +                                          tab press reg
++                                          Timer
+- remake iterator through tasks
++                                          Batch execution is impossible for select statements
 
+- add special highlighting for unaccessible tables?
+    select * from dba_tables where lower(owner) like '%%';
+    select * from dba_TAB_COLUMNS where lower(table_name) like '%%';
+    dba_ - all, all_ - user has access
+
+- subscripting (Custom DBLinks):
+    /////- insert sqlite table through select c1,c2,c3,c4 from dual union all select c1,c2,c3,c4 from dual   union all select c1,c2,c3,c4 from dual
+    /////- insert sqlite table column through ('magic','data')
+
+    - insert sql query to be loaded from different db
+
+
+    - SubexecToArray{
+            {driver} {database}
+            select * from stufff
+            }
+    - SubexecToMagic{
+            {driver} {database}
+            select * from stufff
+            }
+    - SubexecToUnionAllTable{
+            {driver} {database}
+            select * from stufff
+            }
+    - some merge function, to merge multiple queries
+    - some method of updating sqlite tables in sqlite query
+
+
+
+select stuff
+from things
+where  stuff in (SubexecToArray{...});
+
+
+
+select stuff
+from things
+where ('magic', stuff) in (SubexecToMagic{...});
+
+
+
+with a as (SubexecToUnionAllTable{...}),
+    b as (SubexecToUnionAllTable{...})
+
+select * from a cross join b;
+
+
+in this
+          time = date '2025-01-09' OR
+          time = date '2025-01-10' OR
+          time = date '2025-01-11' OR
+          time = date '2025-01-12' OR
+          time = date '2025-01-13' OR
+          time = date '2025-01-14' OR
+the 'OR' is red
+
+
+- automation basics
+    +  qml without recompilation?
+    +  move/delete/insert in excel table
+    + run sql
+    + select db
+    - Async tasks
+
+tasks:
+    name
+    DBConnection
+    Thread*
 */
 
 inline DataStorage userDS;
@@ -125,7 +198,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
             {
                 tokens.back() = tokens.back().trimmed();
                 inbrakets = true;
-                if(tokens.size() == 7)
+                if(tokens.size() == 2)
                     break;
                 i++;
                 continue;
@@ -137,14 +210,14 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
             i++;
 
         }
-        if(tokens.size() >= 7)
+        if(tokens.size() >= 2)
         {
             ui->driverComboBox->setCurrentText(tokens[0].trimmed());
             ui->DBNameComboBox->setCurrentText(tokens[1].trimmed());
-            ui->userNameLineEdit->setText(tokens[2].trimmed());
-            ui->passwordLineEdit->setText(tokens[3].trimmed());
         }
     }
+    QString username = userDS.GetObject( ui->DBNameComboBox->currentText().toStdString())["name"].c_str();
+    QString password = userDS.GetObject(ui->DBNameComboBox->currentText().toStdString())["password"].c_str();
 
     cd->setFocus();
 }
@@ -162,6 +235,11 @@ void LoaderWidnow::Init(QString conname,QString driver,QString dbname,QString us
 
 LoaderWidnow::~LoaderWidnow()
 {
+    qDebug()<<"closing window";
+    if(sqlexecThread != nullptr)
+    {
+        dc.stopNow = true;
+    }
     delete ui;
 }
 
@@ -273,6 +351,9 @@ void _AsyncFunc(LoaderWidnow* loader)
 void LoaderWidnow::runSqlAsync()
 {
     qDebug()<<"RunSqlAsync()";
+
+
+
     if(userDS.Load("userdata.txt"))
     {
         userDS.GetObject("User")["lastDriver"] = ui->driverComboBox->currentText().toStdString();
@@ -287,7 +368,9 @@ void LoaderWidnow::runSqlAsync()
     }
 
     if(dc.executing)
+    {
         return;
+    }
     QRandomGenerator64 gen;
     QString conname = QVariant(gen.generate()).toString();
     QString driver = ui->driverComboBox->currentText();
@@ -296,6 +379,7 @@ void LoaderWidnow::runSqlAsync()
     QString password = ui->passwordLineEdit->text();
 
     dc.executing = true;
+
     int sqlstart = 0;
     int sqlend = cd->toPlainText().size();
     if(cd->textCursor().selectedText().size() <= 5)
@@ -520,40 +604,50 @@ void LoaderWidnow::UpdateTable()
 {
     ui->stopLoadingQueryButton->hide();
     dc.tableDataMutex.lock();
-    qDebug()<<"updating table";
     ui->miscStatusLabel->setText("updating table data...");
     ui->tableWidget->clear();
-    qDebug()<<"celared table";
-    qDebug()<<dc.data.headers.size();
     ui->tableWidget->setColumnCount(dc.data.headers.size());
-    qDebug()<<"column count";
     int tabl_size = 25000;
-    if(dc.data.data.size()>0)
-        tabl_size  = dc.data.data[0].size();
+    if(dc.data.tbldata.size()>0)
+        tabl_size  = dc.data.tbldata[0].size();
 
     if(tabl_size  > 25000)
         ui->tableWidget->setRowCount(25000);
     else
         ui->tableWidget->setRowCount(tabl_size );
 
-    qDebug()<<"rowcount";
     ui->tableWidget->setHorizontalHeaderLabels(dc.data.headers);
-    qDebug()<<"labels";
-    for(int i=0;i<dc.data.data.size();i++)
+    for(int i=0;i<dc.data.tbldata.size();i++)
     {
-        for (int a=0; (a<dc.data.data[i].size() && a < 25000);a++)
+        for (int a=0; (a<dc.data.tbldata[i].size() && a < 25000);a++)
         {
-            QTableWidgetItem *item = new QTableWidgetItem(dc.data.data[i][a].toString(),dc.data.data[i][a].typeId());
+            QTableWidgetItem *item = new QTableWidgetItem(dc.data.tbldata[i][a].toString(),dc.data.tbldata[i][a].typeId());
             ui->tableWidget->setItem(a, i, item);
         }
     }
     QString msg = "";
-    msg += QVariant(dc.data.data.size()).toString();
+    msg += QVariant(dc.data.tbldata.size()).toString();
     msg += " : ";
-    if(dc.data.data.size()>0)
-        msg += QVariant(dc.data.data[0].size()).toString();
+    if(dc.data.tbldata.size()>0)
+        msg += QVariant(dc.data.tbldata[0].size()).toString();
     else
         msg += "0";
+
+    QString hours =  QVariant((dc.executionTime / 3600)).toString();
+    QString minuts = QVariant(dc.executionTime % 3600 / 60).toString();
+    QString secs = QVariant(dc.executionTime % 60).toString();
+    while(hours.size() <2)
+        hours = QString("0") + hours;
+    while(minuts.size() <2)
+        minuts = QString("0") + minuts;
+    while(secs.size() <2)
+        secs = QString("0") + secs;
+    msg += "   execution time: ";
+    msg += hours;
+    msg += ":";
+    msg += minuts;
+    msg += ":";
+    msg += secs;
 
     ui->miscStatusLabel->setText(QString("data downloaded ") + msg);
     ui->dataSizeLabel_2->setText(msg);
@@ -580,8 +674,7 @@ void LoaderWidnow::OpenFile()
 {
     qDebug()<<"OpenFile()";
     QString str= "excel/";
-    if(!cd->highlighter->dbSchemaName.contains('.'))
-        str += cd->highlighter->dbSchemaName;
+    str += userDS.data["ExcelPrefixAliases"][cd->highlighter->dbSchemaName.toStdString()];
     str+= ui->saveLineEdit->text();
     if(!str.endsWith(".xlsx"))
         str+= ".xlsx";
@@ -677,7 +770,7 @@ void LoaderWidnow::ShowWorkspacesWindow()
             if(x !="." && x !=".." )
                 ui->listWidget->addItem(x);
         }
-        ui->listWidget->sortItems(Qt::DescendingOrder);
+        ui->listWidget->sortItems(Qt::AscendingOrder);
 
         //ui->listWidget->setFocus();
         ui->listWidget->show();
@@ -819,8 +912,8 @@ void LoaderWidnow::on_SaveXLSXButton_pressed()
 {
     qDebug()<<"on_SaveXLSXButton_pressed()";
     QString str = "excel/";
-    if(!cd->highlighter->dbSchemaName.contains('.'))
-        str += cd->highlighter->dbSchemaName;
+
+    str += userDS.data["ExcelPrefixAliases"][cd->highlighter->dbSchemaName.toStdString()];
     str += ui->saveLineEdit->text();
     if(str.size() > 200)// backup against too long filenames, cuz windows
         str.resize(200);
@@ -985,4 +1078,13 @@ void LoaderWidnow::on_the500LinesCheckBox_checkStateChanged(const Qt::CheckState
     else
         dc.stopAt500Lines = false;
 }
+
+inline QQmlApplicationEngine* TestqmlEngine = nullptr;
+
+void LoaderWidnow::on_pushButton_pressed()
+{
+
+    TestqmlEngine->load("DBLoadScript.qml");
+}
+
 

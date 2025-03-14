@@ -235,7 +235,8 @@ bool isWindowFunc(QString s)
            str == "nvl"||
            str == "account"||
            str == "sysdate"||
-           str == "priority"
+           str == "priority"||
+           str == "concat"
 
 
         ;
@@ -298,6 +299,8 @@ void Highlighter::highlightBlock(const QString &text)
 
     textintervals.clear();
 
+
+    // simple aliases in join statements
     TableAliasMapPerRow[bn].clear();
     for (int i = 2 ; i < tokens[bn].size() ; i++)
     {
@@ -339,6 +342,9 @@ void Highlighter::highlightBlock(const QString &text)
 
         }
     }
+
+    // complex aliases, like with table_name as (select column ,..... from
+    // or (select column,column, from ...) tablename
     tmpTableColumnMap.clear();
     tmpTableColumnMapPerRow[bn].clear();
     for(int i=0;i < tokens[bn].size();i++)
@@ -395,11 +401,26 @@ void Highlighter::highlightBlock(const QString &text)
                 // found a line of start of this possibly inner query
                 a = prevA;
                 blocknum = prevBlocknum ;
+
+                if(subCommandPatterns.contains(tokens[blocknum][a].text.toLower().trimmed(),Qt::CaseInsensitive))
+                {// its probably some subcommand, like subexectounionalltable or something, so we skip
+                    qDebug()<< "highlighter: " << tokens[blocknum][a].text << "  is a subcomand, moving around " << blocknum << a;
+                    a++;
+                    while(blocknum < tokens.size() && (a >= tokens[blocknum].size() ||tokens[blocknum][a].text.startsWith('{') ) ||
+                           (blocknum < tokens.size() && tokens[blocknum].size()>0 && tokens[blocknum][0].text.startsWith("--")))
+                    { // move to next valid token, needs to be bracket
+                        blocknum++;
+                        a = 0;
+                    }
+                    qDebug()<< "highlighter: " << tokens[blocknum][a].text << "  should be select " << blocknum << a;
+
+                }
                 // this word must be select, otherwise it isnt a select statment, thus its not an alias
                 if(tokens[blocknum][a].text.toLower().trimmed() == "select")
                 {
                     qDebug() <<word << " is subtable style alias";
                     isSelect = true;
+
                 }
             }
             else
@@ -467,12 +488,40 @@ void Highlighter::highlightBlock(const QString &text)
                     QStringList aliasColumns;
                     int iter = 0;
                     bracket_count = 0;
+
                     while(true)
                     {
                         iter ++;
+
+                        a++;
+                        if(a>=tokens[blocknum].size())
+                        {
+                            blocknum ++;
+                            a = 0;
+                        }
+
+                        // find next not empty row of tokens
+                        while(blocknum < tokens.size() && tokens[blocknum].size() <=0)
+                        {
+                            blocknum++;
+                            // reset to 0
+                            a = 0;
+                        }
+                        // quit if reached end
                         if(blocknum >= tokens.size() || a >= tokens[blocknum].size())
                             break;
 
+
+
+                        // if comment, skip to next line
+                        if(tokens[blocknum][a].text.contains("--") || (a > 0 && tokens[blocknum][a].text.startsWith('-') && tokens[blocknum][a-1].text.endsWith('-') && tokens[blocknum][a-1].end +1 == tokens[blocknum][a].start))
+                        {
+                            a = 0;
+                            blocknum++;
+                            continue;
+                        }
+
+                        // before , or before from -> column name;
                         if((tokens[blocknum][a].text.startsWith(",") || tokens[blocknum][a].text.toLower() == "from" ) && bracket_count == 0 && prevtoken.size()>0)
                         {
                             aliasColumns.push_back(prevtoken);
@@ -483,17 +532,11 @@ void Highlighter::highlightBlock(const QString &text)
                             break;
                         prevtoken = tokens[blocknum][a].text.toLower();
 
-                        a++;
-                        if(a>tokens[blocknum].size())
-                        {
-                            a = 0;
-                            blocknum ++;
-                        }
                     }
                     for(auto x : tmpTableColumnMap[tableAlias].keys())
-                    {
+                    { // delete previous
                         tmpTableColumnMapPerRow[bn][tableAlias][x] = false;
-                    }
+                    } // add new columns
                     for(auto s : aliasColumns)
                     {
                         tmpTableColumnMapPerRow[bn][tableAlias][s] = true;
@@ -541,45 +584,62 @@ void Highlighter::highlightBlock(const QString &text)
         if(/*is word*/ isWord(word))
         {
             bool addQuotesToToken = false;
+            // keywords
+            if(keywordPatterns.contains(word,Qt::CaseInsensitive) && !prevword.contains('.'))
+            {
+                format = keywordFormat;
+            }
+
+
+
+            // columns
             if(ColumnMap_lower.contains(word.toLower()))
             {
                 format = NameFormat;
                 addQuotesToToken = true;
             }
-            for(auto x : tmpTableColumnMap)
-            if(x.contains(word.toLower()))
-            {
-                format = NameFormat;
-                addQuotesToToken = true;
-            }
-            if(TableColumnAliasMap.contains(SteppedWord))
-                {if(TableColumnMap[TableColumnAliasMap[SteppedWord]].contains(word))
-                {
-                    format = NameFormat;
-                    addQuotesToToken = true;
-                }}
-            if(keywordPatterns.contains(word,Qt::CaseInsensitive) && !prevword.contains('.'))
-            {
-                format = keywordFormat;
-            }
-            else if((TableColumnMap.contains(word) || TableColumnAliasMap.contains(word) || tmpTableColumnMap.contains(word)))
-            {
-                format = classFormat;
-                addQuotesToToken = true;
-            }
-            else if(TableColumnMap.contains(SteppedWord ))
+            // columns of tables
+            if(TableColumnMap.contains(SteppedWord ))
             {if(TableColumnMap[SteppedWord].contains(word))
                 {
                     format = NameFormat;
                     addQuotesToToken = true;
                 }}
-            else if(tmpTableColumnMap.contains(SteppedWord ))
+            // columns of aliases
+            if(TableColumnAliasMap.contains(SteppedWord))
+            {if(TableColumnMap[TableColumnAliasMap[SteppedWord]].contains(word))
+                {
+                    format = NameFormat;
+                    addQuotesToToken = true;
+                }}
+            // columns of complex aliases
+            if(tmpTableColumnMap.contains(SteppedWord ))
             {if(tmpTableColumnMap[SteppedWord].contains(word))
                 {
                     format = NameFormat;
                     addQuotesToToken = true;
                 }}
 
+
+
+            // tables, aliases, complex aliases
+            if((TableColumnMap.contains(word) || TableColumnAliasMap.contains(word) || tmpTableColumnMap.contains(word)))
+            {
+                format = classFormat;
+                addQuotesToToken = true;
+            }
+            if(isNumber(word))
+            {
+                format = keywordFormat;
+                format.setForeground( QColor::fromRgbF(0.45f,0.65f,0.85f,1.0f));
+                addQuotesToToken = false;
+            }
+            if(subCommandPatterns.contains(word,Qt::CaseInsensitive))
+            {
+                format = keywordFormat;
+                format.setForeground(QColor::fromRgbF(0.7f,0.7f,0.2f,1.0f));
+                addQuotesToToken = false;
+            }
 
             if(addQuotesToToken && i-1 > 0 && i+1 < tokens[bn].size())
             {// add "" symbols to token
@@ -595,20 +655,13 @@ void Highlighter::highlightBlock(const QString &text)
             }
 
 
-            if(isNumber(word))
-            {
-                format = keywordFormat;
-                format.setForeground( QColor::fromRgbF(0.45f,0.65f,0.85f,1.0f));
-            }
 
         }
         else if(word.size() == 1 && isSpecialSymbol(word[0]))
             format = keywordFormat;
-        else if(/*comment*/false)
-            format = multiLineCommentFormat;
-        else if(/*quotation*/ false)
-            format = quotationFormat;
-        setFormat(tokens[bn][i].start,tokens[bn][i].end - tokens[bn][i].start, format);
+        else if(word.size() == 2 && isSpecialSymbol(word[0]) && isSpecialSymbol(word[1]))
+            format = keywordFormat;
+        setFormat(tokens[bn][i].start,tokens[bn][i].end - tokens[bn][i].start+1, format);
     }
 
     bool quote = false;
@@ -771,7 +824,7 @@ void Highlighter::highlightBlock(const QString &text)
 
         if(keywordPatterns.contains(tokens[bn][i].text,Qt::CaseInsensitive))
         {
-            if( (tokens[bn][i].text.toLower() == "select" && prevToken.size() > 0 && !prevToken.contains(';')&& !prevToken.contains("all")&& !prevToken.contains("union") && !prevToken.contains(')') && !prevToken.contains('('))
+            if( (tokens[bn][i].text.toLower() == "select" && prevToken.size() > 0 && !prevToken.contains(';')&& !prevToken.contains('{')&& !prevToken.contains("all")&& !prevToken.contains("union") && !prevToken.contains(')') && !prevToken.contains('('))
                 )
             {
                 markPrevAsError  = true;

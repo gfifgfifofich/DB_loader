@@ -6,6 +6,7 @@
 #include <QMap>
 
 inline QVector<QString> keywordPatterns;
+inline QVector<QString> subCommandPatterns;
 
 inline QVector<QString> SQLitePatterns;
 inline QVector<QString> OraclePatterns;

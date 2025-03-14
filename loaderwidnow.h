@@ -48,6 +48,7 @@ public:
     QString autofilename = "";
     bool autosaveXLSX = false;
     bool autosaveSQLITE = false;
+    bool autosaveCSV = false;
 
 
     QString _replacePrev_What = "";
@@ -158,6 +159,8 @@ private slots:
 
     void on_stopLoadingQueryButton_pressed();
     void on_the500LinesCheckBox_checkStateChanged(const Qt::CheckState &arg1);
+
+    void on_pushButton_pressed();
 
 private:
     Ui::LoaderWidnow *ui;
