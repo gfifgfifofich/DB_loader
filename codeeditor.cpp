@@ -12,6 +12,11 @@
 #include "highlighter.h"
 #include <QFont>
 #include <QtGui>
+#include "sqlSubfunctions.h"
+#include "tokenprocessor.h"
+#include <math.h>
+
+
 inline DataStorage userDS;
 inline QColor braccketHighlightColor = QColor(Qt::GlobalColor::darkRed).lighter(35);
 
@@ -296,6 +301,7 @@ void CodeEditor::highlightCurrentLine()
 
 
         QString selectedString = textCursor().selectedText();
+        selectedString = selectedString.replace('?', '\n');
         qDebug() << "Selected: " << selectedString;
         int match = 0;
         int start = 0;
@@ -359,7 +365,7 @@ void CodeEditor::replace(int _from, int _to, QString _what, QString _with)
 {// better to reimplement to work from cursors, not just text replacing
     if(_from > _to)
         return;
-    if(_what.size() < 1 || _with.size()<1)
+    if(_what.size() < 1)
         return;
 
     QString text = toPlainText();
@@ -408,6 +414,9 @@ void CodeEditor::suggestName()
 
     QString word = "";
     QString PrevWord= "";
+    QString PrevPrevWord= "";
+    QString PrevPrevPrevWord= "";
+    int depth = 3; // 3 prevwords
     QString text = toPlainText();
     int curs = textCursor().position();
     if(curs>=1)
@@ -438,96 +447,205 @@ void CodeEditor::suggestName()
         word+=text[i];
     }
 
-
     int curs2 = start - 1;
     if(curs2>=1)
         curs2-=1;
     int curscop2 = curs2;
     int start2 = curs2;
     int end2 = curs2;
-    while(text[curscop2].isLetter() ||text[curscop2] == '_'||text[curscop2] == '\"'||text[curscop2] == '$' )
+    for(int i =0;i < depth; i++)
     {
-        start2 = curscop2;
-        curscop2-=1;
-        if(curscop2<0)
-            break;
-    }
-    while(text[curs2].isLetter() ||text[curs2] == '_'||text[curs2] == '\"'||text[curs2] == '$')
-    {
+        curs2 = start2 - 1;
+        if(curs2>=1)
+            curs2-=1;
+        curscop2 = curs2;
+        start2 = curs2;
         end2 = curs2;
-        curs2+=1;
-        if(curs>text.size())
-            break;
-    }
-    for(int i=start2;i<=end2;i++)
-    {
-        if(text[i]!='"')
-            PrevWord+=text[i];
-    }
-    word = word;
-    PrevWord = PrevWord;
-    bool hasdot = false;
-    for(int i=start2; i < end;i++)
-    {
-        if(text[i]=='.')
+        while(text[curscop2].isLetter() ||text[curscop2] == '_'||text[curscop2] == '\"'||text[curscop2] == '$' )
         {
-            hasdot=true;
-            break;
+            start2 = curscop2;
+            curscop2-=1;
+            if(curscop2<0)
+                break;
         }
+        while(text[curs2].isLetter() ||text[curs2] == '_'||text[curs2] == '\"'||text[curs2] == '$')
+        {
+            end2 = curs2;
+            curs2+=1;
+            if(curs>text.size())
+                break;
+        }
+        QString wrd = "";
+        for(int i=start2;i<=end2;i++)
+        {
+            if(text[i]!='"')
+                wrd+=text[i];
+        }
+        if(i==0)
+            PrevWord = wrd;
+        if(i==1)
+            PrevPrevWord = wrd;
+        if(i==2)
+            PrevPrevPrevWord = wrd;
     }
 
 
 
-    QVector<QString> keys;
-    if(hasdot)
-    {
-        if(highlighter->TableColumnMap.contains(PrevWord))
-            for(auto ke : highlighter->TableColumnMap[PrevWord].keys())
-            {
-                keys.push_back(ke);
-            }
-        if(highlighter->TableColumnAliasMap.contains(PrevWord))
-            for(auto ke : highlighter->TableColumnMap[highlighter->TableColumnAliasMap[PrevWord]].keys())
-            {
-                keys.push_back(ke);
-            }
-        if(highlighter->tmpTableColumnMap.contains(PrevWord))
-            for(auto ke : highlighter->tmpTableColumnMap[PrevWord].keys())
-            {
-                if(highlighter->tmpTableColumnMap[PrevWord][ke])
-                    keys.push_back(ke);
-            }
 
+    word = word;
+    PrevWord = "";
+    PrevPrevWord = "";
+    PrevPrevPrevWord = "";
+    bool hasdot = false;
+
+    QString text_interval = "";
+    for(int i=start2; i <= end && i < text.size();i++)
+    {
+        text_interval += text[i];
+    }
+
+    QStringList text_interval_strl = processBlockToTokens(text_interval);
+    if(textCursor().position()-1 >=0 && (text[textCursor().position()-1] == ' ' || text[textCursor().position()-1] == '\t'|| text[textCursor().position()-1] == '\n'))
+    {
+        if(text_interval_strl.size() >= 3)
+            PrevPrevPrevWord = text_interval_strl[text_interval_strl.size()-3].toLower();
+        if(text_interval_strl.size() >= 2)
+            PrevPrevWord = text_interval_strl[text_interval_strl.size()-2].toLower();
+        if(text_interval_strl.size() >= 1)
+            PrevWord = text_interval_strl[text_interval_strl.size()-1].toLower();
+        word = "";
+        qDebug() << "On whitespace";
     }
     else
     {
+
+        if(text_interval_strl.size() >= 4)
+            PrevPrevPrevWord= text_interval_strl[text_interval_strl.size()-4].toLower();
+        if(text_interval_strl.size() >= 3)
+            PrevPrevWord = text_interval_strl[text_interval_strl.size()-3].toLower();
+        if(text_interval_strl.size() >= 2)
+            PrevWord = text_interval_strl[text_interval_strl.size()-2].toLower();
+        if(text_interval_strl.size() >= 1)
+            word = text_interval_strl[text_interval_strl.size()-1].toLower();
+    }
+    PrevWord = PrevWord.replace('\n',' ');
+    PrevWord = PrevWord.replace('\t',' ');
+    PrevPrevWord = PrevPrevWord.replace('\n',' ');
+    PrevPrevWord = PrevPrevWord.replace('\t',' ');
+    PrevPrevPrevWord = PrevPrevPrevWord.replace('\n',' ');
+    PrevPrevPrevWord = PrevPrevPrevWord.replace('\t',' ');
+
+    word = word.replace('\u0000',' ').trimmed();
+    PrevWord = PrevWord.replace('\u0000',' ').trimmed();
+    PrevPrevWord = PrevPrevWord.replace('\u0000',' ').trimmed();
+    PrevPrevPrevWord = PrevPrevPrevWord.replace('\u0000',' ').trimmed();
+
+
+    if(PrevWord.contains('.'))
+        hasdot = true;
+    qDebug()<<text_interval;
+
+    QVector<QString> keys;
+    QVector<QString> token_keys;
+    QMap<QString,int> token_key_values;
+
+    QString tokenkey = PrevPrevPrevWord.toLower() + " " + PrevPrevWord.toLower() + " " + PrevWord.toLower();
+    tokenkey = tokenkey.trimmed();
+
+    qDebug() << "tk is: " << tokenkey << "  word: " << word << "  precword: " << PrevWord << " hasdot" << hasdot;
+    for(auto s : tokenProcessor.ds.data[tokenkey.toStdString()])
+    {
+        keys.push_back(s.first.c_str());
+        token_keys.push_back(s.first.c_str());
+        token_key_values[s.first.c_str()] = (tokenProcessor.ds.GetPropertyAsInt(tokenkey.toStdString(),s.first));
+    }
+
+    tokenkey = PrevPrevWord.toLower() + " " + PrevWord.toLower();
+    tokenkey = tokenkey.trimmed();
+    for(auto s : tokenProcessor.ds.data[tokenkey.toStdString()])
+    {
+        //keys.push_back(s.first.c_str());
+        //token_keys.push_back(s.first.c_str());
+        token_key_values[s.first.c_str()] += (tokenProcessor.ds.GetPropertyAsInt(tokenkey.toStdString(),s.first));
+    }
+
+
+    tokenkey = PrevWord.toLower();
+    tokenkey = tokenkey.trimmed();
+    for(auto s : tokenProcessor.ds.data[tokenkey.toStdString()])
+    {
+        //keys.push_back(s.first.c_str());
+        //token_keys.push_back(s.first.c_str());
+        token_key_values[s.first.c_str()] += (tokenProcessor.ds.GetPropertyAsInt(tokenkey.toStdString(),s.first));
+    }
+
+    QVector<QString> morelikelykeys;
+    QVector<QString> likelykeys;
+    QVector<QString> lesslikelykeys;
+
+    if(hasdot)
+    {
+        if(highlighter->TableColumnMap.contains(PrevPrevWord))
+            for(auto ke : highlighter->TableColumnMap[PrevPrevWord].keys())
+            {
+                keys.push_back(ke);
+                morelikelykeys.push_back(ke);
+            }
+        if(highlighter->TableColumnAliasMap.contains(PrevPrevWord))
+            for(auto ke : highlighter->TableColumnMap[highlighter->TableColumnAliasMap[PrevPrevWord]].keys())
+            {
+                keys.push_back(ke);
+                morelikelykeys.push_back(ke);
+            }
+        if(highlighter->tmpTableColumnMap.contains(PrevPrevWord))
+            for(auto ke : highlighter->tmpTableColumnMap[PrevPrevWord].keys())
+            {
+                if(highlighter->tmpTableColumnMap[PrevPrevWord][ke])
+                {
+                    keys.push_back(ke);
+                    morelikelykeys.push_back(ke);
+                }
+            }
+    }
+    else
+    {
+
+
         keys.append(subCommandPatterns);
         if(highlighter->TableColumnMap.contains(PrevWord))
             for(auto ke : highlighter->TableColumnMap[PrevWord].keys())
             {
                 keys.push_back(ke);
+                lesslikelykeys.push_back(ke);
             }
         if(highlighter->TableColumnAliasMap.contains(PrevWord))
             for(auto ke : highlighter->TableColumnMap[highlighter->TableColumnAliasMap[PrevWord]].keys())
             {
                 keys.push_back(ke);
+                lesslikelykeys.push_back(ke);
             }
         for(auto ke : keywordPatterns)
         {
             keys.push_back(ke);
+            morelikelykeys.push_back(ke);
         }
         for(auto ke : highlighter->TableColumnMap.keys())
         {
             keys.push_back(ke);
+            morelikelykeys.push_back(ke);
         }
         for(auto ke : highlighter->tmpTableColumnMap.keys())
         {
             keys.push_back(ke);
+            morelikelykeys.push_back(ke);
         }
         for(auto ke : highlighter->TableColumnAliasMap.keys())
         {
             if(highlighter->TableColumnAliasMap.contains(ke))
+            {
                 keys.push_back(ke);
+                morelikelykeys.push_back(ke);
+            }
         }
         //tmpTableColumnMap
     }
@@ -535,18 +653,41 @@ void CodeEditor::suggestName()
 
     // Levenshtein Distance-like method of finding relevant words
 
-    long int min_diff = 1000000000;
+    long int min_diff = 10000000000;
     QString mindiffWord = "";
 
-    int wrong_cost = 8;
-    int move_cost = 1;
+    int wrong_cost = 10;
+    int move_cost = 3;
     int add_cost = 1;
-    int shorten_cost = 4;
+    int shorten_cost = 8;
 
     for(auto k : keys)
     {
         long int diff = 0;
         int last_i = 0;
+        float modifier = 100;
+
+        if(token_keys.contains(k,Qt::CaseInsensitive)) // if its a processed token, make it more likely to show it
+        {
+            modifier -= (token_key_values[k] * 0.002f);
+            //diff -=token_key_values[k];
+        }
+        if(likelykeys.contains(k,Qt::CaseInsensitive))
+        {
+            modifier -= (0.55f);
+            //diff -=token_key_values[k];
+        }
+        if(morelikelykeys.contains(k,Qt::CaseInsensitive))
+        {
+            modifier -= (1.0f);
+            //diff -=token_key_values[k];
+        }
+        if(lesslikelykeys.contains(k,Qt::CaseInsensitive))
+        {
+            modifier += (4.25f);
+            //diff -=token_key_values[k];
+        }
+
         for(int i=0;i<word.size();i++)
         {
             int mdiff = wrong_cost;
@@ -562,7 +703,7 @@ void CodeEditor::suggestName()
             diff+=abs(k.size()-word.size()) * shorten_cost;
         else
             diff+=abs(k.size()-word.size()) * add_cost;
-
+        diff *= modifier;
         if(diff<min_diff)
         {
             min_diff = diff;
@@ -626,7 +767,7 @@ void CodeEditor::FillsuggestName()
 {
     QTextCursor cursor = textCursor();
     QString lasttext = lastSuggestedWord;
-    if(lasttext.size()<=1)
+    if(lasttext.size()<=1 && (lasttext.size() > 0 && lasttext[0]!='.'&& lasttext[0]!='='&& lasttext[0]!='*'&& lasttext[0]!='\''&& lasttext[0]!='(' ))
     {
         cursor.insertText("\t");
         return;
@@ -673,19 +814,24 @@ void CodeEditor::FillsuggestName()
     }
     qDebug() << word;
     bool CursedStarSymbolDetected = false;
-    if(start-1 >=0 && (text[start-1] =='*' || text[start-1] =='>'|| text[start-1] =='<'|| text[start-1] =='='|| text[start-1] =='+'|| text[start-1] =='-'))
+    if(start-1 >=0 && ((isSpecialSymbol(text[start-1]) && text[start-1] != '"' && text[start-1] != '\'' && text[start-1] != '.') || text[start-1].isDigit()))
         CursedStarSymbolDetected = true;
     qDebug()<< "Pasted: "<<lastSuggestedWord;
     cursor.beginEditBlock();
-    cursor.setPosition(start, QTextCursor::MoveAnchor);
+    if(lasttext.back() == '.')
+        cursor.setPosition(start-1, QTextCursor::MoveAnchor);
+    else
+        cursor.setPosition(start, QTextCursor::MoveAnchor);
     cursor.setPosition(end+1, QTextCursor::KeepAnchor);
-    if(CursedStarSymbolDetected)
+    if(CursedStarSymbolDetected && lasttext.back() != '"' && lasttext.back() != '\'' && lasttext.back() != '.')
         cursor.insertText(" ");
+
     if(postgreSQL && lasttexttablecolumn)
         cursor.insertText("\"");
     cursor.insertText(lasttext);
     if(postgreSQL && lasttexttablecolumn)
         cursor.insertText("\"");
+    cursor.insertText(" ");
     cursor.endEditBlock();
 
 }

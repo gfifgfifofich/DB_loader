@@ -8,9 +8,17 @@
 void fillPaterns()
 {
 
+    subCommandPatterns.push_back("SubexecToSilentSqliteTable");
+    subCommandPatterns.push_back("SubexecToSilentExcelTable");
     subCommandPatterns.push_back("SubexecToUnionAllTable");
+    subCommandPatterns.push_back("SubexecToSqliteTable");
+    subCommandPatterns.push_back("SubexecToExcelTable");
+    subCommandPatterns.push_back("SubexecToSilentCSV");
     subCommandPatterns.push_back("SubexecToMagic");
     subCommandPatterns.push_back("SubexecToArray");
+    subCommandPatterns.push_back("SubexecToCSV");
+    subCommandPatterns.push_back("QueryForLoop");
+    subCommandPatterns.push_back("ForLoop");
 
     PostgrePatterns.push_back("abort;");
     PostgrePatterns.push_back("abs");

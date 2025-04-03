@@ -10,92 +10,62 @@
 #include <QFileDialog>
 #include "replacedialog.h"
 #include <QQmlApplicationEngine>
-
+#include <qtimer.h>
+#include "tokenprocessor.h"
 /*
-- improve speed of xlsx export (import is 'fine')
++- unknown crash when typing, probably in some highlighting cases
+    on mouse highlighting of "reports."
+        probably dealt with, crash at copying from table but nothing was selected in table
 
-+-                                         add togglable "add db name into file name" // feature added, not togglable
+
++                                          add togglable "add db name into file name" // feature added, not togglable
 +                                          add ability to stop downloading query at any point of downloading, mb togglable autopause at 500
 +                                          save only driver and db name in workspaces, fetch the rest from userdata, its safer
 +                                          themes from userdata
 +                                          Replace window - replaces every "string" with other "string", yea
 +                                          Highlight from bracket to bracket with codeEditor HighLight selection (will highlight background from bracket to bracket)
 +                                          Highlighting of selected token
-++- testing                                fix subtables
-+- constant correction                     datatypes
++ testing                                  fix subtables
++ constant correction                      datatypes
 +                                          tab press reg
 +                                          Timer
-- remake iterator through tasks
-+                                          Batch execution is impossible for select statements
++- reimplement Patterns compleatly through .ds files
+
++ SubexecToArray{
+        --{driver} {database}
+        select * from stufff
+        }
++ SubexecToMagic{
+        --{driver} {database}
+        select * from stufff
+        }
++ SubexecToUnionAllTable{
+        --{driver} {database}
+        select * from stufff
+        }
+
+
+- Iterate magic/arrays by 10k each
+
++ ForLoop{
+        --{value} {opt1,opt2,opt3}
+        select * from stufff where value
+        }
++ ForLoop{
+        --{value} {from} {to} {optional_step = 1}
+        select * from stufff where value
+        }
++ SubexecTo{Silent}{SqliteTable, ExcelTable, CSV} some method of updating sqlite tables in sqlite query
+
 
 - add special highlighting for unaccessible tables?
     select * from dba_tables where lower(owner) like '%%';
     select * from dba_TAB_COLUMNS where lower(table_name) like '%%';
     dba_ - all, all_ - user has access
 
-- subscripting (Custom DBLinks):
-    /////- insert sqlite table through select c1,c2,c3,c4 from dual union all select c1,c2,c3,c4 from dual   union all select c1,c2,c3,c4 from dual
-    /////- insert sqlite table column through ('magic','data')
-
-    - insert sql query to be loaded from different db
-
-
-    - SubexecToArray{
-            {driver} {database}
-            select * from stufff
-            }
-    - SubexecToMagic{
-            {driver} {database}
-            select * from stufff
-            }
-    - SubexecToUnionAllTable{
-            {driver} {database}
-            select * from stufff
-            }
-    - some merge function, to merge multiple queries
-    - some method of updating sqlite tables in sqlite query
 
 
 
-select stuff
-from things
-where  stuff in (SubexecToArray{...});
-
-
-
-select stuff
-from things
-where ('magic', stuff) in (SubexecToMagic{...});
-
-
-
-with a as (SubexecToUnionAllTable{...}),
-    b as (SubexecToUnionAllTable{...})
-
-select * from a cross join b;
-
-
-in this
-          time = date '2025-01-09' OR
-          time = date '2025-01-10' OR
-          time = date '2025-01-11' OR
-          time = date '2025-01-12' OR
-          time = date '2025-01-13' OR
-          time = date '2025-01-14' OR
-the 'OR' is red
-
-
-- automation basics
-    +  qml without recompilation?
-    +  move/delete/insert in excel table
-    + run sql
-    + select db
-    - Async tasks
-
-tasks:
-    name
-    DBConnection
-    Thread*
 */
 
 inline DataStorage userDS;
@@ -146,7 +116,12 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     connect( &dc, SIGNAL(querySuccess()), this, SLOT(onQuerySuccess()), Qt::QueuedConnection );
     connect( &dc, SIGNAL(queryBeginExecuting()), this, SLOT(onQueryBegin()), Qt::QueuedConnection );
     connect( &dc, SIGNAL(queryBeginCreating()), this, SLOT(onQueryBeginCreating()), Qt::QueuedConnection );
+    connect(&executionTimer, SIGNAL(timeout()), this, SLOT(executionTimerTimeout()));
 
+
+
+
+    tokenProcessor.ds.Load("FrequencyMaps/test.txt");
 
 
     if(userDS.Load("userdata.txt"))
@@ -231,6 +206,9 @@ void LoaderWidnow::Init(QString conname,QString driver,QString dbname,QString us
     cd->setPlainText(sql);
     ui->workspaceLineEdit->setText(LastWorkspaceName);
     dc.sqlCode = sql;
+
+    tokenProcessor.ds.Load("FrequencyMaps/test.txt");
+
 }
 
 LoaderWidnow::~LoaderWidnow()
@@ -246,6 +224,9 @@ LoaderWidnow::~LoaderWidnow()
 void LoaderWidnow::on_ConnectButton_pressed()
 {
     qDebug()<<"on_ConnectButton_pressed()";
+
+
+    tokenProcessor.ds.Load("FrequencyMaps/test.txt");
 
     QRandomGenerator64 gen;
     QString conname = QVariant(gen.generate()).toString();
@@ -352,8 +333,6 @@ void LoaderWidnow::runSqlAsync()
 {
     qDebug()<<"RunSqlAsync()";
 
-
-
     if(userDS.Load("userdata.txt"))
     {
         userDS.GetObject("User")["lastDriver"] = ui->driverComboBox->currentText().toStdString();
@@ -371,6 +350,8 @@ void LoaderWidnow::runSqlAsync()
     {
         return;
     }
+
+    queryExecutionState = 0;
     QRandomGenerator64 gen;
     QString conname = QVariant(gen.generate()).toString();
     QString driver = ui->driverComboBox->currentText();
@@ -391,8 +372,11 @@ void LoaderWidnow::runSqlAsync()
             start = 0;
         while(start>0 && text[start]!=';')
             start--;
-        if(text[start]==';')
+        while(start< text.size() &&!text[start].isLetterOrNumber())
             start++;
+        QTextCursor tc = cd->textCursor();
+        tc.setPosition(start,QTextCursor::MoveAnchor);
+        dc._code_start_line = tc.blockNumber();
         int iter = start;
         sqlstart = start;
         dc.sqlCode.push_back(text[iter]);
@@ -407,29 +391,43 @@ void LoaderWidnow::runSqlAsync()
         }
         qDebug()<<"sql start "<<start;
         qDebug()<<"sql start "<<iter-1;
+        while(dc.sqlCode.endsWith(';'))
+            dc.sqlCode.resize(dc.sqlCode.size()-1);
     }
     else
-        dc.sqlCode = tr(cd->textCursor().selectedText().toLocal8Bit());
+    {
+        dc.sqlCode = cd->textCursor().selectedText().toStdString().c_str();
+        dc.sqlCode = dc.sqlCode.replace('\r','\n');
+        dc.sqlCode = dc.sqlCode.replace(QChar(0x2029), QChar('\n'));
 
+        QTextCursor tc = cd->textCursor();
+        tc.setPosition(cd->textCursor().selectionStart(),QTextCursor::MoveAnchor);
+        dc._code_start_line = tc.blockNumber();
+    }
     if(runall)
     {
+        dc._code_start_line = 0;
         dc.sqlCode = cd->toPlainText();
+        while(dc.sqlCode.endsWith(';'))
+            dc.sqlCode.resize(dc.sqlCode.size()-1);
     }
 
 
     qDebug()<<"Executing sql:";
-    ui->miscStatusLabel->setText("running sql...");
+    ui->miscStatusLabel->setText(QString("running sql subqueries... start: ") + dc.executionStart.toString());
     qDebug()<<dc.sqlCode;
     qDebug()<<"";
-    while(dc.sqlCode.endsWith(';'))
-        dc.sqlCode.resize(dc.sqlCode.size()-1);
 
     QString str = "sqlBackup/";
     QDate dt = QDate::currentDate();
     str += QVariant(dt.year()).toString();
     str += "_";
+    if(QVariant(dt.month() ).toString().size() <=1)
+        str+=0;
     str += QVariant(dt.month()).toString();
     str += "_";
+    if(QVariant(dt.day() ).toString().size() <=1)
+        str+=0;
     str += QVariant(dt.day() ).toString();
     str += "_";
     str += QTime::currentTime().toString();
@@ -474,6 +472,11 @@ void LoaderWidnow::runSqlAsync()
     sqlexecThread = QThread::create(_AsyncFunc,this);
     sqlexecThread->start();
     ui->miscStatusLabel->setText("running sql...");
+
+    executionTimer.setSingleShot(false);
+    executionTimer.setTimerType(Qt::CoarseTimer);
+    executionTimer.setInterval(15);
+    executionTimer.start();
 
 }
 void LoaderWidnow::IterButtonPressed()
@@ -582,26 +585,80 @@ void LoaderWidnow::IterButtonPressed()
     }
 }
 
+
+void LoaderWidnow::executionTimerTimeout()
+{
+
+    QString msg = "";
+    if(queryExecutionState >=3)
+    {
+        msg += QVariant(dc.data.tbldata.size()).toString();
+        msg += " : ";
+        if(dc.data.tbldata.size()>0)
+            msg += QVariant(dc.data.tbldata[0].size()).toString();
+        else
+            msg += "0";
+    }
+    dc.executionTime = QDateTime::currentSecsSinceEpoch() - dc.executionStart.toSecsSinceEpoch();
+    dc.executionEnd = QDateTime::currentDateTime();
+    QString hours =  QVariant((dc.executionTime / 3600)).toString();
+    QString minuts = QVariant(dc.executionTime % 3600 / 60).toString();
+    QString secs = QVariant(dc.executionTime % 60).toString();
+    QString msecs = QVariant((QDateTime::currentMSecsSinceEpoch() - dc.executionStart.toMSecsSinceEpoch())%1000).toString();
+
+    while(hours.size() <2)
+        hours = QString("0") + hours;
+    while(minuts.size() <2)
+        minuts = QString("0") + minuts;
+    while(secs.size() <2)
+        secs = QString("0") + secs;
+    while(msecs.size() <3)
+        msecs = QString("0") + msecs;
+    if(queryExecutionState == 0)
+        msg += " running subqueries: ";
+    else if(queryExecutionState == 1)
+        msg += " creating sql query: ";
+    else if(queryExecutionState == 2)
+        msg += " executing sql query: ";
+    else if(queryExecutionState == 3)
+        msg += " query success, downloading result: ";
+    msg += hours;
+    msg += ":";
+    msg += minuts;
+    msg += ":";
+    msg += secs;
+    msg += ".";
+    msg += msecs;
+    ui->miscStatusLabel->setText(msg);
+}
 void LoaderWidnow::onQueryBeginCreating()
 {
     qDebug()<<"onQueryBeginCreating()";
-    ui->miscStatusLabel->setText("creating sql query...");
+    ui->miscStatusLabel->setText(QString("creating sql query...start: ") + dc.executionStart.toString());
+    queryExecutionState = 1;
     ui->stopLoadingQueryButton->hide();
 }
 void LoaderWidnow::onQueryBegin()
 {
     qDebug()<<"onQueryBegin()";
-    ui->miscStatusLabel->setText("executing sql query...");
+    ui->miscStatusLabel->setText(QString("executing sql query...start: ") + dc.executionStart.toString());
+    queryExecutionState = 2;
     ui->stopLoadingQueryButton->hide();
 }
 void LoaderWidnow::onQuerySuccess()
 {
     qDebug()<<"onQuerySuccess()";
-    ui->miscStatusLabel->setText("query success, downloading...");
+    ui->miscStatusLabel->setText(QString("query success, downloading...start: ") + dc.executionStart.toString());
+    queryExecutionState = 3;
     ui->stopLoadingQueryButton->show();
 }
 void LoaderWidnow::UpdateTable()
 {
+    queryExecutionState = 4;
+    executionTimer.stop();
+
+    dc.executionEnd = QDateTime::currentDateTime();
+    dc.executionTime = dc.executionEnd.toSecsSinceEpoch() - dc.executionStart.toSecsSinceEpoch();
     ui->stopLoadingQueryButton->hide();
     dc.tableDataMutex.lock();
     ui->miscStatusLabel->setText("updating table data...");
@@ -636,19 +693,25 @@ void LoaderWidnow::UpdateTable()
     QString hours =  QVariant((dc.executionTime / 3600)).toString();
     QString minuts = QVariant(dc.executionTime % 3600 / 60).toString();
     QString secs = QVariant(dc.executionTime % 60).toString();
+    QString msecs = QVariant((dc.executionEnd.toMSecsSinceEpoch() - dc.executionStart.toMSecsSinceEpoch())%1000).toString();
+
     while(hours.size() <2)
         hours = QString("0") + hours;
     while(minuts.size() <2)
         minuts = QString("0") + minuts;
     while(secs.size() <2)
         secs = QString("0") + secs;
+    while(msecs.size() <3)
+        msecs = QString("0") + msecs;
+
     msg += "   execution time: ";
     msg += hours;
     msg += ":";
     msg += minuts;
     msg += ":";
     msg += secs;
-
+    msg += ".";
+    msg += msecs;
     ui->miscStatusLabel->setText(QString("data downloaded ") + msg);
     ui->dataSizeLabel_2->setText(msg);
     ui->tableDBNameLabel->setText(dc.dbname);
@@ -785,6 +848,8 @@ void LoaderWidnow::ShowWorkspacesWindow()
 void LoaderWidnow::CopySelectionFormTable()
 {
     qDebug()<<"CopySelectionFormTable()";
+    if(ui->tableWidget->selectedItems().size()<=0)
+        return;
     QModelIndexList indexes = ui->tableWidget->selectionModel()->selectedIndexes();
     QAbstractItemModel * model = ui->tableWidget->model();
     QModelIndex previous = indexes.first();
@@ -812,6 +877,8 @@ void LoaderWidnow::CopySelectionFormTable()
 void LoaderWidnow::CopySelectionFormTableSql()
 {
     qDebug()<<"CopySelectionFormTableSql()";
+    if(ui->tableWidget->selectedItems().size()<=0)
+        return;
     QModelIndexList indexes = ui->tableWidget->selectionModel()->selectedIndexes();
     QAbstractItemModel * model = ui->tableWidget->model();
     int column_count = model->columnCount();
@@ -844,6 +911,7 @@ void LoaderWidnow::updatesuggestion()
 {
     //qDebug()<<"updatesuggestion()";
     ui->suggestionLabel->setText(cd->lastSuggestedWord);
+    ui->textPosLabel->setText(QVariant(cd->textCursor().blockNumber() + 1).toString() + ":" + QVariant(cd->textCursor().positionInBlock() + 1).toString());
 
 }
 void LoaderWidnow::FillSuggest()
@@ -904,7 +972,7 @@ void LoaderWidnow::SaveWorkspace()
         }
     }
     stream2 << "-- {" << ui->driverComboBox->currentText().toStdString() << "} ";
-    stream2 << " {" <<   ui->DBNameComboBox->currentText().toStdString() << "};\n";
+    stream2 << " {" <<   ui->DBNameComboBox->currentText().toStdString() << "}\n";
     stream2 << text.toStdString();
     stream2.close();
 }
@@ -921,6 +989,7 @@ void LoaderWidnow::on_SaveXLSXButton_pressed()
         str += ".xlsx";
     dc.data.sqlCode = dc.sqlCode;
     dc.data.allSqlCode = cd->toPlainText();
+
     if(dc.data.ExportToExcel(str,0,0,0,0,true))
         ui->miscStatusLabel->setText(QString("Saved as XLSX ") + str);
     else
@@ -1080,11 +1149,33 @@ void LoaderWidnow::on_the500LinesCheckBox_checkStateChanged(const Qt::CheckState
 }
 
 inline QQmlApplicationEngine* TestqmlEngine = nullptr;
-
 void LoaderWidnow::on_pushButton_pressed()
 {
 
     TestqmlEngine->load("DBLoadScript.qml");
 }
 
+
+
+
+
+void LoaderWidnow::on_pushButton_2_pressed()
+{
+    QString text = cd->toPlainText();
+    QDir directory("sqlBackup");
+    QStringList strl = directory.entryList();
+
+
+    tokenProcessor.ds.Load("FrequencyMaps/test.txt");
+    for(auto x : strl)
+    {
+        QFile f("sqlBackup/" + x);
+        f.open(QFile::OpenModeFlag::ReadOnly);
+        text = f.readAll().toStdString().c_str();
+
+        tokenProcessor.processText(text);
+        tokenProcessor.addFrequencies();
+    }
+    tokenProcessor.ds.Save("FrequencyMaps/test.txt");
+}
 

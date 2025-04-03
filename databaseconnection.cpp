@@ -1,5 +1,6 @@
 #include "databaseconnection.h"
 #include "datastorage.h"
+#include <qapplication.h>
 #include <qsqlerror.h>
 #include <qsqlrecord.h>
 #include "Patterns.h"
@@ -24,6 +25,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
     oracle = false;
     postgre = false;
     ODBC = false;
+    bool QODBC_Excel = false;
     QString dbSchemaName = "NoName";
     if(driver.trimmed() != "LOCAL_SQLITE_DB")
     {
@@ -37,6 +39,12 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
         {
             db = QSqlDatabase::addDatabase("QPSQL",connectionName);
             postgre = true;
+        }
+        else if (driver =="QODBC_Excel")
+        {
+            db = QSqlDatabase::addDatabase("QODBC",connectionName);
+            QODBC_Excel = true;
+            ODBC = true;
         }
         else
         {
@@ -135,18 +143,14 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
                     database = strl[1];
                 dbSchemaName = database;
             }
+            if(QODBC_Excel)
+            {
+                connectString.append("DRIVER={Microsoft Excel Driver (*.xls, *.xlsx, *.xlsm, *.xlsb)};ReadOnly=0;DBQ=" );
+                connectString.append(dbname);
 
-            connectString.append("Server=" );
-            connectString.append(server.trimmed());
-            connectString.append(";Port=" );
-            connectString.append(port.trimmed());
-            connectString.append(";Database=" );
-            connectString.append(database.trimmed());
-            connectString.append(";Uid=" );
-            connectString.append(username.trimmed());
-            connectString.append(";Pwd=" );
-            connectString.append(password.trimmed());
-            connectString.append(";" );
+            }
+            else
+                connectString = dbname;
         }
         if(!postgre)
             db.setDatabaseName(connectString);
@@ -174,54 +178,28 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
     return false;
 }
 
-/*
-    - SubexecToArray{
-            {driver} {database}
-            select * from stufff
-            }
-    - SubexecToMagic{
-            {driver} {database}
-            select * from stufff
-            }
-    - SubexecToUnionAllTable{
-            {driver} {database}
-            select * from stufff
-            }
+bool DatabaseConnection::Create(QString driver, QString DBName)
+{
+    if(userDS.Load("userdata.txt"))
+    {
+        this->driver = driver;
+        this->dbname = DBName;
+        this->usrname = userDS.data[DBName.toStdString()]["name"].c_str();
+        this->password = userDS.data[DBName.toStdString()]["password"].c_str();
+        return Create(driver.trimmed(),dbname.trimmed(), usrname.trimmed(), password.trimmed());
+    }
+    else return false;
+}
 
-select stuff
-from things
-where  stuff in (SubexecToArray{...});
-
-
-
-select stuff
-from things
-where ('magic', stuff) in (SubexecToMagic{...});
-
-
-
-with a as (SubexecToUnionAllTable{...}),
-    b as (SubexecToUnionAllTable{...})
-
-select * from a cross join b;
-
-std::vector<int> scriptPausePositions;
-std::vector<QString> scriptSqls;
-std::vector<QString> scriptDrivers;
-std::vector<QString> scriptDBNames;
-std::vector<QString> scriptCommands;
-std::vector<DatabaseConnections> subscriptConnesctions;
-
-*/
-
-void DatabaseConnection::execSql(QString sql)
+bool DatabaseConnection::execSql(QString sql)
 {
     stopNow = false;// to be shure we wont reject query right after exec
     if(sql.size() <=0)
         sql = sqlCode;
     tableDataMutex.lock();
-    tableDataMutex.unlock();    
-
+    tableDataMutex.unlock();
+    executionTime = QDateTime::currentSecsSinceEpoch();
+    executionStart = QDateTime::currentDateTime();
     if(!db.isOpen())
     {
         bool ok = db.open();
@@ -241,29 +219,40 @@ void DatabaseConnection::execSql(QString sql)
 
     // iterate through keywords, detect similarity
     qDebug()<<"Entered sql subcomand processing ";
-
-    for(int a=0;a < sql.size();a++)
+    bool reset = true;
+    int loopcount = -1;
+    while (reset)
     {
-        bool isAPartOfKeyword = false;
-        for(int i=0;i<subCommandPatterns.size();i++)
+        formatedSql = "";
+        keywordbuff = "";
+        localKeywordsMatch.clear();
+        localKeywordsMatch.resize(subCommandPatterns.size());
+        loopcount++;
+        reset = false;
+        for(int a=0;a < sql.size();a++)
         {
-            if(subCommandPatterns[i][localKeywordsMatch[i]].toLower() == sql[a].toLower())
+            bool isAPartOfKeyword = false;
+            for(int i=0;i<subCommandPatterns.size();i++)
             {
-                isAPartOfKeyword = true;
-                localKeywordsMatch[i]++;
+                if(subCommandPatterns[i][localKeywordsMatch[i]].toLower() == sql[a].toLower())
+                {
+                    isAPartOfKeyword = true;
+                    localKeywordsMatch[i]++;
 
-                if(localKeywordsMatch[i] == subCommandPatterns[i].size())
-                { // detected keyword, implement action
-                    qDebug()<<"Detected keyword \"" << subCommandPatterns[i] <<"\"";
-                    localKeywordsMatch[i] = 0;
-                    scriptCommand = subCommandPatterns[i];
-                    int buff_a = a;
-                    if(subCommandPatterns[i].startsWith("SubexecTo"))
-                    {// its a subexec, crop part from next { to }, exec it in subscriptConnection
-                        qDebug()<<"Its SubExec";
+                    if(localKeywordsMatch[i] == subCommandPatterns[i].size())
+                    { // detected keyword, implement action
+                        qDebug()<<"Detected keyword \"" << subCommandPatterns[i] <<"\"";
+                        localKeywordsMatch[i] = 0;
+                        scriptCommand = subCommandPatterns[i];
+                        int buff_a = a;
                         bool beginSubscriptSQL = false;
                         int bracketValue = 0;
                         int bracketCount = 0;
+                        bool inlineVariables = true;
+                        bool justOutOfBrackets = false;
+                        bool searchingFirstBrackets = false;
+                        QStringList funcVariables;
+                        QString lastVar = "";
                         scriptCommand = "";
                         while(buff_a < sql.size())
                         {
@@ -274,11 +263,30 @@ void DatabaseConnection::execSql(QString sql)
                                 qDebug()<< a;
                                 break;
                             }
+                            if(justOutOfBrackets && sql[buff_a] != '-'&& sql[buff_a] != '{'&& sql[buff_a] != '}'&& sql[buff_a] != ' '&& sql[buff_a] != '\t'&& sql[buff_a] != '\t'&& sql[buff_a] != '\r')
+                                inlineVariables = false;
+                            if(inlineVariables)
+                            {
+                                if(bracketValue > 1 &&  sql[buff_a] != '{'&& sql[buff_a] != '}'&& sql[buff_a] != ' ' && sql[buff_a] != '\t'&& sql[buff_a] != '\t'&& sql[buff_a] != '\r')
+                                {
+                                    lastVar += sql[buff_a];
+                                }
+                                if(sql[buff_a] == '}')
+                                {
+                                    lastVar = lastVar.trimmed();
+                                    funcVariables  << lastVar;
+                                    lastVar = "";
+                                }
+                            }
                             if(sql[buff_a]== '{')
                             {
+                                justOutOfBrackets = false;
                                 beginSubscriptSQL = true;
                                 bracketCount++;
-                                if(bracketCount <= 3)
+                                if(bracketCount > 1)
+                                    searchingFirstBrackets = false;
+
+                                if(inlineVariables)
                                     scriptCommand.push_back(' ');
                                 else
                                     scriptCommand.push_back('{');
@@ -290,7 +298,11 @@ void DatabaseConnection::execSql(QString sql)
                             if(sql[buff_a]== '}')
                             {
                                 bracketValue-=1;
-                                if(bracketCount <= 3)
+                                if(bracketValue == 1)
+                                {
+                                    justOutOfBrackets = true;
+                                }
+                                if(inlineVariables)
                                     scriptCommand.push_back(' ');
                                 else if(bracketValue >0)
                                     scriptCommand.push_back('}');
@@ -305,192 +317,489 @@ void DatabaseConnection::execSql(QString sql)
 
                             buff_a++;
                         }
+                        a = buff_a;
+                        qDebug()<< "subexec variables " << funcVariables;
+                        // recursion does its thing, recursive subexec's are possible and infinite^tm
+                        if(subCommandPatterns[i].startsWith("SubexecTo"))
+                        {// its a subexec, crop part from next { to }, exec it in subscriptConnection
+                            qDebug()<<"Its SubExec";
 
-                        qDebug()<< "";
-                        qDebug()<< "Subscript command is:";
-                        qDebug()<< scriptCommand;
-                        qDebug()<< "";
-                        QStringList tokens = scriptCommand.split(' ');
-                        QString subscriptDriver = "NoDriver";
-                        QString subscriptDBname = "NoDatabase";
-                        for(auto s : tokens)
-                        {
-                            if(s.size() <= 1 || s.contains('\n') || s.contains('-')|| s.contains('\t')) // to short
-                                continue;
-                            if(subscriptDriver == "NoDriver")
-                                subscriptDriver = s.trimmed();
-                            else if(subscriptDBname == "NoDatabase")
-                                subscriptDBname = s.trimmed();
-                            else
-                                break;
-                        }
 
-                        qDebug()<< "subscriptDriver: " << subscriptDriver;
-                        qDebug()<< "subscriptDBname: " << subscriptDBname;
-                        subscriptConnesction = new DatabaseConnection();
+                            qDebug()<< "";
+                            qDebug()<< "Subscript command is:";
+                            qDebug()<< scriptCommand;
+                            qDebug()<< "";
+                            QString subscriptDriver = "NoDriver";
+                            QString subscriptDBname = "NoDatabase";
+                            QString saveName = "unset_tmp_savename";
+                            char csvDelimeter = ';';
+                            int saveStart_X = 0;
+                            int saveStart_Y = 0;
+                            int saveEnd_X = 0;
+                            int saveEnd_Y = 0;
 
-                        QString username = userDS.GetObject(subscriptDBname.toStdString())["name"].c_str();
-                        QString password = userDS.GetObject(subscriptDBname.toStdString())["password"].c_str();
-                        qDebug()<< subscriptDriver << subscriptDBname << username.trimmed() << password.trimmed();
-                        subscriptConnesction->connectionName = connectionName + QVariant(a).toString();
-                        subscriptConnesction->Create(subscriptDriver.trimmed(),subscriptDBname.trimmed(),username.trimmed(),password.trimmed());
-                        while(scriptCommand.endsWith(' ') ||scriptCommand.endsWith('\t') ||scriptCommand.endsWith('\n') || scriptCommand.endsWith('\r'))
-                            scriptCommand.resize(scriptCommand.size()-1);
-                        subscriptConnesction->execSql(scriptCommand.trimmed());
-
-                        if(subCommandPatterns[i] == "SubexecToUnionAllTable")
-                        {// exec into union all table
-                            // Oracle: select * from dual union all select * from dual
-                            // PostgreSQL/SQLite select * union all select *...
-                            qDebug() <<"Reached SubexecToUnionAllTable implementation";
-
-                            if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
+                            int varcount = 0;
+                            for(auto s : funcVariables)
                             {
-                                if(subscriptConnesction->data.tbldata[0].size() > 0)
+                                if(varcount == 0)
                                 {
-                                    formatedSql += "Select ";
-                                    for(int t=0;t<subscriptConnesction->data.tbldata.size();t++)
-                                    {
-                                        formatedSql += "'";
-                                        formatedSql += subscriptConnesction->data.tbldata[t][0].toString();
-                                        formatedSql += "'";
-                                        formatedSql += " as \"";
-                                        formatedSql += subscriptConnesction->data.headers[t];
-                                        formatedSql += "\"";
+                                    varcount++;
+                                    subscriptDriver = s.trimmed();
+                                }else if(varcount == 1)
+                                {
+                                    varcount++;
+                                    subscriptDBname = s.trimmed();
+                                }
+                                else if(varcount == 2)
+                                {
+                                    varcount++;
+                                    saveName = s.trimmed();
+                                }
+                                else if(varcount == 3)
+                                {
+                                    varcount++;
+                                    saveStart_X = QVariant(s.trimmed()).toInt();
+                                    csvDelimeter = s.trimmed()[0].unicode();
+                                }
+                                else if(varcount == 4)
+                                {
+                                    varcount++;
+                                    saveEnd_X = QVariant(s.trimmed()).toInt();
+                                }
+                                else if(varcount == 5)
+                                {
+                                    varcount++;
+                                    saveStart_Y = QVariant(s.trimmed()).toInt();;
+                                }
+                                else if(varcount == 6)
+                                {
+                                    varcount++;
+                                    saveEnd_Y = QVariant(s.trimmed()).toInt();
+                                }
+                                else
+                                    break;
+                            }
 
-                                        if(t + 1 <subscriptConnesction->data.tbldata.size()) // there will be next
-                                            formatedSql += ",";
-                                    }
-                                    if(subscriptConnesction->oracle)
-                                        formatedSql += "from dual";
-                                    for(int j=0;j<subscriptConnesction->data.tbldata[0].size();j++)
+                            qDebug()<< "subscriptDriver: " << subscriptDriver;
+                            qDebug()<< "subscriptDBname: " << subscriptDBname;
+                            subscriptConnesction = new DatabaseConnection();
+
+                            QString username = userDS.GetObject(subscriptDBname.toStdString())["name"].c_str();
+                            QString password = userDS.GetObject(subscriptDBname.toStdString())["password"].c_str();
+                            qDebug()<< subscriptDriver << subscriptDBname << username.trimmed() << password.trimmed();
+                            subscriptConnesction->connectionName = connectionName + QVariant(a).toString();
+                            subscriptConnesction->Create(subscriptDriver.trimmed(),subscriptDBname.trimmed(),username.trimmed(),password.trimmed());
+                            while(scriptCommand.endsWith(' ') ||scriptCommand.endsWith('\t') ||scriptCommand.endsWith('\n') || scriptCommand.endsWith('\r'))
+                                scriptCommand.resize(scriptCommand.size()-1);
+                            subscriptConnesction->execSql(scriptCommand.trimmed());
+                            // silent exporting
+                            if(subCommandPatterns[i] == "SubexecToSilentSqliteTable")
+                            {
+                                qDebug() << "silent exporting to SQLite " << saveName;
+                                if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
+                                    subscriptConnesction->data.ExportToSQLiteTable(saveName);
+                            }
+                            if(subCommandPatterns[i] == "SubexecToSilentExcelTable")
+                            {
+                                qDebug() << "silent exporting to Excel " << saveName;
+                                if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
+                                    subscriptConnesction->data.ExportToExcel(QString("excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true);
+                            }
+                            if(subCommandPatterns[i] == "SubexecToSilentCSV")
+                            {
+                                qDebug() << "silent exporting to CSV " << saveName;
+                                if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
+                                    subscriptConnesction->data.ExportToCSV(QString("CSV/") + QString(saveName) + QString(".csv"),csvDelimeter,true);
+                            }
+                            // non silent exporting
+                            if(subCommandPatterns[i] == "SubexecToSqliteTable")
+                            {
+                                qDebug() << "exporting to SQLite " << saveName;
+                                if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
+                                {
+                                    QString saveErrorStr = "";
+                                    if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] != "Error")
+                                        if(!subscriptConnesction->data.ExportToSQLiteTable(saveName))
+                                            saveErrorStr = "Failed to save to SQLite table, check columnName repetitions/spaces, special symbols";
+                                    if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
+                                        formatedSql += " 'Error' as \"Status\", ";
+                                    else if (saveErrorStr.size() > 0)
                                     {
-                                        formatedSql += " union all Select ";
+                                        formatedSql += " '";
+                                        formatedSql += saveErrorStr;
+                                        formatedSql += "' ";
+                                        formatedSql += "as \"Status\", ";
+                                    }
+                                    else
+                                        formatedSql += " 'Success' as \"Status\", ";
+
+                                    if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
+                                    {
+                                        formatedSql += "'";
+                                        formatedSql += subscriptConnesction->data.tbldata[0][0].toString();
+                                        formatedSql += "'";
+                                        formatedSql += " as \"Error message\", ";
+                                    }
+                                    else
+                                    {
+                                        formatedSql += "'";
+                                        formatedSql += " ";
+                                        formatedSql += "'";
+                                        formatedSql += " as \"Error message\", ";
+                                    }
+                                    formatedSql += "'";
+                                    formatedSql += QVariant(subscriptConnesction->data.tbldata.size()).toString();
+                                    formatedSql += "'";
+                                    formatedSql += " as \"Column count\", ";
+                                    formatedSql += "'";
+                                    if(subscriptConnesction->data.tbldata.size() > 0)
+                                        formatedSql += QVariant(subscriptConnesction->data.tbldata[0].size()).toString();
+                                    else
+                                        formatedSql += " 0 ";
+                                    formatedSql += "'";
+                                    formatedSql += " as \"Row count\" ";
+                                }
+                            }
+                            if(subCommandPatterns[i] == "SubexecToExcelTable")
+                            {
+                                qDebug() << "exporting to Excel " << saveName;
+                                QString saveErrorStr = "";
+                                if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
+                                    if(!subscriptConnesction->data.ExportToExcel(QString("excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true))
+                                        saveErrorStr = "Failed to save to excel, probably file is opened";
+
+                                if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
+                                    formatedSql += " 'Error' as \"Status\", ";
+                                else if (saveErrorStr.size() > 0)
+                                {
+                                    formatedSql += " '";
+                                    formatedSql += saveErrorStr;
+                                    formatedSql += "' ";
+                                    formatedSql += "as \"Status\", ";
+                                }
+                                else
+                                    formatedSql += " 'Success' as \"Status\", ";
+
+                                if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
+                                {
+                                    formatedSql += "'";
+                                    formatedSql += subscriptConnesction->data.tbldata[0][0].toString();
+                                    formatedSql += "'";
+                                    formatedSql += " as \"Error message\", ";
+                                }
+                                else
+                                {
+                                    formatedSql += "'";
+                                    formatedSql += " ";
+                                    formatedSql += "'";
+                                    formatedSql += " as \"Error message\", ";
+                                }
+                                formatedSql += "'";
+                                formatedSql += QVariant(subscriptConnesction->data.tbldata.size()).toString();
+                                formatedSql += "'";
+                                formatedSql += " as \"Column count\", ";
+                                formatedSql += "'";
+                                if(subscriptConnesction->data.tbldata.size() > 0)
+                                    formatedSql += QVariant(subscriptConnesction->data.tbldata[0].size()).toString();
+                                else
+                                    formatedSql += " 0 ";
+                                formatedSql += "'";
+                                formatedSql += " as \"Row count\" ";
+                            }
+                            if(subCommandPatterns[i] == "SubexecToCSV")
+                            {
+                                qDebug() << "exporting to CSV " << saveName;
+                                if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
+                                    subscriptConnesction->data.ExportToCSV(QString("CSV/") + QString(saveName) + QString(".csv"),csvDelimeter,true);
+                                if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
+                                    formatedSql += " 'Error' as \"Status\", ";
+                                else
+                                    formatedSql += " 'Success' as \"Status\", ";
+
+                                if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
+                                {
+                                    formatedSql += "'";
+                                    formatedSql += subscriptConnesction->data.tbldata[0][0].toString();
+                                    formatedSql += "'";
+                                    formatedSql += " as \"Error message\", ";
+                                }
+                                else
+                                {
+                                    formatedSql += "'";
+                                    formatedSql += " ";
+                                    formatedSql += "'";
+                                    formatedSql += " as \"Error message\", ";
+                                }
+                                formatedSql += "'";
+                                formatedSql += QVariant(subscriptConnesction->data.tbldata.size()).toString();
+                                formatedSql += "'";
+                                formatedSql += " as \"Column count\", ";
+                                formatedSql += "'";
+                                if(subscriptConnesction->data.tbldata.size() > 0)
+                                    formatedSql += QVariant(subscriptConnesction->data.tbldata[0].size()).toString();
+                                else
+                                    formatedSql += " 0 ";
+                                formatedSql += "'";
+                                formatedSql += " as \"Row count\" ";
+
+                            }
+                            // script extensions/dblinks
+                            if(subCommandPatterns[i] == "SubexecToUnionAllTable")
+                            {// exec into union all table
+                                // Oracle: select * from dual union all select * from dual
+                                // PostgreSQL/SQLite select * union all select *...
+                                qDebug() <<"Reached SubexecToUnionAllTable implementation";
+
+                                if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
+                                {
+                                    if(subscriptConnesction->data.tbldata[0].size() > 0)
+                                    {
+                                        formatedSql += "Select ";
                                         for(int t=0;t<subscriptConnesction->data.tbldata.size();t++)
                                         {
                                             formatedSql += "'";
-                                            formatedSql += subscriptConnesction->data.tbldata[t][j].toString();
+                                            formatedSql += subscriptConnesction->data.tbldata[t][0].toString();
                                             formatedSql += "'";
+                                            formatedSql += " as \"";
+                                            formatedSql += subscriptConnesction->data.headers[t];
+                                            formatedSql += "\"";
 
                                             if(t + 1 <subscriptConnesction->data.tbldata.size()) // there will be next
                                                 formatedSql += ",";
                                         }
-                                        if(subscriptConnesction->oracle)
+                                        if(oracle)
+                                            formatedSql += "from dual";
+                                        for(int j=1;j<subscriptConnesction->data.tbldata[0].size();j++)
+                                        {
+                                            formatedSql += " union all Select ";
+                                            for(int t=0;t<subscriptConnesction->data.tbldata.size();t++)
+                                            {
+                                                formatedSql += "'";
+                                                formatedSql += subscriptConnesction->data.tbldata[t][j].toString();
+                                                formatedSql += "'";
+
+                                                if(t + 1 <subscriptConnesction->data.tbldata.size()) // there will be next
+                                                    formatedSql += ",";
+                                            }
+                                            if(oracle)
+                                                formatedSql += "from dual";
+                                        }
+                                    }
+                                    else
+                                    {
+                                        formatedSql += "Select ";
+                                        for(int t=0;t<subscriptConnesction->data.tbldata.size();t++)
+                                        {
+                                            formatedSql += "'";
+                                            formatedSql += "Empty_query";
+                                            formatedSql += "'";
+                                            formatedSql += " as \"";
+                                            formatedSql += subscriptConnesction->data.headers[t];
+                                            formatedSql += "\"";
+
+                                            if(t + 1 <subscriptConnesction->data.tbldata.size()) // there will be next
+                                                formatedSql += ",";
+                                        }
+                                        if(oracle)
                                             formatedSql += "from dual";
                                     }
+
+                                }
+
+
+                            }
+                            if(subCommandPatterns[i] == "SubexecToMagic")
+                            {// exec into ('magic', 'element1') , ('magic', 'element2')
+                                //Probably oracle specific cuz oracle has 1k limit on 'in' arrays
+                                qDebug() <<"Reached SubexecToMagic implementation";
+
+                                if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
+                                {
+                                    for(int j=0;j<subscriptConnesction->data.tbldata[0].size();j++)
+                                    {
+                                        for(int t=0;t<subscriptConnesction->data.tbldata.size();t++)
+                                        {
+                                            formatedSql += "('magic',";
+                                            formatedSql += "'";
+                                            formatedSql += subscriptConnesction->data.tbldata[t][j].toString();
+                                            formatedSql += "'";
+                                            formatedSql += ")";
+                                            if(j + 1 <subscriptConnesction->data.tbldata[0].size() || t + 1 <subscriptConnesction->data.tbldata.size()) // there will be next
+                                                formatedSql += ",";
+                                        }
+                                    }
+                                }
+
+
+
+                            }
+                            if(subCommandPatterns[i] == "SubexecToArray")
+                            {// exec into 'element1','element2','element3'
+                                qDebug() <<"Reached SubexecToArray implementation";
+                                if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
+                                {
+                                    for(int j=0;j<subscriptConnesction->data.tbldata[0].size();j++)
+                                    {
+                                        for(int t=0;t<subscriptConnesction->data.tbldata.size();t++)
+                                        {
+                                            formatedSql += "'";
+                                            formatedSql += subscriptConnesction->data.tbldata[t][j].toString();
+                                            formatedSql += "' ";
+                                            if(j + 1 <subscriptConnesction->data.tbldata[0].size() || t + 1 <subscriptConnesction->data.tbldata.size()) // there will be next
+                                                formatedSql += ",";
+                                        }
+                                    }
+                                }
+
+
+
+
+                            }
+
+                        }
+                        // no recursion = manualy unroll though reset
+                        if(subCommandPatterns[i].trimmed() == "ForLoop" || subCommandPatterns[i].trimmed() == "QueryForLoop")
+                        {
+                            reset = true;
+
+
+                            qDebug()<< "ForLoop";
+                            qDebug()<< "variables " << funcVariables;
+                            qDebug()<< "Subscript command is:";
+                            qDebug()<< scriptCommand;
+                            qDebug()<< "";
+                            QString replValue = "_____Unset_Iter_Value_";
+                            int replStart = 0;
+                            int replEnd = 1;
+                            int replStep = 1;
+                            int fillStage = 0;
+                            bool toIntStart = false;
+                            QStringList iterateValues;
+                            //QString valueFiller = ""; // mb implement it, for syntax like {iterval} {002} {100} and itervalue will be 3 digits, 002,003 etc.
+                            int valueRuquieredSize = 0; // implemented through this. less flexability
+                            bool isIteration = false;
+                            for(auto s : funcVariables)
+                            {
+                                if(fillStage  == 0)
+                                {
+                                    fillStage++;
+                                    replValue = s.trimmed();
+                                }else if(fillStage  == 1)
+                                {
+                                    fillStage++;
+                                    replStart = QVariant(s.trimmed()).toInt(&toIntStart);
+                                    valueRuquieredSize = s.trimmed().size();
+                                    if(!toIntStart)
+                                    {
+                                        iterateValues = s.trimmed().split(',');
+                                        if(iterateValues.size()>0)
+                                            isIteration = true;
+                                    }
+
+                                }else if(fillStage  == 2)
+                                {
+                                    fillStage++;
+                                    replEnd = QVariant(s.trimmed()).toInt();
+                                }else if(fillStage  == 3)
+                                {
+                                    fillStage++;
+                                    replStep = QVariant(s.trimmed()).toInt();
                                 }
                                 else
-                                {
-                                    formatedSql += "Select ";
-                                    for(int t=0;t<subscriptConnesction->data.tbldata.size();t++)
-                                    {
-                                        formatedSql += "'";
-                                        formatedSql += "Empty_query";
-                                        formatedSql += "'";
-                                        formatedSql += " as \"";
-                                        formatedSql += subscriptConnesction->data.headers[t];
-                                        formatedSql += "\"";
-
-                                        if(t + 1 <subscriptConnesction->data.tbldata.size()) // there will be next
-                                            formatedSql += ",";
-                                    }
-                                    if(subscriptConnesction->oracle)
-                                        formatedSql += "from dual";
-                                }
-
+                                    break;
                             }
+                            qDebug() << replValue << replStart << replEnd << replStep << "valueRuquieredSize " << valueRuquieredSize;
 
+                            if(!isIteration)
+                            {for(int iter = replStart; iter <= replEnd; iter += replStep)
+                                {
+                                    if(iter != replStart)
+                                    {
+                                        if(subCommandPatterns[i].trimmed() == "QueryForLoop")
+                                            formatedSql+= " union all ";
+                                    }
+                                    QString fmiterSql = scriptCommand;
+                                    QString replString = QVariant(iter).toString();
+                                    while (replString.size() < valueRuquieredSize)
+                                        replString = '0' + replString;
 
-                        }
-                        if(subCommandPatterns[i] == "SubexecToMagic")
-                        {// exec into ('magic', 'element1') , ('magic', 'element2')
-                            //Probably oracle specific cuz oracle has 1k limit on 'in' arrays
-                            qDebug() <<"Reached SubexecToMagic implementation";
-
-                            if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
+                                    fmiterSql = fmiterSql.replace(replValue, replString);
+                                    formatedSql += fmiterSql;
+                                    qDebug()<<iter << fmiterSql;
+                                }
+                            }else
                             {
-                                for(int j=0;j<subscriptConnesction->data.tbldata[0].size();j++)
+                                int first = true;
+                                for(auto val : iterateValues)
                                 {
-                                    for(int t=0;t<subscriptConnesction->data.tbldata.size();t++)
+                                    if(!first)
                                     {
-                                        formatedSql += "('magic',";
-                                        formatedSql += "'";
-                                        formatedSql += subscriptConnesction->data.tbldata[t][j].toString();
-                                        formatedSql += "'";
-                                        formatedSql += ")";
-                                        if(j + 1 <subscriptConnesction->data.tbldata[0].size() || t + 1 <subscriptConnesction->data.tbldata.size()) // there will be next
-                                            formatedSql += ",";
+                                        if(subCommandPatterns[i].trimmed() == "QueryForLoop")
+                                            formatedSql+= " union all ";
                                     }
+                                    first = false;
+                                    QString fmiterSql = scriptCommand;
+                                    QString replString = val;
+
+                                    fmiterSql = fmiterSql.replace(replValue, replString);
+                                    formatedSql += fmiterSql;
+                                    qDebug()<<val << fmiterSql;
                                 }
                             }
 
-
-
+                            formatedSql += " ";
                         }
-                        if(subCommandPatterns[i] == "SubexecToArray")
-                        {// exec into 'element1','element2','element3'
-                            qDebug() <<"Reached SubexecToArray implementation";
-                            if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
-                            {
-                                for(int j=0;j<subscriptConnesction->data.tbldata[0].size();j++)
-                                {
-                                    for(int t=0;t<subscriptConnesction->data.tbldata.size();t++)
-                                    {
-                                        formatedSql += "'";
-                                        formatedSql += subscriptConnesction->data.tbldata[t][j].toString();
-                                        formatedSql += "' ";
-                                        if(j + 1 <subscriptConnesction->data.tbldata[0].size() || t + 1 <subscriptConnesction->data.tbldata.size()) // there will be next
-                                            formatedSql += ",";
-                                    }
-                                }
-                            }
-
-
-
-
-                        }
-
+                        keywordbuff = "";
                     }
-
-
-                    keywordbuff = "";
+                }
+                else
+                { // broken symbol line, this isn't a keyword
+                    localKeywordsMatch[i] = 0;
                 }
             }
-            else
-            { // broken symbol line, this isn't a keyword
-                localKeywordsMatch[i] = 0;
+            if(!isAPartOfKeyword)
+            {
+                formatedSql += keywordbuff;
+                keywordbuff = "";
+                formatedSql +=sql[a];
             }
+            else
+                keywordbuff+= sql[a];
         }
-        if(!isAPartOfKeyword)
-        {
-            formatedSql += keywordbuff;
-            keywordbuff = "";
-            formatedSql +=sql[a];
-        }
-        else
-            keywordbuff+= sql[a];
+        formatedSql += keywordbuff;
+        keywordbuff = "";
+        sql = formatedSql;
+        qDebug()<< "";
+        qDebug()<< "";
+        qDebug()<< "";
+        qDebug()<< "loopcount " << loopcount << " sql: "<< sql;
+        qDebug()<< "";
+        qDebug()<< "";
+        qDebug()<< "";
+        if(loopcount > 5) break;
     }
-
-    formatedSql += keywordbuff;
-    keywordbuff = "";
     qDebug()<<"Exiting sql subcomand processing........";
     qDebug()<<"Resulting formatedSql is";
-    //qDebug()<<formatedSql;
+    QString str = formatedSql.trimmed();
 
-    QString str = formatedSql;
+
+    while(str.endsWith('\n') || str.endsWith('}') ||str.endsWith('\t') || str.endsWith(' '))
+        str.resize(str.size()-1);
+    qDebug()<<str;
     qDebug() << "creating query";
     emit queryBeginCreating();
+
     QSqlQuery q(db);
     query = &q;
     qDebug() << "created query";
 
     q.setForwardOnly(true);
     data.headers.clear();
-    executionTime = QDateTime::currentSecsSinceEpoch();
-    q.prepare(str);
+    qDebug() << "Prepairing query";
+    qDebug() <<QApplication::libraryPaths();
     qDebug() << "executing query";
     emit queryBeginExecuting();
-    if(q.exec() && q.isSelect())
+    if(q.exec(str) && q.isSelect())
     {
         qDebug() << "query sucess.  isSelect = " << q.isSelect();
         emit querySuccess();
@@ -597,28 +906,99 @@ void DatabaseConnection::execSql(QString sql)
         data.headers.push_back("Error");
         data.headers.push_back("db Error");
         data.headers.push_back("driver Error");
-        qDebug() << "Error in sql query:"<< q.lastError().text().toStdString().c_str();
-        qDebug() << "Error from database:"<< tr(q.lastError().databaseText().toStdString().c_str());
-        qDebug() << "Error from driver:"<< q.lastError().driverText();
-        qDebug() << sql;
-        data.tbldata.back().push_back(q.lastError().text().toStdString().c_str());
-        data.tbldata.back().push_back(q.lastError().databaseText());
-        data.tbldata.back().push_back(q.lastError().driverText());
 
-        if(!q.isSelect())
-            data.tbldata.back().push_back("and query.isSelect() = false, maybe it's not a select statement");
+        if(oracle)
+        {
+            // run the get error query from oracle
+            //QString GetErrorSQL = "DECLARE        c   INTEGER := DBMS_SQL.open_cursor (); errorpos integer := -1;     BEGIN        DBMS_SQL.parse (c, '";
+            QString GetErrorSQL = "declare    v_count number;    v_bad_sql varchar2(32767) :=         '";
+            while(str.endsWith(' ') || str.endsWith('\n')|| str.endsWith('\t')|| str.endsWith(';'))
+                str.resize(str.size()-1);
+            GetErrorSQL +=  str.replace('\'', "''" );
+            //GetErrorSQL += "', DBMS_SQL.native);           DBMS_SQL.close_cursor (c);     EXCEPTION        WHEN OTHERS THEN   errorpos := DBMS_SQL.LAST_ERROR_POSITION();       DBMS_OUTPUT.put_line ('Last Error: ' || DBMS_SQL.LAST_ERROR_POSITION ());  DBMS_SQL.close_cursor (c);  RAISE;  END;";
+            GetErrorSQL +="';begin    execute immediate v_bad_sql into v_count;exception when others then    begin        execute immediate            'begin for i in ( '||v_bad_sql||') loop null; end loop; end;';    exception when others then        dbms_output.put_line(sqlerrm);  RAISE; end;  end;";
+            if(q.exec(GetErrorSQL))
+            {
+                while(q.next())
+                {
+                    data.tbldata.back().push_back(q.value(0));
+                    data.tbldata.back().push_back(q.value(1));
+                    data.tbldata.back().push_back(q.value(2));
+                }
+            }
+            if(q.lastError().text().contains(" line "))
+            {
+                QString errStr = q.lastError().text();
+                QString searchstr = " line ";
+                while(errStr.contains(searchstr))
+                {
+                    QString replaceThe = "";
+                    int match = 0;
+                    int i =0;
+                    while(i < errStr.size() && match < searchstr.size())
+                    {
+                        if(searchstr[match] == errStr[i])
+                        {
+                            replaceThe+=errStr[i];
+                            match++;
+                        }
+                        else
+                        {
+                            match = 0;
+                            replaceThe.clear();
+                        }
+                        i++;
+                    }
+                    QString linenum = "";
+                    while(i < errStr.size() && errStr[i].isDigit())
+                        linenum+= errStr[i++];
+                    if(linenum.size()>0)
+                    {
+                        errStr =        errStr.replace(searchstr + linenum," code_pos: "+QVariant(QVariant(linenum).toInt() + _code_start_line).toString());
 
+                        qDebug()<<"line num is "<< linenum ;
+                    }
+                }
+                data.tbldata.back().push_back(errStr);
+            }
+            data.tbldata.back().push_back(q.lastError().text().toStdString().c_str());
+            data.tbldata.back().push_back(q.lastError().databaseText());
+            data.tbldata.back().push_back(q.lastError().driverText());
+        }
+        else
+        {
+            qDebug() << "Error in sql query:"<< q.lastError().text().toStdString().c_str();
+            qDebug() << "Error from database:"<< tr(q.lastError().databaseText().toStdString().c_str());
+            qDebug() << "Error from driver:"<< q.lastError().driverText();
+            qDebug() << sql;
+            data.tbldata.back().push_back(q.lastError().text().toStdString().c_str());
+            data.tbldata.back().push_back(q.lastError().databaseText());
+            data.tbldata.back().push_back(q.lastError().driverText());
+        }
+
+        q.clear();
+        q.finish();
+        query = nullptr;
+
+        executionTime = QDateTime::currentSecsSinceEpoch() - executionTime;
+        qDebug() << "Execd";
+        executing = false;
+        emit execedSql();
+        return false;
     }
 
     q.clear();
     q.finish();
     query = nullptr;
 
+    for(int i=0;i<data.headers.size();i++)
+        data.setHeaderData(i,Qt::Horizontal,data.headers[i]);
     executionTime = QDateTime::currentSecsSinceEpoch() - executionTime;
+    executionEnd = QDateTime::currentDateTime();
     qDebug() << "Execd";
-    qDebug() << data.tbldata.size() << "  " << data.tbldata[0].size();
     executing = false;
     emit execedSql();
+    return true;
 }
 
 TableData* DatabaseConnection::getData()
@@ -629,3 +1009,30 @@ QString DatabaseConnection::replace(QString str,QString what, QString with)
 { // love qml strings
     return str.replace(what,with);
 }
+
+
+QString DatabaseConnection::getDay()
+{
+
+    QString str = QVariant(QDate::currentDate().day()).toString();
+    if (str.size() < 2)
+        return "0" + str;
+    else
+        return str;
+}
+
+QString DatabaseConnection::getMonth()
+{
+    QString str = QVariant(QDate::currentDate().month()).toString();
+    if (str.size() < 2)
+        return "0" + str;
+    else
+        return str;
+}
+
+QString DatabaseConnection::getYear()
+{
+    return QVariant(QDate::currentDate().year()).toString();
+}
+
+

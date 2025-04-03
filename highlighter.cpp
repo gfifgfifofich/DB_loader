@@ -6,7 +6,7 @@
 #include <qsqlrecord.h>
 #include <QSqlDriver>
 #include "datastorage.h"
-
+#include "sqlSubfunctions.h"
 inline DataStorage userDS;
 
 /* fix subtables
@@ -175,72 +175,7 @@ Highlighter::Highlighter(QTextDocument *parent)
     singleLineCommentFormat.setForeground(QColor(Qt::green).lighter(90));
 }
 
-bool isSpecialSymbol(QChar c)
-{
-    return c=='!' || c=='=' || c=='*' || c=='&' || c=='%' || c=='(' || c==')' || c=='-' || c=='+' || c=='/' || c==',' || c=='.' || c=='<' || c=='>' || c==';' || c==':' || c=='\"' || c=='\'';
-}
-bool isWord(QString s)
-{
-    return !s.contains('!') &&
-           !s.contains('=') &&
-           !s.contains('*') &&
-           !s.contains('&') &&
-           !s.contains('%') &&
-           !s.contains('(') &&
-           !s.contains(')') &&
-           !s.contains('-') &&
-           !s.contains('+') &&
-           !s.contains('/') &&
-           !s.contains(',') &&
-           !s.contains('.') &&
-           !s.contains('<') &&
-           !s.contains('>') &&
-           !s.contains(';') &&
-           !s.contains(':');
-}
-bool isNumber(QString s)
-{
-    for(auto x : s)
-    {
-        if(!x.isDigit() && x!='.')
-            return false;
-    }
-    return true;
-}
-// used mostly to not highlight window functions after comma as errors
-bool isWindowFunc(QString s)
-{
-    QString str = s.toLower().trimmed();
-    return str == "coalesce" ||
-           str == "case" ||
-           str == "trunc" ||
-           str == "date" ||
-           str == "lag" ||
-           str == "lead" ||
-           str == "first" ||
-           str == "first_value" ||
-           str == "last_value" ||
-           str == "(" ||
-           str == "sum" ||
-           str == "count" ||
-           str == "max" ||
-           str == "min" ||
-           str == "avg"||
-           str == "round"||
-           str == "last_day"||
-           str == "to_char"||
-           str == "substr"||
-           str == "lower"||
-           str == "upper"||
-           str == "nvl"||
-           str == "account"||
-           str == "sysdate"||
-           str == "priority"||
-           str == "concat"
 
-
-        ;
-}
 
 void Highlighter::highlightBlock(const QString &text)
 {
@@ -250,7 +185,6 @@ void Highlighter::highlightBlock(const QString &text)
 
 
     tokens[bn].clear();
-
     QStringList words = text.split(' ');
     int wordstart = 0;
     int wordend = 0;
@@ -281,12 +215,15 @@ void Highlighter::highlightBlock(const QString &text)
             tword += text[i+1];
             tokens[currentBlock().blockNumber()].push_back( {i, i+1, tword } );
             word.clear();
+            inword = false;
             i++;// hop to the next unprocessed symbol
         }
         else if(isSpecialSymbol(text[i])) // only this
         {
             QString tword = text[i];
             tokens[currentBlock().blockNumber()].push_back( {i, i, tword} );
+            word.clear();
+            inword = false;
         }
     }
     if(inword)
@@ -800,7 +737,7 @@ void Highlighter::highlightBlock(const QString &text)
                 prevBnID++;
         }
 
-        if (i < tokens[bn].size() - 1)
+        if (i < tokens[bn].size() - 1) // if next exists in this line
         {
             nextToken = tokens[bn][i + 1].text;
             nextstart = tokens[bn][i + 1].start;
@@ -808,13 +745,13 @@ void Highlighter::highlightBlock(const QString &text)
 
         }
         else
-            while ( bn + nextBnID < tokens.size() && nextToken.size()<=0 )
+            while ( bn + nextBnID < tokens.size() && nextToken.size()<=0 ) // if next nonempty exists
             {
-                if(tokens[bn+nextBnID].size() > 0 && !tokens[bn+nextBnID][0].text.contains("--"))
+                if(tokens[bn+nextBnID].size() > 0 && !tokens[bn+nextBnID][0].text.contains("--")) // non empty non coment
                 {
-                    nextToken = tokens[bn + nextBnID].back().text;
-                    nextstart = tokens[bn + nextBnID].back().start;
-                    nextend = tokens[bn +  nextBnID].back().end;
+                    nextToken = tokens[bn + nextBnID].front().text;
+                    nextstart = tokens[bn + nextBnID].front().start;
+                    nextend = tokens[bn +  nextBnID].front().end;
                     grabbedNextline = true;
                 }
                 else
@@ -824,7 +761,7 @@ void Highlighter::highlightBlock(const QString &text)
 
         if(keywordPatterns.contains(tokens[bn][i].text,Qt::CaseInsensitive))
         {
-            if( (tokens[bn][i].text.toLower() == "select" && prevToken.size() > 0 && !prevToken.contains(';')&& !prevToken.contains('{')&& !prevToken.contains("all")&& !prevToken.contains("union") && !prevToken.contains(')') && !prevToken.contains('('))
+            if( (tokens[bn][i].text.toLower() == "select" && prevToken.size() > 0 && !prevToken.contains(';')&& !prevToken.contains('{')&& !prevToken.contains('}')&& !prevToken.contains("all")&& !prevToken.contains("union") && !prevToken.contains(')') && !prevToken.contains('('))
                 )
             {
                 markPrevAsError  = true;
@@ -969,7 +906,7 @@ void Highlighter::UpdateTableColumns(QSqlDatabase* db, QString dbname)
         QStringList tblnames = db->driver()->tables(QSql::AllTables);
         for(auto tbl : tblnames)
         {
-            TableColumnDS.data[tbl.toStdString()];
+            TableColumnDS.data[tbl.toLower().toStdString()];
         }
         for(auto tbn : tblnames)
         {
@@ -977,7 +914,7 @@ void Highlighter::UpdateTableColumns(QSqlDatabase* db, QString dbname)
             int reccount = rec.count();
             for(int a=0,total = reccount; a<total;a++)
             {
-                TableColumnDS.data[tbn.toStdString()][rec.fieldName(a).toStdString()];
+                TableColumnDS.data[tbn.toLower().toStdString()][rec.fieldName(a).toLower().toStdString()];
             }
         }
 

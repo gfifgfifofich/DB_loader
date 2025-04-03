@@ -550,6 +550,9 @@
               <height>25</height>
              </size>
             </property>
+            <property name="editable">
+             <bool>true</bool>
+            </property>
             <property name="placeholderText">
              <string>Database name</string>
             </property>
@@ -644,6 +647,19 @@
             </property>
             <property name="text">
              <string>suggestion</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="textPosLabel">
+            <property name="layoutDirection">
+             <enum>Qt::LayoutDirection::LeftToRight</enum>
+            </property>
+            <property name="text">
+             <string>pos</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
             </property>
            </widget>
           </item>
@@ -850,6 +866,13 @@
               </property>
               <property name="text">
                <string>No database</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="pushButton_2">
+              <property name="text">
+               <string>Token processor test</string>
               </property>
              </widget>
             </item>

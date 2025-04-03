@@ -45,7 +45,7 @@ public:
     Q_INVOKABLE int getSizeX();// qml functionality
     Q_INVOKABLE int getSizeY();// qml functionality
     Q_INVOKABLE void selectXLSXFile(QString filename);// qml functionality
-    Q_INVOKABLE void saveXLSXFile(QString filename);// qml functionality
+    Q_INVOKABLE bool saveXLSXFile(QString filename);// qml functionality
     Q_INVOKABLE void writeToXLSXFile(int x, int y, QVariant value);// qml functionality
     Q_INVOKABLE QVariant readFromXLSXFile(int x, int y);// qml functionality
 
@@ -57,6 +57,7 @@ public:
     int rowCount(const QModelIndex & = QModelIndex()) const override;
     int columnCount(const QModelIndex & = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role) const override;
+    QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
 
 signals:

@@ -41,6 +41,14 @@ void replaceDialog::on_lineEdit_textChanged(const QString &arg1)
 
 void replaceDialog::on_lineEdit_2_textChanged(const QString &arg1)
 {// replace with
-    replaceWith = arg1;
+    if(!ui->checkBox->isChecked())
+        replaceWith = arg1;
+}
+
+
+void replaceDialog::on_checkBox_checkStateChanged(const Qt::CheckState &arg1)
+{
+    if(arg1 == Qt::Checked)
+        replaceWith = '\n';
 }
 

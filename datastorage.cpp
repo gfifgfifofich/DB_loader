@@ -165,7 +165,12 @@ bool DataStorage::Load(std::string filename)
         if (line[0] != '{' && line[0] != '}' && lastObject == "NULL")
         {
             lastObject = "";
-            s >> lastObject;
+            int i=0;
+            while (i<256 && line[i] != '\n' && line[i] != '\0')
+            {
+                lastObject += line[i];
+                i++;
+            }
             if(lastObject != "")
                 AddObject(lastObject);
             continue;

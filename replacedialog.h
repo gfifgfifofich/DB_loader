@@ -21,6 +21,7 @@ public:
     QString replaceWhat = "zxcasdnothing_realy_like_nothing_at_allzxcasd";
     QString replaceWith = "";
 
+
     void Init();
 
 private slots:
@@ -31,6 +32,8 @@ private slots:
     void on_lineEdit_textChanged(const QString &arg1);
 
     void on_lineEdit_2_textChanged(const QString &arg1);
+
+    void on_checkBox_checkStateChanged(const Qt::CheckState &arg1);
 
 private:
     Ui::replaceDialog *ui;

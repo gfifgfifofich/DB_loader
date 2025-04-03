@@ -8,6 +8,7 @@
 #include <qpushbutton.h>
 #include <qspinbox.h>
 #include <qthread.h>
+#include <qtimer.h>
 
 #include "codeeditor.h"
 #include "databaseconnection.h"
@@ -34,6 +35,10 @@ public:
      */
     DatabaseConnection dc;
     QThread* sqlexecThread = nullptr;
+
+    int queryExecutionState = 0;
+    QTimer executionTimer;
+
 
     bool createconnection = false;
     bool runall = false;
@@ -119,6 +124,8 @@ public:
 
 private slots:
 
+    void executionTimerTimeout();
+
     void on_ConnectButton_pressed();
 
     void runSqlAsync();
@@ -161,6 +168,8 @@ private slots:
     void on_the500LinesCheckBox_checkStateChanged(const Qt::CheckState &arg1);
 
     void on_pushButton_pressed();
+
+    void on_pushButton_2_pressed();
 
 private:
     Ui::LoaderWidnow *ui;

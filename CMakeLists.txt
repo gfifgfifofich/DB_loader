@@ -45,6 +45,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         replacedialog.h replacedialog.cpp replacedialog.ui
         DBLoadScript.qml
         databasetask.h databasetask.cpp
+        tokenprocessor.h tokenprocessor.cpp
+        sqlSubfunctions.h
 
     )
 # Define target properties for Android with Qt 6 as:

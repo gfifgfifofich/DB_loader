@@ -92,6 +92,8 @@ void TableData::ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHe
     else
         qDebug()<< "failed to open "<< fileName;
 
+    for(int i=0;i<headers.size();i++)
+        setHeaderData(i,Qt::Horizontal,headers[i]);
 
 }
 void TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_start,int y_end, bool firstRowHeader)
@@ -145,7 +147,11 @@ void TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_st
 
         row++;
     }
-
+    for(int i=0;i<headers.size();i++)
+    {
+        setHeaderData(i,Qt::Horizontal,headers[i]);
+        qDebug()<<headerData(0,Qt::Horizontal);
+    }
 }
 void TableData::ImportFromSQLiteTable(QString fileName, QString tableName)
 {
@@ -154,33 +160,49 @@ void TableData::ImportFromSQLiteTable(QString fileName, QString tableName)
 
 bool TableData::ExportToCSV(QString fileName, char delimeter, bool firstRowHeader)
 {
-    std::fstream stream((additionalSaveFileData + fileName).toStdString());
-    stream.open((additionalSaveFileData + fileName).toStdString(),std::ios_base::out);
-    if(stream.is_open())
+    QFile fl((additionalSaveFileData + fileName));
+    fl.open(QFile::OpenModeFlag::WriteOnly);
+    if(fl.isOpen())
     {
         for(int i=0;i<headers.size();i++)
         {
-            stream << headers[i].toStdString();
-            stream << delimeter;
+            fl.write(headers[i].toUtf8().constData());
+            fl.write(QString(delimeter).toUtf8().constData());
         }
-        stream << '\n';
+        fl.write(QString('\n').toUtf8().constData());
         if(tbldata.size() > 0 && tbldata[0].size() > 0)
             for(int a=0;a<tbldata[0].size();a++)
             {
                 for(int i=0;i<tbldata.size();i++)
                 {
+                    QString str = tbldata[i][a].toString();
+
+                    if(str.contains(delimeter))
+                    {
+                        if(delimeter == ';')
+                            str = str.replace(";",",");
+                        else
+                            str = str.replace(delimeter,";");
+                    }
                     if(tbldata[i][a].typeId() == 16)
                     {
-                        QString str = tbldata[i][a].toString();
+
                         str.resize(19);
-                        stream << str.replace("T"," ").toStdString();
+                        str = str.replace("T"," ");
+                        fl.write(str.toUtf8().constData());
+                    }
+                    else if(tbldata[i][a].typeId() == 6)
+                    {
+                        str = str.replace(".",",");
+                        fl.write(str.toUtf8());
                     }
                     else
-                        stream << tbldata[i][a].toString().toStdString();
-                    stream << delimeter;
+                        fl.write(str.toUtf8().constData());
+                    if(i != tbldata.size()-1) // remove last delimeter in line, .csv should end with \n, not delimeter
+                    fl.write(QString(delimeter).toUtf8().constData());
 
                 }
-                stream << '\n';
+                fl.write(QString('\n').toUtf8().constData());
             }
     }
     else
@@ -188,7 +210,7 @@ bool TableData::ExportToCSV(QString fileName, char delimeter, bool firstRowHeade
         qDebug() <<"failed to open file "<< (additionalSaveFileData + fileName);
         return false;
     }
-    stream.close();
+    fl.close();
     return true;
 }
 bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_start,int y_end, bool firstRowHeader)
@@ -200,13 +222,14 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
     if(x_start != 0 || x_end != 0 || y_start != 0 || y_end != 0 )
     {// save into diapozon
         diap = true;
+        qDebug() << "saving boundries "<< x_start <<  x_end << y_start << y_end;
     }
     // to load only if needed
     QString tmpfilenm = "";
     if(diap) tmpfilenm = fileName;
     QXlsx::Document xlsxR3(tmpfilenm);
 
-    qDebug() << "saving";
+    qDebug() << "saving " << fileName;
     int sheetnumber = 1;
     int rowoffset = y_start;
     int column_offset = x_start;
@@ -215,7 +238,7 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
     {
         QVariant var = headers[i];
 
-        xlsxR3.write(1,i+1,var);
+        xlsxR3.write(1 + y_start,i+1 + x_start,var);
     }
 
     //int datasaved = 0;
@@ -430,6 +453,7 @@ bool TableData::ExportToSQLiteTable(QString tableName)
 }
 
 
+
 // move table(x_s,y_s,x_s,y_s) by dx, dy
 // ExcelMove(0,0,10,10, 5,5); // move block 5 right 5 down
 bool TableData::ExcelMove(QString table,int x_start,int x_end,int y_start,int y_end, int dx, int dy)
@@ -487,22 +511,30 @@ QVariant TableData::getObject(int x,int y)
 {
     //qDebug() << tbldata.size() <<tbldata[0].size() << x << y ;
     //qDebug() << tbldata[x][y].toString();
-    if(x>=0 && y>=0 && tbldata.size() > 0 && x < tbldata.size() && y < tbldata[0].size())
+    if(x>=0 && y>=0 && tbldata.size() > 0 && x < tbldata.size() && y < tbldata[x].size())
     {
         return tbldata[x][y];
     }
     else return QVariant();
 }
+QVariant TableData::headerData(int section, Qt::Orientation orientation, int role) const
+{
+    if(section < headers.size())
+        return headers[section];
+    else return QVariant(section);
+}
 void TableData::selectXLSXFile(QString filename)
 {
     if(xlsxFile != nullptr)
         delete xlsxFile;
-    xlsxFile =  new QXlsx::Document();
+    xlsxFile =  new QXlsx::Document(filename);
 }
-void TableData::saveXLSXFile(QString filename)
+bool TableData::saveXLSXFile(QString filename)
 {
     if(xlsxFile != nullptr)
-        xlsxFile->saveAs(filename);
+        if(xlsxFile->saveAs(filename))
+            return true;
+    return false;
 }
 void TableData::writeToXLSXFile(int x, int y, QVariant value)
 {

@@ -36,6 +36,10 @@ public:
 
     bool executing = false;
     qint64 executionTime = 0;
+    QDateTime executionStart = QDateTime::currentDateTime();
+    QDateTime executionEnd = QDateTime::currentDateTime();
+
+    int _code_start_line = 0; // store blocknum of start of the code, to output more preciese errors
 
     int sid  = -1, serial  = -1, sql_ID = -1; // probably wont be able to use sqlid // probably cant use it at all
 
@@ -45,10 +49,14 @@ public:
     Q_INVOKABLE void Init();
 
     Q_INVOKABLE bool Create(QString driver, QString DBName, QString userName, QString password);
-    Q_INVOKABLE void execSql(QString sql = "");
+    Q_INVOKABLE bool Create(QString driver, QString DBName); // create dc connection, using userdata
+    Q_INVOKABLE bool execSql(QString sql = "");
     Q_INVOKABLE TableData* getData();
 
     Q_INVOKABLE QString replace(QString str,QString what, QString with);
+    Q_INVOKABLE QString getDay();
+    Q_INVOKABLE QString getMonth();
+    Q_INVOKABLE QString getYear();
 
     int scriptReturnPosition = 0;
     QString scriptCommand = "";
