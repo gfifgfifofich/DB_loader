@@ -8,6 +8,10 @@
 void fillPaterns()
 {
 
+    subCommandPatterns.push_back("SubexecToUnionAllTable");
+    subCommandPatterns.push_back("SubexecToMagic");
+    subCommandPatterns.push_back("SubexecToArray");
+
     PostgrePatterns.push_back("abort;");
     PostgrePatterns.push_back("abs");
     PostgrePatterns.push_back("absent");
@@ -170,7 +174,6 @@ void fillPaterns()
     PostgrePatterns.push_back("cursor");
     PostgrePatterns.push_back("cursor_name");
     PostgrePatterns.push_back("cycle");
-    PostgrePatterns.push_back("data");
     PostgrePatterns.push_back("database");
     PostgrePatterns.push_back("datalink");
     PostgrePatterns.push_back("date");
@@ -958,7 +961,6 @@ void fillPaterns()
     OraclePatterns.push_back("enable_all");
     OraclePatterns.push_back("regr_syy");
     OraclePatterns.push_back("sys_get_aclids");
-    OraclePatterns.push_back("activity");
     OraclePatterns.push_back("db_role_change");
     OraclePatterns.push_back("sys_op_vvd");
     OraclePatterns.push_back("of");
@@ -2104,7 +2106,6 @@ void fillPaterns()
     OraclePatterns.push_back("scheduler");
     OraclePatterns.push_back("native");
     OraclePatterns.push_back("gby_conc_rollup");
-    OraclePatterns.push_back("data");
     OraclePatterns.push_back("object");
     OraclePatterns.push_back("bitmap_and");
     OraclePatterns.push_back("result_cache");
@@ -2796,7 +2797,6 @@ void fillPaterns()
     OraclePatterns.push_back("change_dupkey_error_index");
     OraclePatterns.push_back("remove");
     OraclePatterns.push_back("nonschema");
-    OraclePatterns.push_back("job");
     OraclePatterns.push_back("piv_gb");
     OraclePatterns.push_back("per");
     OraclePatterns.push_back("docfidelity");

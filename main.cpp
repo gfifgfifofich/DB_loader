@@ -7,10 +7,14 @@
 #include "Patterns.h"
 #include "loaderwidnow.h"
 #include "table.h"
+#include <QQmlApplicationEngine>
+#include "databaseconnection.h"
+#include "tabledata.h"
 inline int thrnum;
 
 inline QString appfilename;
 
+inline QQmlApplicationEngine* TestqmlEngine = nullptr;
 
 int main(int argc, char *argv[])
 {
@@ -23,6 +27,19 @@ int main(int argc, char *argv[])
         qDebug()<<"appname is "<< argv[0];
     }
 
+    QQmlApplicationEngine eng;
+    TestqmlEngine = &eng;
+    QObject::connect(
+        TestqmlEngine,
+        &QQmlApplicationEngine::objectCreationFailed,
+        &app,
+        []() { QCoreApplication::exit(-1); },
+        Qt::QueuedConnection
+        );
+
+
+    qmlRegisterType<TableData>("SourceApplication", 1, 0, "TableData");
+    qmlRegisterType<DatabaseConnection>("SourceApplication", 1, 0, "DatabaseConnection");
     //Table w;
     //thrnum++;
     //w.conName = QVariant(thrnum).toString();

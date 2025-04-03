@@ -15,7 +15,7 @@ class DatabaseConnection : public QObject
 public:
 
     QSqlDatabase db;
-    QSqlQuery query;
+    QSqlQuery* query = nullptr;
     QString sqlCode;
 
     QString LastDBName = "";
@@ -35,6 +35,7 @@ public:
     bool ODBC = false;
 
     bool executing = false;
+    qint64 executionTime = 0;
 
     int sid  = -1, serial  = -1, sql_ID = -1; // probably wont be able to use sqlid // probably cant use it at all
 
@@ -45,6 +46,13 @@ public:
 
     Q_INVOKABLE bool Create(QString driver, QString DBName, QString userName, QString password);
     Q_INVOKABLE void execSql(QString sql = "");
+    Q_INVOKABLE TableData* getData();
+
+    Q_INVOKABLE QString replace(QString str,QString what, QString with);
+
+    int scriptReturnPosition = 0;
+    QString scriptCommand = "";
+    DatabaseConnection* subscriptConnesction = nullptr;
 
     explicit DatabaseConnection(QObject *parent = nullptr);
 

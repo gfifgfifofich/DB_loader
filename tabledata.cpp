@@ -8,21 +8,29 @@
 #include <QSqlRecord>
 #include <fstream>
 #include <qdir.h>
-#include "QXlsx-master/QXlsx/header/xlsxdocument.h"
-#include "QXlsx-master/QXlsx/header/xlsxworkbook.h"
 
+/*
 
+double 6
+QString 10
+QString 10
+double 6
+QString 10
+QString 10
+QString 10
+QDateTime 16
+double 6
+QString 10
+*/
 
 TableData::TableData(QObject *parent)
-    : QObject{parent}
 {
     Init();
 }
 
-
 void TableData::Init()
 {
-    data.clear();
+    tbldata.clear();
     headers.clear();
     types.clear();
 }
@@ -33,7 +41,7 @@ void TableData::ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHe
         return;
     qDebug()<< " importing "<< fileName;
 
-    data.clear();
+    tbldata.clear();
     headers.clear();
     QFile file(fileName);
     bool first = true;
@@ -47,7 +55,7 @@ void TableData::ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHe
             if(str.endsWith('\r'))
                 str.resize(str.size()-1);
             headers = str.split(delimeter);
-            data.resize(headers.size());
+            tbldata.resize(headers.size());
         }
 
         while(!file.atEnd())
@@ -61,20 +69,20 @@ void TableData::ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHe
             if(first && !firstRowHeader)
             {
                 headers.resize(strl.size());
-                data.resize(strl.size());
+                tbldata.resize(strl.size());
             }
             first = false;
-            if(data.size()>strl.size())
+            if(tbldata.size()>strl.size())
             {
                 qDebug()<<"error importing from csv, if(data.size()>strl.size()) is true";
-                data.clear();
+                tbldata.clear();
                 headers.clear();
                 return;
             }
 
-            for(int i=0;i<data.size();i++)
+            for(int i=0;i<tbldata.size();i++)
             {
-                data[i].push_back(QVariant(strl[i]));
+                tbldata[i].push_back(QVariant(strl[i]));
             }
 
 
@@ -93,7 +101,7 @@ void TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_st
     bool serachall = x_start == 0 && y_start == 0 && x_end == 0 && y_end == 0;
     qDebug()<<"TableData::ImportFromExcel Unimplemented";
 
-    data.clear();
+    tbldata.clear();
     headers.clear();
     QXlsx::Document xlsxR3(fileName);
     qDebug()<< "xlsxR3.load() " << xlsxR3.load();
@@ -111,16 +119,16 @@ void TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_st
         column++;
         lastcellval = xlsxR3.read(1,column);
     }
-    data.resize(headers.size());
+    tbldata.resize(headers.size());
     int row = 1;
     bool allzeros = false;
     while (row <= 1'001'001 && !allzeros)
     {
         bool hasnonzero = false;
-        for(int i=0;i<data.size();i++)
+        for(int i=0;i<tbldata.size();i++)
         {
             lastcellval = xlsxR3.read(row+1,i+1);
-            data[i].push_back(lastcellval);
+            tbldata[i].push_back(lastcellval);
             if(lastcellval.toString().size()>0)
             {
                 hasnonzero = true;
@@ -128,9 +136,9 @@ void TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_st
         }
         if(!hasnonzero)
         {
-            for(int i=0;i<data.size();i++)
+            for(int i=0;i<tbldata.size();i++)
             {
-                data[i].pop_back();
+                tbldata[i].pop_back();
                 allzeros = true;
             }
         }
@@ -156,13 +164,19 @@ bool TableData::ExportToCSV(QString fileName, char delimeter, bool firstRowHeade
             stream << delimeter;
         }
         stream << '\n';
-        if(data.size() > 0 && data[0].size() > 0)
-            for(int a=0;a<data[0].size();a++)
+        if(tbldata.size() > 0 && tbldata[0].size() > 0)
+            for(int a=0;a<tbldata[0].size();a++)
             {
-                for(int i=0;i<data.size();i++)
+                for(int i=0;i<tbldata.size();i++)
                 {
-
-                    stream << data[i][a].toString().toStdString();
+                    if(tbldata[i][a].typeId() == 16)
+                    {
+                        QString str = tbldata[i][a].toString();
+                        str.resize(19);
+                        stream << str.replace("T"," ").toStdString();
+                    }
+                    else
+                        stream << tbldata[i][a].toString().toStdString();
                     stream << delimeter;
 
                 }
@@ -177,18 +191,26 @@ bool TableData::ExportToCSV(QString fileName, char delimeter, bool firstRowHeade
     stream.close();
     return true;
 }
-
 bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_start,int y_end, bool firstRowHeader)
 {
-    QXlsx::Document xlsxR3;
 
-    if(data.size()<=0)
+    if(tbldata.size()<=0)
         return false;
+    bool diap = false;
+    if(x_start != 0 || x_end != 0 || y_start != 0 || y_end != 0 )
+    {// save into diapozon
+        diap = true;
+    }
+    // to load only if needed
+    QString tmpfilenm = "";
+    if(diap) tmpfilenm = fileName;
+    QXlsx::Document xlsxR3(tmpfilenm);
 
     qDebug() << "saving";
     int sheetnumber = 1;
-    int rowoffset = 0;
-
+    int rowoffset = y_start;
+    int column_offset = x_start;
+    if(firstRowHeader)
     for(int i=0;i<headers.size();i++)
     {
         QVariant var = headers[i];
@@ -198,18 +220,32 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
 
     //int datasaved = 0;
 
-    if(data.size() > 0 && data[0].size() <=1'000'000)
-        for(int i=0;i<data.size();i++)
+    if(tbldata.size() > 0 && tbldata[0].size() <=1'000'000 || diap)
+    {
+        if(diap)
         {
-            for(int a=0;a<data[i].size();a++)
+            rowoffset = -y_start;
+            column_offset = x_start;
+            qDebug()<< diap << x_end - x_start + 1 << y_end - y_start + 1;
+        }
+
+        for(int i=0;i<tbldata.size();i++)
+        {
+            if(diap && i >= x_end - x_start + 1)
+                break;
+            for(int a=0;a<tbldata[i].size();a++)
             {
-                int row = a + 2 - rowoffset;
-                int column = i + 1;
+                if(diap && a >= y_end - y_start + 1)
+                    break;
+                int row = a + 2 - rowoffset - (!firstRowHeader);
+                int column = i + 1 + column_offset;
 
 
-                xlsxR3.write(row,column,data[i][a]);
+                xlsxR3.write(row,column,tbldata[i][a]);
+
             }
         }
+    }
     else
     {
         bool stop = false;
@@ -218,24 +254,24 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
         while(!stop)
         {
             qDebug()<<start << end;
-            for(int i=0;i<data.size();i++)
+            for(int i=0;i<tbldata.size();i++)
             {
                 for(int a=start ;a<end ;a++)
                 {
-                    int row = a + 2 - start;
+                    int row = a + 2 - start - (!firstRowHeader);
                     int column = i + 1;
-                    xlsxR3.write(row,column,data[i][a]);
+                    xlsxR3.write(row,column,tbldata[i][a]);
                 }
             }
 
-            if(end >= data[0].size())
+            if(end >= tbldata[0].size())
                 break;
             sheetnumber++;
 
             start = end;
             end += 1'000'000;
-            if(end > data[0].size())
-                end = data[0].size();
+            if(end > tbldata[0].size())
+                end = tbldata[0].size();
 
             QString sheetname = "Sheet";
             sheetname += QVariant(sheetnumber).toString();
@@ -266,7 +302,6 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
         return false;
     }
 }
-
 bool TableData::ExportToSQLiteTable(QString tableName)
 {
     QSqlDatabase tmpdb = QSqlDatabase::addDatabase("QSQLITE","SQLITE db connection");
@@ -312,16 +347,16 @@ bool TableData::ExportToSQLiteTable(QString tableName)
     SQLITE_sql += " Select ";
 
 
-    if(data.size()>0 && data[0].size()>0)
+    if(tbldata.size()>0 && tbldata[0].size()>0)
     {
         bool first = true;
-        for(int a=0;a<data.size();a++)
+        for(int a=0;a<tbldata.size();a++)
         {
             if(!first)
                 SQLITE_sql += ",";
             first = false;
             SQLITE_sql += " '";
-            SQLITE_sql += data[a][0].toString();
+            SQLITE_sql += tbldata[a][0].toString();
             SQLITE_sql += "' ";
             SQLITE_sql += " as ";
             SQLITE_sql += " '";
@@ -335,12 +370,12 @@ bool TableData::ExportToSQLiteTable(QString tableName)
     }
     qDebug() << SQLITE_sql;
     int lasti=0;
-    for(int i=1;i<data[0].size();i++)
+    for(int i=1;i<tbldata[0].size();i++)
     {
 
         SQLITE_sql += " union all Select ";
         bool first = true;
-        for(int a=0;a<data.size();a++)
+        for(int a=0;a<tbldata.size();a++)
         {
             if(!first)
                 SQLITE_sql += ",";
@@ -348,12 +383,12 @@ bool TableData::ExportToSQLiteTable(QString tableName)
             int row =i+2;
             int column =a+1;
             bool is_text = false;
-            data[a][i].toDouble(&is_text);
+            tbldata[a][i].toDouble(&is_text);
             is_text = !is_text;
 
 
             SQLITE_sql += " '";
-            SQLITE_sql += data[a][i].toString();
+            SQLITE_sql += tbldata[a][i].toString();
             SQLITE_sql += "' ";
 
         }
@@ -368,16 +403,16 @@ bool TableData::ExportToSQLiteTable(QString tableName)
             SQLITE_sql += " Select ";
 
 
-            if(data[0].size()>lasti)
+            if(tbldata[0].size()>lasti)
             {
                 bool first = true;
-                for(int a=0;a<data.size();a++)
+                for(int a=0;a<tbldata.size();a++)
                 {
                     if(!first)
                         SQLITE_sql += ",";
                     first = false;
                     SQLITE_sql += " '";
-                    SQLITE_sql += data[a][lasti].toString();
+                    SQLITE_sql += tbldata[a][lasti].toString();
                     SQLITE_sql += "' ";
                     SQLITE_sql += " as ";
                     SQLITE_sql += " '";
@@ -395,4 +430,119 @@ bool TableData::ExportToSQLiteTable(QString tableName)
 }
 
 
+// move table(x_s,y_s,x_s,y_s) by dx, dy
+// ExcelMove(0,0,10,10, 5,5); // move block 5 right 5 down
+bool TableData::ExcelMove(QString table,int x_start,int x_end,int y_start,int y_end, int dx, int dy)
+{
+    std::vector<std::vector<QVariant>> tmpTbldata;
+    QVariant lastcellval;
+    QXlsx::Document xlsx(table);
 
+    // form a cube of data
+    tmpTbldata.resize(x_end - x_start + 1);
+    if(tmpTbldata.size() <=0)
+        return false;
+    // read cube
+    for(int i=0;i<tmpTbldata.size();i++)
+    {    for(int a=0;a< y_end - y_start + 1;a++)
+        {
+            lastcellval = xlsx.read(a + 1 , i + 1);
+            tmpTbldata[i].push_back(lastcellval);
+            xlsx.write(a + 1 , i + 1,""); // write 0 at position we just read
+        }
+    }
+
+    for(int i=0;i<tmpTbldata.size();i++)
+    {    for(int a=0;a< y_end - y_start + 1;a++)
+        {
+            xlsx.write(a + 1 + dy , i + 1 + dx, tmpTbldata[i][a]); // write var at position we just read
+        }
+    }
+
+    if(xlsx.save())
+    {
+        return true;
+    }
+    else
+    {
+        qDebug()<<"Failed to save after move";
+        return false;
+    }
+}
+
+
+int TableData::getSizeX()
+{
+    return tbldata.size();
+}
+
+int TableData::getSizeY()
+{
+    if(tbldata.size() > 0)
+        return tbldata[0].size();
+    else return 0;
+}
+
+QVariant TableData::getObject(int x,int y)
+{
+    //qDebug() << tbldata.size() <<tbldata[0].size() << x << y ;
+    //qDebug() << tbldata[x][y].toString();
+    if(x>=0 && y>=0 && tbldata.size() > 0 && x < tbldata.size() && y < tbldata[0].size())
+    {
+        return tbldata[x][y];
+    }
+    else return QVariant();
+}
+void TableData::selectXLSXFile(QString filename)
+{
+    if(xlsxFile != nullptr)
+        delete xlsxFile;
+    xlsxFile =  new QXlsx::Document();
+}
+void TableData::saveXLSXFile(QString filename)
+{
+    if(xlsxFile != nullptr)
+        xlsxFile->saveAs(filename);
+}
+void TableData::writeToXLSXFile(int x, int y, QVariant value)
+{
+    if(xlsxFile != nullptr)
+    {
+        xlsxFile->write(y+1,x+1,value);
+    }
+}
+QVariant TableData::readFromXLSXFile(int x, int y)
+{
+    if(xlsxFile != nullptr)
+    {
+        return xlsxFile->read(y+1,x+1);
+    }
+    else return QVariant();
+}
+
+// garbage to bootstrap class imto QML, cuz yea
+int TableData::rowCount(const QModelIndex & ) const
+{
+    if(tbldata.size()<=0)
+        return 0;
+    else
+        return tbldata[0].size();
+}
+
+int TableData::columnCount(const QModelIndex &) const
+{
+    return tbldata.size();
+}
+
+QVariant TableData::data(const QModelIndex &index, int role) const
+{
+
+    if(tbldata.size() > 0 && index.column() < tbldata.size() && index.row() < tbldata[0].size())
+        return tbldata[index.column()][index.row()];
+    return QVariant();
+}
+
+QHash<int, QByteArray> TableData::roleNames() const
+{
+    return { {Qt::DisplayRole, "display"} };
+}
