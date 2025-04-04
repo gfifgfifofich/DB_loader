@@ -31,21 +31,178 @@ CTRL + I - старое окно для итерации, лучше испол�
 
 # Sub_syntax
 Список команд:
+```
+SubexecToSilentSqliteTable{ -- {DRIVER} {DB_NAME} {savename}}
+SubexecToSilentExcelTable{ -- {DRIVER} {DB_NAME} {savename}}
+SubexecToSilentCSV{ -- {DRIVER} {DB_NAME} {savename}}
 
+SubexecToSqliteTable{ -- {DRIVER} {DB_NAME} {savename}}
+SubexecToCSV{ -- {DRIVER} {DB_NAME} {savename}}
+SubexecToExcelTable{ -- {DRIVER} {DB_NAME} {savename}}
+
+SubexecToUnionAllTable{ -- {DRIVER} {DB_NAME}}
+SubexecToMagic{ -- {DRIVER} {DB_NAME}}
+SubexecToArray{ -- {DRIVER} {DB_NAME}}
+
+ForLoop { -- {REPLACE_STRING} {from} {to} {step}}
+ForLoop { -- {REPLACE_STRING} {value1,value2,value3...}} 
+QueryForLoop { -- {REPLACE_STRING} {from} {to} {step}}
+QueryForLoop { -- {REPLACE_STRING} {value1,value2,value3...}}
+```
+Синтаксис любой команды выглядит так:
+```
+QueryForLoop{
+-- {ITER} {01} {12} {1}  // function parameters, shouldn't haave any letters between }{. Every variable is { variable }
+--code area
+select * from table_ITER
+}
+```
+# Detailed description
+## SubexecTo
+```
+SubexecToSilentSqliteTable{ -- {DRIVER} {DB_NAME} {savename}}
+SubexecToSilentExcelTable{ -- {DRIVER} {DB_NAME} {savename}}
+SubexecToSilentCSV{ -- {DRIVER} {DB_NAME} {savename}}
+
+SubexecToSqliteTable{ -- {DRIVER} {DB_NAME} {savename}}
+SubexecToCSV{ -- {DRIVER} {DB_NAME} {savename}}
+SubexecToExcelTable{ -- {DRIVER} {DB_NAME} {savename}}
+```
+Все команды SubexecToSilent выполняют под запрос, сохраняют в соответствующем виде, не учитываясь основном запросе
+```sql
 SubexecToSilentSqliteTable
-SubexecToSilentExcelTable
-SubexecToSilentCSV
+{ 
+	-- {QOCI} {127.0.0.1:1521/KTKDB_DB2} {tmp2}
+	SELECT * from cool_oracle_table	
+}
 
+-- do stuff using result, localy
+select * 
+from tmp2
+cross join tmp
+```
+Все SubexecTo без Silent возвращяю что-либо обратно скрипт.
+
+Данные команды выводят статус выполнения запроса в скрипт, что позволяет автоматизировать множество запросов в одном, выводя статусы их успешности, размеры выгрузок и прочего
+```sql
 SubexecToSqliteTable
 SubexecToCSV
 SubexecToExcelTable
+```
+Пример
+```sql
+select 'query 1 ' as query_name, SubexecToExcelTable 
+{
+-- {LOCAL_SQLITE_DB} {SQLiteDB.db} {q1}
+	select * from tmp
+}
 
-SubexecToUnionAllTable
-SubexecToMagic
-SubexecToArray
+union all select 'query 2 ' as query_name, SubexecToExcelTable 
+{
+-- {LOCAL_SQLITE_DB} {SQLiteDB.db} {q2}
+	select * from tmp
+}
+```
+result:
+```
+query 1 	Success	 	8	10
+query 2 	Success	 	8	10
+```
+And files q1.xlsx, q2.xlsx in excel/
 
-QueryForLoop
-ForLoop
+
+## ForLoop
+```
+ForLoop { -- {REPLACE_STRING} {from} {to} {step}}
+ForLoop { -- {REPLACE_STRING} {value1,value2,value3...}} 
+QueryForLoop { -- {REPLACE_STRING} {from} {to} {step}}
+QueryForLoop { -- {REPLACE_STRING} {value1,value2,value3...}}
+```
+Разворачивает скрипт, заменяя переменную на соответствующее число в итерации.
+Замена происходит в формате первого числа. т.е. диапазон от 1 до 3 выдаст 1 2 3, а диапазон от 01 до 3 выдаст 01 02 03
+Script:
+```sql
+QueryForLoop 
+{
+-- {str} {01} {5} {1}
+	select 'value is str' as column
+}
+```
+Result:
+```
+value is 01
+value is 02
+value is 03
+value is 04
+value is 05
+```
+Script:
+```sql
+QueryForLoop 
+{
+-- {str} {1} {5} {1}
+	select 'value is str' as column
+}
+```
+Result:
+```
+value is 1
+value is 2
+value is 3
+value is 4
+value is 5
+```
+Script:
+```sql
+QueryForLoop 
+{
+-- {str} {one,two,   threee    }
+	select 'value is str' as column
+}
+```
+Result:
+```
+value is one
+value is two
+value is threee
+```
+## SubexecToArray
+```
+SubexecToUnionAllTable{ -- {DRIVER} {DB_NAME}}
+SubexecToArray{ -- {DRIVER} {DB_NAME}}
+SubexecToMagic{ -- {DRIVER} {DB_NAME}}
+```
+Данные команды выполняют запрос в указанной базе, аналогично другис SubexecTo, но вместо сохранения в каком либо виде, эти команды выводят результат в виде sql кода.
+Пример
+```sql
+select * 
+from table1
+where id in (
+	SubexecToArray 
+	{
+	-- {LOCAL_SQLITE_DB} {SQLiteDB.db} 
+		QueryForLoop 
+		{
+		-- {str} {1,2,3,4,5}
+			select str as column1
+		}
+	}
+)
+```
+
+SubexecToUnionAllTable - Выводит результат запроса в виде повторяющихся select ... union all select ...
+```
+select 'd1' as 'col1','d2' as 'col2','d3' as 'col3' 
+union all select 'd1, 'd2', 'd3' 
+union all select 'd1, 'd2', 'd3' 
+union all select 'd1, 'd2', 'd3' 
+```
+SubexecToArray - выводит данные в виде одного массива 'd1', 'd2', 'd3', 'd4'...
+
+SubexecToMagic - Сделано специально для Oracle.
+В Oracle есть ограничение на оператор in, value in (1,2,3,... 1000) в 1000 элементов
+Однако синтаксис ('any string', value) in (('any string', 1),('any string', 2),('any string', 3),... ('any string', 10000)) позволяет достичь 10000 элементов
+Функция SubexecToMagic выводит данные в виде массива ('magic', 1),('magic', 2),('magic', 3)
 
 
 # Misc
@@ -65,13 +222,4 @@ sqlBackup - хранит каждый запуск sql по дате для ис
 qmlTestButton запускает файл DBLoadScript.qml, расположенный парралельно программе. Позволяет реализовать некоторые вспомогательные программы для разных мелочей 
 
 Token processor test обработает все sql запросы из истории (sqlBuffer), и соберёт модель, которая будет использоваться в автоподстановке, для имитации стиля кода пользователя 
-
-# Build
-```bash
-  mkdir build
-  cd ./build
-  cmake ../
-  cmake --build ./ -j 6
-```
-Либо открыть CMakeLists.txt в QTCreator, и собрать оттуда
 
