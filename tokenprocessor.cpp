@@ -2,6 +2,8 @@
 
 #include "sqlSubfunctions.h"
 
+
+
 TokenProcessor::TokenProcessor(QObject *parent)
     : QObject{parent}
 {}
@@ -29,37 +31,44 @@ void TokenProcessor::addFrequencies()
             prevprevprevtoken = prevprevtoken.replace('\t',' ').replace('\n',' ').trimmed();
             prevprevtoken = prevtoken.replace('\t',' ').replace('\n',' ').trimmed();
             prevtoken = s.replace('\t',' ').replace('\n',' ').trimmed();
+
             continue;
         }
         else
         {
             QString keystring = prevprevprevtoken.trimmed().toLower() + " " + prevprevtoken.trimmed().toLower() + " " + prevtoken.trimmed().toLower();
             keystring = keystring.trimmed();
-            if(keystring.trimmed().size() <=0 || keystring.contains('{')|| keystring.contains('}'))
-                continue;
-            if(s.trimmed().size() <=0 || s.contains('{')|| s.contains('}'))
-                continue;
-            int freq = 0;
-            if(keystring.size() >=3)
+            if(!(keystring.trimmed().size() <=4 || keystring.contains('{')||keystring.contains('"')||keystring.contains('\'')|| keystring.contains('}') || keystring.contains(';')) &&
+                (!((s.trimmed().size() <=1 && !s.contains('*')&& !s.contains('.')&& !s.contains('(')&& !s.contains(')')&& !s.contains('=')) || s.contains('{')|| s.contains('\'')|| s.contains('"')|| s.contains('}')|| s.contains(';')))  &&!isNumber(s) )
             {
-                freq = ds.GetPropertyAsInt(keystring.toLower().toStdString(),s.replace('\t',' ').replace('\n',' ').trimmed().toLower().toStdString()); // get freq
-                ds.SetProperty(keystring.toLower().toStdString(),s.replace('\t',' ').replace('\n',' ').trimmed().toLower().toStdString(),freq + 10); //set to freq + 1
-            }
-            keystring = prevprevtoken.trimmed().toLower() + " " + prevtoken.trimmed().toLower();
-            keystring = keystring.trimmed();
-            if(keystring.size() >=3)
-            {
-                freq = ds.GetPropertyAsInt(keystring.toLower().toStdString(),s.trimmed().toLower().toStdString()); // get freq
-                ds.SetProperty(keystring.toLower().toStdString(),s.trimmed().toLower().toStdString(),freq + 5); //set to freq + 1
-            }
+                uniqueTokens[s.replace('\t',' ').replace('\n',' ').trimmed()] = s.replace('\t',' ').replace('\n',' ').trimmed();
+                int freq = 0;
+                if(keystring.size() >=3)
+                {
+                    freq = ds.GetPropertyAsInt(keystring.toLower().toStdString(),s.replace('\t',' ').replace('\n',' ').trimmed().toLower().toStdString()); // get freq
+                    if(freq > 10000)
+                        freq = 10000;
+                    ds.SetProperty(keystring.toLower().toStdString(),s.replace('\t',' ').replace('\n',' ').trimmed().toLower().toStdString(),freq + 10); //set to freq + 1
+                }
+                keystring = prevprevtoken.trimmed().toLower() + " " + prevtoken.trimmed().toLower();
+                keystring = keystring.trimmed();
+                if(keystring.size() >=3)
+                {
+                    freq = ds.GetPropertyAsInt(keystring.toLower().toStdString(),s.trimmed().toLower().toStdString()); // get freq
+                    if(freq > 10000)
+                        freq = 10000;
+                    ds.SetProperty(keystring.toLower().toStdString(),s.trimmed().toLower().toStdString(),freq + 5); //set to freq + 1
+                }
 
-            keystring = prevtoken.trimmed().toLower();
-            if(keystring.size() >=3)
-            {
-                freq = ds.GetPropertyAsInt(keystring.toLower().toStdString(),s.trimmed().toLower().toStdString()); // get freq
-                ds.SetProperty(keystring.toLower().toStdString(),s.trimmed().toLower().toStdString(),freq + 2); //set to freq + 1
+                keystring = prevtoken.trimmed().toLower();
+                if(keystring.size() >=3)
+                {
+                    freq = ds.GetPropertyAsInt(keystring.toLower().toStdString(),s.trimmed().toLower().toStdString()); // get freq
+                    if(freq > 10000)
+                        freq = 10000;
+                    ds.SetProperty(keystring.toLower().toStdString(),s.trimmed().toLower().toStdString(),freq + 2); //set to freq + 1
+                }
             }
-
 
             prevprevprevtoken = prevprevtoken.trimmed();
             prevprevtoken = prevtoken.trimmed();
@@ -71,6 +80,23 @@ void TokenProcessor::addFrequencies()
             prevprevtoken.replace('\t',' ');
             prevtoken.replace('\n',' ');
             prevtoken.replace('\t',' ');
+
+            if(isNumber(prevtoken))
+                prevtoken = "";
+            if(isNumber(prevprevtoken))
+                prevprevtoken = "";
+            if(isNumber(prevprevprevtoken))
+                prevprevprevtoken = "";
+
+            if(prevprevprevtoken.startsWith('\'') && (prevtoken.startsWith('\'') || prevtoken.endsWith('\'')))
+            {
+                prevprevtoken = "";
+            }
+            else if(prevtoken.contains('\'')>0 && prevprevprevtoken.count('\'')<=0 && prevprevtoken.count('\'')<=0)
+            {
+                prevprevprevtoken = "";
+                prevprevtoken = "";
+            }
             prevprevprevtoken = prevprevprevtoken.trimmed();
             prevprevtoken = prevprevtoken.trimmed();
             prevtoken = prevtoken.trimmed();

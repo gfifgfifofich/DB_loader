@@ -12,6 +12,7 @@ public:
     explicit TokenProcessor(QObject *parent = nullptr);
 
     QStringList tokens;
+    QMap<QString, QString> uniqueTokens;
     DataStorage ds;
     void processText(QString &text);
     void addFrequencies();

@@ -22,7 +22,7 @@ public:
     int prevTabTextSize;
 
     void FillsuggestName();
-
+    QStringList GetTokensUnderCursor();
 
     void replace(int _from, int _to, QString _what, QString _with);
 protected:

@@ -8,6 +8,7 @@
 #include "datastorage.h"
 #include "sqlSubfunctions.h"
 inline DataStorage userDS;
+inline QString documentsDir;
 
 /* fix subtables
     ColumnBold true
@@ -857,7 +858,7 @@ void Highlighter::UpdateTableColumns(QSqlDatabase* db, QString dbname)
     if(!QSLiteStyle)
     {
         QStringList strl = db->databaseName().split(';');
-        QString filename = dbname;
+        QString filename =documentsDir + "/"+ dbname;
 
         filename += QString(".txt");
         if(QFile::exists(filename))

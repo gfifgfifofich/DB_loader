@@ -47,6 +47,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         databasetask.h databasetask.cpp
         tokenprocessor.h tokenprocessor.cpp
         sqlSubfunctions.h
+        NeuralNetwork.h NeuralNetwork.cpp
 
     )
 # Define target properties for Android with Qt 6 as:

@@ -2,17 +2,31 @@
 #define LOADERWIDNOW_H
 
 #include <QMainWindow>
+#include <qbarseries.h>
+#include <qbarset.h>
 #include <qboxlayout.h>
+#include <qchartview.h>
+#include <qcheckbox.h>
+#include <qcombobox.h>
+#include <qdatetimeaxis.h>
 #include <qlabel.h>
 #include <qlineedit.h>
+#include <qlineseries.h>
 #include <qpushbutton.h>
 #include <qspinbox.h>
+#include <qsplineseries.h>
 #include <qthread.h>
 #include <qtimer.h>
+#include <qvalueaxis.h>
+#include <QChart>
 
+#include "NeuralNetwork.h"
 #include "codeeditor.h"
 #include "databaseconnection.h"
 
+//  Launch options
+inline QString launchOpenFileName = "";
+inline bool launchOpenFile = false;
 namespace Ui {
 class LoaderWidnow;
 }
@@ -26,6 +40,8 @@ public:
     ~LoaderWidnow();
 
     CodeEditor* cd = nullptr;
+
+    NeuralNetwork nn;
 
     /*
      * Create thread
@@ -120,7 +136,134 @@ public:
 
     iter_Window iw;
 
-    void Init(QString conname,QString driver,QString dbname,QString usrname, QString password, QString sql = "", QString SaveFileName = "excel/tmp.xlsx");
+
+
+    struct graph_Window
+    {
+        QVBoxLayout graph_layout;
+        QHBoxLayout SpinBox_layout;
+        QHBoxLayout Labels_layout;
+
+        QSpinBox groupBysb;
+        QSpinBox separateBysb;
+        QSpinBox dataColumnsb;
+
+        QComboBox graphTypeCB;
+        QLabel graphTypeLabel;
+
+        QLabel groupByLabel;
+        QLabel separateByLabel;
+        QLabel dataColumnLabel;
+
+        QPushButton buildGraphButton;
+        QPushButton saveAsPDFButton;
+        QCheckBox showLabelsCheckBox;
+        QCheckBox graphThemeCheckBox;
+
+        QChartView cv;
+        QChart chrt;
+        QLineSeries ls;
+
+        QVector<QLineSeries*> Straight_line_series;
+        QVector<QSplineSeries*> line_series;
+        QVector<QBarSet*> bar_sets;
+        QBarSeries bs;
+
+        QDateTimeAxis da;
+        QValueAxis vax;
+        QValueAxis vay;
+
+        void Init()
+        {
+            SpinBox_layout.addWidget(&groupBysb);
+            SpinBox_layout.addWidget(&separateBysb);
+            SpinBox_layout.addWidget(&dataColumnsb);
+            SpinBox_layout.addWidget(&graphTypeCB);
+
+            graphTypeCB.addItem("Spline");
+            graphTypeCB.addItem("Line");
+            graphTypeCB.addItem("Bar");
+
+            groupByLabel.setText("group by");
+            graphTypeLabel.setText("Graph type");
+            separateByLabel.setText("separate by");
+            dataColumnLabel.setText("data");
+
+            Labels_layout.addWidget(&groupByLabel);
+            Labels_layout.addWidget(&separateByLabel);
+            Labels_layout.addWidget(&dataColumnLabel);
+            Labels_layout.addWidget(&graphTypeLabel);
+
+            Labels_layout.addWidget(&showLabelsCheckBox);
+            Labels_layout.addWidget(&graphThemeCheckBox);
+            SpinBox_layout.addWidget(&saveAsPDFButton);
+
+            groupByLabel.setMaximumHeight(16);
+            graphTypeLabel.setMaximumHeight(16);
+            separateByLabel.setMaximumHeight(16);
+            dataColumnLabel.setMaximumHeight(16);
+
+            graph_layout.addLayout(&Labels_layout);
+            graph_layout.addLayout(&SpinBox_layout);
+
+            graphThemeCheckBox.setText("White theme");
+            showLabelsCheckBox.setText("Labels");
+            buildGraphButton.setText("Build graph");
+            saveAsPDFButton.setText("Save graph as .pdf");
+            graph_layout.addWidget(&buildGraphButton);
+            graph_layout.addWidget(&cv);
+
+            showLabelsCheckBox.setMaximumWidth(55);
+            graphThemeCheckBox.setMaximumWidth(90);
+
+            //cv.setBackgroundBrush(QColor::fromRgb(255,255,255));
+            cv.setChart(&chrt);
+            //chrt.setBackgroundBrush(QColor::fromRgb(255,255,255));
+            chrt.addSeries(&ls);
+            cv.setRenderHint(QPainter::Antialiasing,true);
+
+            cv.setBackgroundBrush(QColor::fromRgb(24,24,24));
+            cv.setChart(&chrt);
+            chrt.setBackgroundBrush(QColor::fromRgb(24,24,24));
+
+
+            chrt.addAxis(&vax,Qt::AlignmentFlag::AlignBottom);
+            chrt.addAxis(&vay,Qt::AlignmentFlag::AlignLeft);
+
+
+            groupBysb.setMinimum(0);
+            separateBysb.setMinimum(-1);
+            dataColumnsb.setMinimum(0);
+
+            groupBysb.setValue(0);
+            separateBysb.setValue(-1);
+            dataColumnsb.setValue(0);
+
+            graphThemeCheckBox.hide();
+            showLabelsCheckBox.hide();
+            saveAsPDFButton.hide();
+            groupBysb.hide();
+            separateBysb.hide();
+            dataColumnsb.hide();
+            groupByLabel.hide();
+            separateByLabel.hide();
+            dataColumnLabel.hide();
+            buildGraphButton.hide();
+            cv.hide();
+            ls.hide();
+            bs.hide();
+            graphTypeCB.hide();
+            graphTypeLabel.hide();
+
+            bs.setLabelsVisible();
+
+        }
+
+    };
+
+    graph_Window gw;
+
+    void Init();
 
 private slots:
 
@@ -157,6 +300,13 @@ private slots:
     void ShowIterateWindow();
     void ShowGraph();
 
+    void UpdateGraph();
+    void saveGraphAsPDF();
+
+    void on_graph_group_change(int val);
+    void on_graph_separator_change(int val);
+    void on_graph_data_change(int val);
+
     void on_workspaceLineEdit_textChanged(const QString &arg1);
     void on_listWidget_currentTextChanged(const QString &currentText);
     void on_DBNameComboBox_currentTextChanged(const QString &arg1);
@@ -170,6 +320,12 @@ private slots:
     void on_pushButton_pressed();
 
     void on_pushButton_2_pressed();
+
+    void on_pushButton_3_pressed();
+
+    void on_nnTestRun_pressed();
+
+    void on_nnTestLearn_pressed();
 
 private:
     Ui::LoaderWidnow *ui;

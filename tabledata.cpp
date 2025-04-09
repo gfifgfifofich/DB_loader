@@ -1,4 +1,5 @@
 #include "tabledata.h"
+#include "sqlSubfunctions.h"
 
 #include <QSqlDatabase>
 #include <QSqlError>
@@ -9,6 +10,7 @@
 #include <fstream>
 #include <qdir.h>
 
+inline QString documentsDir;
 /*
 
 double 6
@@ -49,7 +51,7 @@ void TableData::ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHe
     {
         if(firstRowHeader)
         {
-            QString str = file.readLine().toStdString().c_str();
+            QString str = QString().fromUtf8(file.readLine());
             if(str.endsWith('\n'))
                 str.resize(str.size()-1);
             if(str.endsWith('\r'))
@@ -60,7 +62,7 @@ void TableData::ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHe
 
         while(!file.atEnd())
         {
-            QString str = file.readLine().toStdString().c_str();
+            QString str = QString().fromUtf8(file.readLine());
             if(str.endsWith('\n'))
                 str.resize(str.size()-1);
             if(str.endsWith('\r'))
@@ -82,7 +84,8 @@ void TableData::ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHe
 
             for(int i=0;i<tbldata.size();i++)
             {
-                tbldata[i].push_back(QVariant(strl[i]));
+                QVariant var = strl[i];
+                tbldata[i].push_back(fixQVariantTypeFormat(var));
             }
 
 
@@ -167,7 +170,8 @@ bool TableData::ExportToCSV(QString fileName, char delimeter, bool firstRowHeade
         for(int i=0;i<headers.size();i++)
         {
             fl.write(headers[i].toUtf8().constData());
-            fl.write(QString(delimeter).toUtf8().constData());
+            if(i != headers.size()-1)
+                fl.write(QString(delimeter).toUtf8().constData());
         }
         fl.write(QString('\n').toUtf8().constData());
         if(tbldata.size() > 0 && tbldata[0].size() > 0)
@@ -341,14 +345,16 @@ bool TableData::ExportToSQLiteTable(QString tableName)
 
     SQLITE_sql = "Create table ";
     SQLITE_sql += tableName;
-
     SQLITE_sql += " ( ";
     for(int i=0;i<headers.size();i++)
     {
         SQLITE_sql += headers[i];
 
-        SQLITE_sql += " text ";
+        int doublecnt = 0;
+        int othercnt = 0;
 
+
+            SQLITE_sql += " text ";
         if(i+1<headers.size())
             SQLITE_sql += ", ";
     }
@@ -378,9 +384,9 @@ bool TableData::ExportToSQLiteTable(QString tableName)
             if(!first)
                 SQLITE_sql += ",";
             first = false;
-            SQLITE_sql += " '";
+                SQLITE_sql += " '";
             SQLITE_sql += tbldata[a][0].toString();
-            SQLITE_sql += "' ";
+                SQLITE_sql += "' ";
             SQLITE_sql += " as ";
             SQLITE_sql += " '";
             SQLITE_sql += headers[a];
@@ -410,9 +416,9 @@ bool TableData::ExportToSQLiteTable(QString tableName)
             is_text = !is_text;
 
 
-            SQLITE_sql += " '";
+                SQLITE_sql += " '";
             SQLITE_sql += tbldata[a][i].toString();
-            SQLITE_sql += "' ";
+                SQLITE_sql += "' ";
 
         }
         if(i - lasti > 300)
@@ -434,13 +440,13 @@ bool TableData::ExportToSQLiteTable(QString tableName)
                     if(!first)
                         SQLITE_sql += ",";
                     first = false;
-                    SQLITE_sql += " '";
+                        SQLITE_sql += " '";
                     SQLITE_sql += tbldata[a][lasti].toString();
-                    SQLITE_sql += "' ";
+                        SQLITE_sql += "' ";
                     SQLITE_sql += " as ";
-                    SQLITE_sql += " '";
+                        SQLITE_sql += " '";
                     SQLITE_sql += headers[a];
-                    SQLITE_sql += "' ";
+                        SQLITE_sql += "' ";
                 }
             }
 

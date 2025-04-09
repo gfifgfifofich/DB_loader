@@ -11,5 +11,8 @@ inline QVector<QString> subCommandPatterns;
 inline QVector<QString> SQLitePatterns;
 inline QVector<QString> OraclePatterns;
 inline QVector<QString> PostgrePatterns;
+
+inline QString stockUserDataTXT;
+
 void fillPaterns();
 #endif // PATTERNS_H

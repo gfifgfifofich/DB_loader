@@ -1,7 +1,9 @@
 #ifndef SQLSUBFUNCTIONS_H
 #define SQLSUBFUNCTIONS_H
 
+#include <qdatetime.h>
 #include <qobject.h>
+#include <qvariant.h>
 inline bool isSpecialSymbol(QChar c)
 {
     return c=='!' || c=='=' || c=='*' || c=='&' || c=='%' || c=='(' || c==')' || c=='-' || c=='+' || c=='/' || c==',' || c=='.' || c=='<' || c=='>' || c==';' || c==':' || c=='\"' || c=='\'';
@@ -27,6 +29,8 @@ inline bool isWord(QString s)
 }
 inline bool isNumber(QString s)
 {
+    if(s.startsWith('.') || s.count('.')>1)
+        return false;
     for(auto x : s)
     {
         if(!x.isDigit() && x!='.')
@@ -122,5 +126,92 @@ inline QStringList processBlockToTokens(QString& text)
     }
     return tokens;
 }
+
+
+inline QVariant fixQVariantTypeFormat(QVariant var)
+{
+
+    if(var.typeId() == 10) // additional type checking on strings
+    {
+        QString str = var.toString();
+        QDateTime dt = var.toDateTime();
+        var = str;
+        bool hascomas = false;
+        bool isdouble = false;
+        bool force_double = false;
+        bool isint = false;
+        bool forcetext = false;
+        double doub = var.toDouble(&isdouble);
+        var = str;
+        int integ = var.toInt(&isint);
+        var = str;
+        // passes through values like 12312.123123213123123123
+        // fix implemented, currently testing
+        if(str.count('.') + str.count(',') == 1)
+        {// one coma/dot
+
+            QStringList strl = str.replace('.',',').split(',');
+
+            if(str.contains(','))
+                hascomas = true;
+
+            if(strl.size()==2)
+            {
+                bool ok1 = false;
+                bool ok2 = false;
+                QVariant(strl[0]).toInt(&ok1);
+                QVariant(strl[1]).toInt(&ok2);
+                if(ok1 && ok2)
+                    force_double = true;
+            }
+            strl = str.split('.');
+
+            if(strl.size()==2)
+            {
+                bool ok1 = false;
+                bool ok2 = false;
+                QVariant(strl[0]).toInt(&ok1);
+                QVariant(strl[1]).toInt(&ok2);
+                if(ok1 && ok2)
+                    force_double = true;
+            }
+        }
+        if(force_double )
+        {
+            if(!hascomas)
+                return QVariant(var.toDouble());
+            else
+                return QVariant((var.toString().replace(',','.')).toDouble());
+        }
+        else
+        {
+            if((!dt.isValid() || dt.isNull()) && isdouble && str.size()>9)
+            {
+                isdouble = false;
+                forcetext = true;
+            }
+            if(!forcetext)
+            {
+
+                if(dt.isValid() && !dt.isNull())
+                {// datetime
+                    return QVariant(dt);
+                }
+                else if(isdouble)
+                {
+                    return QVariant(var.toDouble());
+                }
+                else if(isint)
+                {
+                    return QVariant(var.toInt());
+                }
+            }
+            else
+                return str;
+        }
+    }
+    return var;
+}
+
 
 #endif // SQLSUBFUNCTIONS_H

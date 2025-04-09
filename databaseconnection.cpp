@@ -4,7 +4,11 @@
 #include <qsqlerror.h>
 #include <qsqlrecord.h>
 #include "Patterns.h"
+#include "sqlSubfunctions.h"
 
+
+inline QString usrDir;
+inline QString documentsDir;
 
 inline DataStorage userDS;
 
@@ -180,7 +184,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
 
 bool DatabaseConnection::Create(QString driver, QString DBName)
 {
-    if(userDS.Load("userdata.txt"))
+    if(userDS.Load((documentsDir + "/userdata.txt").toStdString()))
     {
         this->driver = driver;
         this->dbname = DBName;
@@ -215,7 +219,7 @@ bool DatabaseConnection::execSql(QString sql)
     QString keywordbuff = "";
     std::vector<int> localKeywordsMatch;
     localKeywordsMatch.resize(subCommandPatterns.size());
-    userDS.Load("userdata.txt");
+    userDS.Load((documentsDir + "/userdata.txt").toStdString());
 
     // iterate through keywords, detect similarity
     qDebug()<<"Entered sql subcomand processing ";
@@ -403,13 +407,13 @@ bool DatabaseConnection::execSql(QString sql)
                             {
                                 qDebug() << "silent exporting to Excel " << saveName;
                                 if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
-                                    subscriptConnesction->data.ExportToExcel(QString("excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true);
+                                    subscriptConnesction->data.ExportToExcel(QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true);
                             }
                             if(subCommandPatterns[i] == "SubexecToSilentCSV")
                             {
                                 qDebug() << "silent exporting to CSV " << saveName;
                                 if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
-                                    subscriptConnesction->data.ExportToCSV(QString("CSV/") + QString(saveName) + QString(".csv"),csvDelimeter,true);
+                                    subscriptConnesction->data.ExportToCSV(QString(documentsDir + "/" +"CSV/") + QString(saveName) + QString(".csv"),csvDelimeter,true);
                             }
                             // non silent exporting
                             if(subCommandPatterns[i] == "SubexecToSqliteTable")
@@ -419,7 +423,7 @@ bool DatabaseConnection::execSql(QString sql)
                                 {
                                     QString saveErrorStr = "";
                                     if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] != "Error")
-                                        if(!subscriptConnesction->data.ExportToSQLiteTable(saveName))
+                                        if(!subscriptConnesction->data.ExportToSQLiteTable(documentsDir + "/" +saveName))
                                             saveErrorStr = "Failed to save to SQLite table, check columnName repetitions/spaces, special symbols";
                                     if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
                                         formatedSql += " 'Error' as \"Status\", ";
@@ -465,7 +469,7 @@ bool DatabaseConnection::execSql(QString sql)
                                 qDebug() << "exporting to Excel " << saveName;
                                 QString saveErrorStr = "";
                                 if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
-                                    if(!subscriptConnesction->data.ExportToExcel(QString("excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true))
+                                    if(!subscriptConnesction->data.ExportToExcel(QString(documentsDir + "/" +"excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true))
                                         saveErrorStr = "Failed to save to excel, probably file is opened";
 
                                 if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
@@ -510,7 +514,7 @@ bool DatabaseConnection::execSql(QString sql)
                             {
                                 qDebug() << "exporting to CSV " << saveName;
                                 if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
-                                    subscriptConnesction->data.ExportToCSV(QString("CSV/") + QString(saveName) + QString(".csv"),csvDelimeter,true);
+                                    subscriptConnesction->data.ExportToCSV(QString(documentsDir + "/" +"CSV/") + QString(saveName) + QString(".csv"),csvDelimeter,true);
                                 if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
                                     formatedSql += " 'Error' as \"Status\", ";
                                 else
@@ -813,77 +817,8 @@ bool DatabaseConnection::execSql(QString sql)
             for(int a=0,total = q.record().count(); a<total;a++)
             {
 
-                QVariant var = q.value(a);
+                QVariant var = fixQVariantTypeFormat(q.value(a));
 
-                if(var.typeId() == 10) // additional type checking
-                {
-                    QString str = var.toString();
-                    QDateTime dt = var.toDateTime();
-                    var = str;
-                    bool isdouble = false;
-                    bool force_double = false;
-                    bool isint = false;
-                    bool forcetext = false;
-                    double doub = var.toDouble(&isdouble);
-                    var = str;
-                    int integ = var.toInt(&isint);
-                    var = str;
-                    // passes through values like 12312.123123213123123123
-                    // fix implemented, currently testing
-                    if(str.count('.') + str.count(',') == 1)
-                    {// one coma/dot
-                        QStringList strl = str.split(',');
-                        if(strl.size()==2)
-                        {
-                            bool ok1 = false;
-                            bool ok2 = false;
-                            QVariant(strl[0]).toInt(&ok1);
-                            QVariant(strl[1]).toInt(&ok2);
-                            if(ok1 && ok2)
-                                force_double = true;
-                        }
-                        strl = str.split('.');
-                        if(strl.size()==2)
-                        {
-                            bool ok1 = false;
-                            bool ok2 = false;
-                            QVariant(strl[0]).toInt(&ok1);
-                            QVariant(strl[1]).toInt(&ok2);
-                            if(ok1 && ok2)
-                                force_double = true;
-                        }
-                    }
-                    if(force_double )
-                    {
-                        var = QVariant(var.toDouble());
-                    }
-                    else
-                    {
-                        if((!dt.isValid() || dt.isNull()) && isdouble && str.size()>9)
-                        {
-                            isdouble = false;
-                            forcetext = true;
-                        }
-                        if(!forcetext)
-                        {
-
-                            if(dt.isValid() && !dt.isNull())
-                            {// datetime
-                                var = QVariant(dt);
-                            }
-                            else if(isdouble)
-                            {
-                                var = QVariant(var.toDouble());
-                            }
-                            else if(isint)
-                            {
-                                var = QVariant(var.toInt());
-                            }
-                        }
-                        else
-                            var = str;
-                    }
-                }
 
                 data.tbldata[a].push_back(var);
             }

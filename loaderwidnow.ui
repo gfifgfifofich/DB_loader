@@ -10,6 +10,12 @@
     <height>600</height>
    </rect>
   </property>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+    <horstretch>0</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
+  </property>
   <property name="palette">
    <palette>
     <active>
@@ -684,6 +690,13 @@
            </widget>
           </item>
           <item>
+           <widget class="QPushButton" name="pushButton_3">
+            <property name="text">
+             <string>Run query</string>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QPushButton" name="stopLoadingQueryButton">
             <property name="text">
              <string>Stop loading</string>
@@ -866,6 +879,20 @@
               </property>
               <property name="text">
                <string>No database</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="nnTestLearn">
+              <property name="text">
+               <string>nnTestLearn</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="nnTestRun">
+              <property name="text">
+               <string>nnTestRun</string>
               </property>
              </widget>
             </item>

@@ -1,7 +1,9 @@
 #include "loaderwidnow.h"
 #include "ui_loaderwidnow.h"
+#include <qbarset.h>
 #include <qclipboard.h>
 #include <qdir.h>
+#include <qpdfwriter.h>
 #include <qrandom.h>
 #include <qshortcut.h>
 #include <fstream>
@@ -30,6 +32,10 @@
 +                                          tab press reg
 +                                          Timer
 +- reimplement Patterns compleatly through .ds files
+
++ open files through cmd
+- Scroll code preview
+
 
 + SubexecToArray{
         --{driver} {database}
@@ -68,11 +74,17 @@
 
 */
 
+
+inline QString usrDir;
+inline QString documentsDir;
 inline DataStorage userDS;
 inline DataStorage historyDS;
 inline QString appfilename;
 inline int thrnum;
 inline QTime lastMultiRunPress = QTime::currentTime();
+
+QStringList allPosibbleTokens;
+QMap<QString,int> allPosibbleTokensMap;
 
 LoaderWidnow::LoaderWidnow(QWidget *parent)
     : QMainWindow(parent)
@@ -106,8 +118,9 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_H), this, SLOT(ShowHistoryWindow()));
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_W), this, SLOT(ShowWorkspacesWindow()));
 
-    iw.Init();
-    ui->CodeEditorLayout->addLayout(&iw.iter_layout);
+    gw.Init();
+    //ui->CodeEditorLayout->addLayout(&iw.iter_layout);
+    ui->CodeEditorLayout->addLayout(&gw.graph_layout);
     ui->listWidget->hide();
 
     connect( &iw.button, SIGNAL(pressed()), this, SLOT(IterButtonPressed()));
@@ -119,12 +132,20 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     connect(&executionTimer, SIGNAL(timeout()), this, SLOT(executionTimerTimeout()));
 
 
+    connect( &gw.buildGraphButton, SIGNAL(pressed()), this, SLOT(UpdateGraph()), Qt::QueuedConnection );
+    connect( &gw.saveAsPDFButton, SIGNAL(pressed()), this, SLOT(saveGraphAsPDF()), Qt::QueuedConnection );
+
+    connect( &gw.groupBysb, SIGNAL(valueChanged(int)), this, SLOT(on_graph_group_change(int)), Qt::QueuedConnection );
+    connect( &gw.separateBysb, SIGNAL(valueChanged(int)), this, SLOT(on_graph_separator_change(int)), Qt::QueuedConnection );
+    connect( &gw.dataColumnsb, SIGNAL(valueChanged(int)), this, SLOT(on_graph_data_change(int)), Qt::QueuedConnection );
+
+    if(!tokenProcessor.ds.Load((documentsDir + "/" +"FrequencyMaps/test.txt").toStdString()))
+        qDebug() << "failed to load FrequencyMap: " <<  (documentsDir + "/" +"FrequencyMaps/test.txt").toStdString();
 
 
-    tokenProcessor.ds.Load("FrequencyMaps/test.txt");
+    ui->splitter->setSizes({1,2000,1});
 
-
-    if(userDS.Load("userdata.txt"))
+    if(userDS.Load((documentsDir + "/userdata.txt").toStdString()))
     {
         QStringList strl;
         for( auto x : userDS.data["UserDBs"])
@@ -145,15 +166,25 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
         userDS.Save("userdata.txt");
     }
 
-    if(!LastWorkspaceName.endsWith(".sql"))
-        LastWorkspaceName+=".sql";
-    QFile file("workspaces/" + LastWorkspaceName);
-    if (file.open(QFile::ReadOnly | QFile::Text))
-        cd->setPlainText(file.readAll());
+    if(launchOpenFile)
+    {
+        QFile file(launchOpenFileName);
+        if (file.open(QFile::ReadOnly | QFile::Text))
+            cd->setPlainText(file.readAll());
+        LastWorkspaceName = launchOpenFileName;
+        ui->workspaceLineEdit->setText(LastWorkspaceName);
+        ui->splitter->setSizes({0,2000,0});
+    }
+    else
+    {
+        if(!LastWorkspaceName.endsWith(".sql"))
+            LastWorkspaceName+=".sql";
+        QFile file(documentsDir + "/" +"workspaces/" + LastWorkspaceName);
+        if (file.open(QFile::ReadOnly | QFile::Text))
+            cd->setPlainText(file.readAll());
 
-    //cd->setPlainText(cd->toPlainText());
-    cd->highlighter->rehighlight();
-
+        //cd->setPlainText(cd->toPlainText());
+    }
     QString text = cd->toPlainText();
     if(text.startsWith("-- {"))
     {
@@ -189,25 +220,52 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
         {
             ui->driverComboBox->setCurrentText(tokens[0].trimmed());
             ui->DBNameComboBox->setCurrentText(tokens[1].trimmed());
+
         }
     }
     QString username = userDS.GetObject( ui->DBNameComboBox->currentText().toStdString())["name"].c_str();
     QString password = userDS.GetObject(ui->DBNameComboBox->currentText().toStdString())["password"].c_str();
 
     cd->setFocus();
-}
-void LoaderWidnow::Init(QString conname,QString driver,QString dbname,QString usrname, QString password, QString sql, QString SaveFileName)
-{
-    ui->driverComboBox->setCurrentText(driver);
-    ui->DBNameComboBox->setCurrentText(dbname);
-    ui->userNameLineEdit->setText(usrname);
-    ui->passwordLineEdit->setText(password);
-    ui->saveLineEdit->setText(SaveFileName);
-    cd->setPlainText(sql);
-    ui->workspaceLineEdit->setText(LastWorkspaceName);
-    dc.sqlCode = sql;
 
-    tokenProcessor.ds.Load("FrequencyMaps/test.txt");
+    on_ConnectButton_pressed();
+
+    DataStorage tmptokends;
+    tmptokends.Load((documentsDir + "/FrequencyMaps/tokens.txt").toStdString());
+
+    for(auto s : tmptokends.data)
+    {
+        for(auto a :s.second)
+        {
+            allPosibbleTokens.push_back(QString().fromLocal8Bit(a.second.c_str()).toLower().trimmed());
+            allPosibbleTokensMap[allPosibbleTokens.back().toLower().trimmed()] = allPosibbleTokens.size()-1;
+        }
+    }
+    qDebug()<<"loaded " << allPosibbleTokens.size() << " distinct tokens";
+
+    int arch[4] = {1,70,70,1};
+    allPosibbleTokens.size();
+    arch[0] = allPosibbleTokens.size();
+    arch[3] = allPosibbleTokens.size();
+    nn.Create(arch,4);
+    qDebug()<<"created nn {" << arch[0] << ", " << arch[1] ;//<< ", " << arch[2] << ", " << arch[3] << ", " << arch[4] << "}";
+    nn.Randomize();
+    nn.Randomize();
+    qDebug()<<"Randomized";
+    nn.lastCost = 10000000;
+
+}
+void LoaderWidnow::Init()
+{
+    //ui->driverComboBox->setCurrentText(driver);
+    //ui->DBNameComboBox->setCurrentText(dbname);
+    //ui->userNameLineEdit->setText(usrname);
+    //ui->passwordLineEdit->setText(password);
+    //ui->saveLineEdit->setText(SaveFileName);
+    //cd->setPlainText(sql);
+    //ui->workspaceLineEdit->setText(LastWorkspaceName);
+    //dc.sqlCode = sql;
+    tokenProcessor.ds.Load((documentsDir + "/" +"FrequencyMaps/test.txt").toStdString());
 
 }
 
@@ -226,7 +284,8 @@ void LoaderWidnow::on_ConnectButton_pressed()
     qDebug()<<"on_ConnectButton_pressed()";
 
 
-    tokenProcessor.ds.Load("FrequencyMaps/test.txt");
+    if(!tokenProcessor.ds.Load((documentsDir + "/" +"FrequencyMaps/test.txt").toStdString()))
+        qDebug() << "failed to load FrequencyMap: " <<  (documentsDir + "/" +"FrequencyMaps/test.txt").toStdString();
 
     QRandomGenerator64 gen;
     QString conname = QVariant(gen.generate()).toString();
@@ -329,11 +388,12 @@ void _AsyncFunc(LoaderWidnow* loader)
 {
     loader->dc.execSql();
 }
+
 void LoaderWidnow::runSqlAsync()
 {
     qDebug()<<"RunSqlAsync()";
 
-    if(userDS.Load("userdata.txt"))
+    if(userDS.Load((documentsDir + "/userdata.txt").toStdString()))
     {
         userDS.GetObject("User")["lastDriver"] = ui->driverComboBox->currentText().toStdString();
         userDS.GetObject("User")["lastDBName"] = ui->DBNameComboBox->currentText().toStdString();
@@ -372,7 +432,7 @@ void LoaderWidnow::runSqlAsync()
             start = 0;
         while(start>0 && text[start]!=';')
             start--;
-        while(start< text.size() &&!text[start].isLetterOrNumber())
+        while(start< text.size() && !text[start].isLetterOrNumber() && text[start] != '-')
             start++;
         QTextCursor tc = cd->textCursor();
         tc.setPosition(start,QTextCursor::MoveAnchor);
@@ -389,6 +449,8 @@ void LoaderWidnow::runSqlAsync()
                 break;
             iter++;
         }
+        tc.setPosition(iter,QTextCursor::MoveAnchor);
+        cd->setTextCursor(tc);
         qDebug()<<"sql start "<<start;
         qDebug()<<"sql start "<<iter-1;
         while(dc.sqlCode.endsWith(';'))
@@ -433,18 +495,18 @@ void LoaderWidnow::runSqlAsync()
     str += QTime::currentTime().toString();
     str +=".sql";
     str.replace(":","_");
-    qDebug()<<str;
-    std::ofstream stream (str.toStdString());
+    qDebug()<<documentsDir + "/" +str;
+    std::ofstream stream ((documentsDir + "/" +str).toStdString());
     stream << cd->toPlainText().toStdString();
     stream.close();
     SaveWorkspace();
 
 
 
-    if(historyDS.Load("sqlHistoryList.txt"))
+    if(historyDS.Load((documentsDir + "/" +"sqlHistoryList.txt").toStdString()))
     {
         historyDS.data["wSQL_BACKUP_LIST"][str.toStdString()] = str.toStdString();
-        historyDS.Save("sqlHistoryList.txt");
+        historyDS.Save((documentsDir + "/" +"sqlHistoryList.txt").toStdString());
     }
 
 
@@ -481,110 +543,8 @@ void LoaderWidnow::runSqlAsync()
 }
 void LoaderWidnow::IterButtonPressed()
 {
-    if( ui->connectionStatusLabel_2->text() == "Not connected")
-    {
-        ui->miscStatusLabel->setText("Connect to a database before launchng iterations");
-        return;
-    }
-    if( iw.nameline.text().size() <=0)
-    {
-        ui->miscStatusLabel->setText("No name to replace to iterate");
-        return;
-    }
-    qDebug()<<"IterButtonPressed()";
-    int secs = QTime::currentTime().minute() * 60 + QTime::currentTime().second();
-    int secswas = lastMultiRunPress.minute() * 60 + lastMultiRunPress.second();
-
-    int start = iw.sb1.value();
-    int end = iw.sb2.value();
-    int step = iw.sb3.value();
-
-    if(secs - secswas < 5 || step == 0)
-    {
-        ui->miscStatusLabel->setText("iteration step must be higher than 0");
-        return;
-    }
-    lastMultiRunPress = QTime::currentTime();
-    int sqlstart = 0;
-    int sqlend = cd->toPlainText().size();
-
-    dc.sqlCode = "";
-    QString text = cd->toPlainText();
-    int code_start = cd->textCursor().position()-1;
-    if(code_start<0)
-        code_start = 0;
-    while(code_start>0 && text[code_start]!=';')
-        code_start--;
-    if(text[code_start]==';')
-        code_start++;
-    int iter = code_start;
-    sqlstart = code_start;
-    dc.sqlCode.push_back(text[iter]);
-    iter++;
-    while(iter<text.size())
-    {
-        dc.sqlCode.push_back(text[iter]);
-        sqlend = code_start;
-        if((text[iter]==';'))
-            break;
-        iter++;
-    }
-    qDebug()<<"sql start "<<code_start;
-    qDebug()<<"sql start "<<iter-1;
-
-    for(int it = start; it <=end;it+=step)
-    {
-        QString formatedSql = "";
-        QString text =dc.sqlCode;
-        QString token = iw.nameline.text();
-        QStringList strl = text.split(token);
-        if(strl.size()>1)
-        {
-            formatedSql.append(strl[0]);
-            for(int i = 1;i<strl.size();i++)
-            {
-                formatedSql.append(QVariant(it).toString());
-                formatedSql.append(strl[i]);
-            }
-        }
-        qDebug() << formatedSql;
-
-        QString str = dc.sqlCode;
-        LoaderWidnow* tbl = new LoaderWidnow();
-        tbl->dc.sqlCode = formatedSql;
-        tbl->cd->setPlainText(formatedSql);
-
-
-
-        tbl->autofilename = ui->saveLineEdit->text();
-        if(tbl->autofilename.endsWith(".xlsx"))
-        {
-            tbl->autofilename.resize(tbl->autofilename.size()-5);
-            tbl->autofilename += "_";
-            tbl->autofilename += QVariant(it).toString();
-            tbl->autofilename   += ".xlsx";
-            tbl->autosaveXLSX   = true;
-            tbl->autosaveSQLITE = false;
-        }
-        else
-        {
-            tbl->autosaveXLSX = false;
-            tbl->autosaveSQLITE = true;
-            tbl->autofilename += "_";
-            tbl->autofilename += QVariant(it).toString();
-        }
-
-        tbl->show();
-        thrnum++;
-        tbl->dc.connectionName = QVariant(thrnum).toString();
-        tbl->Init(QVariant(thrnum).toString(), ui->driverComboBox->currentText(),ui->DBNameComboBox->currentText(), ui->userNameLineEdit->text(),  ui->passwordLineEdit->text(),formatedSql,autofilename);
-        tbl->runall = true;
-        tbl->createconnection = true;
-        tbl->runSqlAsync();
-        tbl->show();
-    }
+    qDebug() << "depricated function";
 }
-
 
 void LoaderWidnow::executionTimerTimeout()
 {
@@ -636,6 +596,7 @@ void LoaderWidnow::onQueryBeginCreating()
     qDebug()<<"onQueryBeginCreating()";
     ui->miscStatusLabel->setText(QString("creating sql query...start: ") + dc.executionStart.toString());
     queryExecutionState = 1;
+    ui->pushButton_3->hide();
     ui->stopLoadingQueryButton->hide();
 }
 void LoaderWidnow::onQueryBegin()
@@ -643,6 +604,7 @@ void LoaderWidnow::onQueryBegin()
     qDebug()<<"onQueryBegin()";
     ui->miscStatusLabel->setText(QString("executing sql query...start: ") + dc.executionStart.toString());
     queryExecutionState = 2;
+    ui->pushButton_3->hide();
     ui->stopLoadingQueryButton->hide();
 }
 void LoaderWidnow::onQuerySuccess()
@@ -651,6 +613,7 @@ void LoaderWidnow::onQuerySuccess()
     ui->miscStatusLabel->setText(QString("query success, downloading...start: ") + dc.executionStart.toString());
     queryExecutionState = 3;
     ui->stopLoadingQueryButton->show();
+    ui->pushButton_3->hide();
 }
 void LoaderWidnow::UpdateTable()
 {
@@ -660,6 +623,7 @@ void LoaderWidnow::UpdateTable()
     dc.executionEnd = QDateTime::currentDateTime();
     dc.executionTime = dc.executionEnd.toSecsSinceEpoch() - dc.executionStart.toSecsSinceEpoch();
     ui->stopLoadingQueryButton->hide();
+    ui->pushButton_3->show();
     dc.tableDataMutex.lock();
     ui->miscStatusLabel->setText("updating table data...");
     ui->tableWidget->clear();
@@ -730,13 +694,16 @@ void LoaderWidnow::UpdateTable()
         on_SaveSQLiteButton_pressed();
     }
 
+    on_graph_group_change(gw.groupBysb.value());
+    on_graph_separator_change(gw.separateBysb.value());
+    on_graph_data_change(gw.dataColumnsb.value());
     emit TableUpdated();
 }
 
 void LoaderWidnow::OpenFile()
 {
     qDebug()<<"OpenFile()";
-    QString str= "excel/";
+    QString str= documentsDir + "/" +"excel/";
     str += userDS.data["ExcelPrefixAliases"][cd->highlighter->dbSchemaName.toStdString()];
     str+= ui->saveLineEdit->text();
     if(!str.endsWith(".xlsx"))
@@ -784,8 +751,47 @@ void LoaderWidnow::ShowIterateWindow()
 }
 void LoaderWidnow::ShowGraph()
 {
-    qDebug()<<"ShowGraph() to be done";
+    if(gw.groupBysb.isVisible())
+    {
+        gw.graphThemeCheckBox.hide();
+        gw.showLabelsCheckBox.hide();
+        gw.saveAsPDFButton.hide();
+        gw.groupBysb.hide();
+        gw.separateBysb.hide();
+        gw.dataColumnsb.hide();
+        gw.groupByLabel.hide();
+        gw.separateByLabel.hide();
+        gw.dataColumnLabel.hide();
+        gw.buildGraphButton.hide();
+        gw.cv.hide();
+        gw.ls.hide();
+        gw.bs.hide();
+        gw.graphTypeCB.hide();
+        gw.graphTypeLabel.hide();
+    }
+    else
+    {
+        gw.graphThemeCheckBox.show();
+        gw.showLabelsCheckBox.show();
+        gw.saveAsPDFButton.show();
+        gw.groupBysb.show();
+        gw.separateBysb.show();
+        gw.dataColumnsb.show();
+        gw.groupByLabel.show();
+        gw.separateByLabel.show();
+        gw.dataColumnLabel.show();
+        gw.buildGraphButton.show();
+        gw.cv.show();
+        gw.ls.show();
+        gw.bs.show();
+        gw.graphTypeCB.show();
+        gw.graphTypeLabel.show();
 
+        on_graph_group_change(gw.groupBysb.value());
+        on_graph_separator_change(gw.separateBysb.value());
+        on_graph_data_change(gw.dataColumnsb.value());
+
+    }
 }
 void LoaderWidnow::ShowHistoryWindow()
 {
@@ -794,19 +800,18 @@ void LoaderWidnow::ShowHistoryWindow()
     b_showHistoryWindow = !b_showHistoryWindow;
     if(b_showHistoryWindow)
     {
-        if(historyDS.Load("sqlHistoryList.txt"))
+        QDir directory(documentsDir + "/sqlBackup");
+        QStringList strl = directory.entryList();
+        tmpSql = cd->toPlainText();
+        ui->listWidget->clear();
+        ui->listWidget->addItem("tmp");
+        for(auto x : strl)
         {
-            std::map sqlbackupmap = historyDS.data["wSQL_BACKUP_LIST"];
-            tmpSql = cd->toPlainText();
-            ui->listWidget->clear();
-            ui->listWidget->addItem("tmp");
-            for(auto x : sqlbackupmap)
-            {
-                ui->listWidget->addItem(x.first.c_str());
-            }
-            ui->listWidget->sortItems(Qt::DescendingOrder);
-            historyDS.Save("sqlHistoryList.txt");
+            ui->listWidget->addItem(x);
         }
+        ui->listWidget->sortItems(Qt::DescendingOrder);
+        historyDS.Save("sqlHistoryList.txt");
+
         ui->listWidget->setFocus();
         ui->listWidget->show();
     }
@@ -823,7 +828,7 @@ void LoaderWidnow::ShowWorkspacesWindow()
     b_showWorkspaceWindow = !b_showWorkspaceWindow;
     if(b_showWorkspaceWindow)
     {
-        QDir directory("workspaces");
+        QDir directory(documentsDir + "/workspaces");
         QStringList strl = directory.entryList();
         SaveWorkspace();
 
@@ -843,6 +848,437 @@ void LoaderWidnow::ShowWorkspacesWindow()
         ui->listWidget->hide();
         cd->setFocus();
     }
+}
+
+void LoaderWidnow::on_graph_group_change(int val)
+{
+    if(val>=0 && val <  dc.data.headers.size())
+        gw.groupByLabel.setText("group by " +  dc.data.headers[val]);
+    else
+        gw.groupByLabel.setText("group by nothing!");
+}
+void LoaderWidnow::on_graph_separator_change(int val)
+{
+    if(val>=0 && val <  dc.data.headers.size())
+        gw.separateByLabel.setText("separate by " +  dc.data.headers[val]);
+    else
+        gw.separateByLabel.setText("separate by nothing");
+}
+void LoaderWidnow::on_graph_data_change(int val)
+{
+    if(val>=0 && val <  dc.data.headers.size())
+        gw.dataColumnLabel.setText("data column: " +  dc.data.headers[val]);
+    else
+        gw.dataColumnLabel.setText("no data!");
+}
+
+void LoaderWidnow::UpdateGraph()
+{
+    if(gw.graphThemeCheckBox.isChecked())
+    {
+        gw.cv.setBackgroundBrush(QColor::fromRgb(255,255,255));
+        gw.chrt.setBackgroundBrush(QColor::fromRgb(255,255,255));
+    }
+    if(!gw.graphThemeCheckBox.isChecked())
+    {
+        gw.cv.setBackgroundBrush(QColor::fromRgb(24,24,24));
+        gw.chrt.setBackgroundBrush(QColor::fromRgb(24,24,24));
+    }
+    int groupColumn = gw.groupBysb.value();
+    int dataColumn = gw.dataColumnsb.value();
+    int separateColumn = gw.separateBysb.value();
+
+    bool separate = true;
+    if(separateColumn <= -1 || dataColumn == separateColumn || groupColumn == separateColumn || separateColumn >= dc.data.tbldata.size())
+        separate = false;
+
+    if(dataColumn  >= dc.data.tbldata.size())
+        return;
+    if(groupColumn  >= dc.data.tbldata.size())
+        return;
+
+    std::map<QString,std::map<QString,float>> ColumnData; // ColumnData[separator][grouper] == value
+
+    qDebug()<< "0";
+
+
+
+
+
+    long int maxi = -1000000;
+    long int mini = QDateTime::currentSecsSinceEpoch();
+    QDateTime maxdt = QDateTime::currentDateTime();
+    QDateTime mindt = QDateTime::currentDateTime();
+    double maxf = -100000000.0;
+    double minf = 100000000.0;
+    bool bottomAxisIsDate = false;
+    QStringList names;
+
+
+
+    qDebug()<< "1";
+
+    if(dc.data.tbldata.size() <=0)
+        return;
+    if(dc.data.tbldata[groupColumn].size() <1)
+        return;
+    if(dc.data.tbldata[groupColumn].size() >=2)
+    {
+        bottomAxisIsDate = dc.data.tbldata[groupColumn][0].toDateTime().isValid() && !dc.data.tbldata[groupColumn][0].toDateTime().isNull();
+    }
+    else
+        bottomAxisIsDate = false;
+
+    qDebug()<< "2 fill";
+
+    // fill
+    for(int i=0;i < dc.data.tbldata[groupColumn].size();i++)
+    {
+        bool isReal = false;
+        float a = dc.data.tbldata[dataColumn][i].toReal(&isReal);
+        if(!isReal)
+            a=1; // count
+        if(separate)
+            ColumnData[dc.data.tbldata[separateColumn][i].toString()][dc.data.tbldata[groupColumn][i].toString()] += a;
+        else
+            ColumnData["Value1"][dc.data.tbldata[groupColumn][i].toString()] += a;
+    }
+
+    qDebug()<< "2.5 filled";
+
+
+
+    qDebug()<< "3 minmax";
+    for(auto a : ColumnData) // separation
+    {
+        for(auto i : a.second) // group
+        {
+            if(dc.data.tbldata.size() > 1)
+            {
+
+                if(i.second > maxf)
+                    maxf = i.second;
+                if(i.second < minf)
+                    minf = i.second;
+
+                if(!bottomAxisIsDate)
+                {
+                    if(mini > i.first.toInt())
+                        mini = i.first.toInt();
+                    if(maxi < i.first.toInt())
+                        maxi = i.first.toInt();
+                }
+                else
+                {
+                    if(QVariant(i.first).toDateTime().toSecsSinceEpoch() > maxi)
+                    {
+                        maxi = QVariant(i.first).toDateTime().toSecsSinceEpoch();
+                        maxdt = QVariant(i.first).toDateTime();
+                    }
+                    if(QVariant(i.first).toDateTime().toSecsSinceEpoch() < mini)
+                    {
+                        mini = QVariant(i.first).toDateTime().toSecsSinceEpoch();
+                        mindt = QVariant(i.first).toDateTime();
+                    }
+                }
+            }
+        }
+    }
+    /*
+    for(int i=0;i<dc.data.tbldata[dataColumn].size();i++)
+    {
+        if(dc.data.tbldata.size() > 1)
+        {
+
+            if(dc.data.tbldata[dataColumn][i].toFloat() > maxf)
+                maxf = dc.data.tbldata[dataColumn][i].toFloat();
+            if(dc.data.tbldata[dataColumn][i].toFloat() < minf)
+                minf = dc.data.tbldata[dataColumn][i].toFloat();
+
+            if(!bottomAxisIsDate)
+            {
+                if(mini > dc.data.tbldata[groupColumn][i].toInt())
+                    mini = dc.data.tbldata[groupColumn][i].toInt();
+                if(maxi < dc.data.tbldata[groupColumn][i].toInt())
+                    maxi = dc.data.tbldata[groupColumn][i].toInt();
+            }
+            else
+            {
+                if(dc.data.tbldata[groupColumn][i].toDateTime().toSecsSinceEpoch() > maxi)
+                {
+                    maxi = dc.data.tbldata[groupColumn][i].toDateTime().toSecsSinceEpoch();
+                    maxdt = dc.data.tbldata[groupColumn][i].toDateTime();
+                }
+                if(dc.data.tbldata[groupColumn][i].toDateTime().toSecsSinceEpoch() < mini)
+                {
+                    mini = dc.data.tbldata[groupColumn][i].toDateTime().toSecsSinceEpoch();
+                    mindt = dc.data.tbldata[groupColumn][i].toDateTime();
+                }
+            }
+        }
+
+    }
+    */
+
+
+
+    qDebug()<< "4 push";
+    qDebug()<<mindt ;
+    qDebug()<<maxdt ;
+
+    qDebug()<<minf ;
+    qDebug()<<maxf ;
+    if(minf > 0.0f)
+        minf=  0.0f;
+
+    maxf *= 1.0f;
+
+
+    if(gw.graphTypeCB.currentText() == "Spline")
+    {
+        for(int i=0;i< ColumnData.size();i++)
+        {
+            QSplineSeries* ls = new QSplineSeries();
+            gw.line_series.push_back(ls);
+        }
+    }
+    else if (gw.graphTypeCB.currentText() == "Line")
+    {
+        for(int i=0;i< ColumnData.size();i++)
+        {
+            QLineSeries* ls = new QLineSeries();
+            gw.Straight_line_series.push_back(ls);
+        }
+    }
+    // Fix colors &shit
+    gw.ls.clear();
+    //gw.chrt.removeAllSeries();
+    gw.chrt.removeSeries(&gw.ls);
+    gw.vay.setGridLineColor(QColor::fromRgbF(0,0,0,0));
+    gw.da.setGridLineColor(QColor::fromRgbF(0,0,0,0));
+    //gw.vax.setGridLineColor(QColor::fromRgbF(0,0,0,0));
+
+    for(int i=0;i<gw.line_series.size();i++)
+    {
+        gw.line_series[i]->clear();
+        gw.chrt.removeSeries(gw.line_series[i]);
+
+        //gw.line_series[i]->setPointLabelsVisible();
+        //gw.line_series[i]->setPointLabelsColor(gw.line_series[i]->pen().color());
+        //qDebug()<<gw.line_series[i]->pen().color();
+        //gw.line_series[i]->setPointLabelsFormat("@yPoint");
+        //gw.line_series[i]->setPointLabelsClipping(false);
+    }
+
+    for(int i=0;i<gw.Straight_line_series.size();i++)
+    {
+        gw.Straight_line_series[i]->clear();
+        gw.chrt.removeSeries(gw.Straight_line_series[i]);
+
+        //gw.Straight_line_series[i]->setPointLabelsVisible();
+        //gw.Straight_line_series[i]->setPointLabelsColor(gw.Straight_line_series[i]->pen().color());
+        //qDebug()<<gw.Straight_line_series[i]->pen().color();
+        //gw.Straight_line_series[i]->setPointLabelsFormat("@yPoint");
+        //gw.Straight_line_series[i]->setPointLabelsClipping(false);
+    }
+
+    gw.bs.clear();
+    gw.chrt.removeSeries(&gw.bs);
+
+    qDebug()<< "appending";
+    int ls_iter = 0;
+    gw.bar_sets.clear();
+    for(auto x : ColumnData) // each separator
+    {
+        if(gw.graphTypeCB.currentText() == "Spline" || gw.graphTypeCB.currentText() == "Line")
+        {
+            QLineSeries* ls = nullptr;
+            if(gw.graphTypeCB.currentText() == "Spline")
+                ls = gw.line_series[ls_iter];
+            if(gw.graphTypeCB.currentText() == "Line")
+                ls = gw.Straight_line_series[ls_iter];
+
+
+            ls->setName(x.first);
+            for(auto i : x.second) // each group
+            {
+                qDebug()<<(QVariant(i.first).toDateTime().toSecsSinceEpoch()-mini)/double(maxi - mini) * 1.0f << i.second;
+                if(!bottomAxisIsDate)
+                    ls->append((QVariant(i.first).toInt() - mini)/float(maxi-mini) * 1.0f,i.second);
+                else
+                    ls->append((QVariant(i.first).toDateTime().toSecsSinceEpoch()-mini)/double(maxi - mini) * 1.0f,i.second);
+            }
+        }
+        else if(gw.graphTypeCB.currentText() == "Bar")
+        {
+            QBarSet* set = new QBarSet(x.first);
+            gw.bar_sets.push_back(set);
+
+
+            set->remove(0,set->count());
+            set->setLabel(x.first);
+            for(auto i : x.second) // each group
+            {
+                set->append(i.second);
+            }
+            gw.bs.append(set);
+        }
+
+
+        ls_iter++;
+    }
+
+    /*
+    for(int i=0;i<dc.data.tbldata[dataColumn].size();i++)
+    {
+        if(!separate)
+        {
+            if(!bottomAxisIsDate)
+                gw.ls.append((dc.data.tbldata[groupColumn][i].toInt() - mini)/float(maxi-mini) * 1.0f,(dc.data.tbldata[dataColumn][i].toReal()) / (maxf-minf) * 1.0f);
+            else
+                gw.ls.append((dc.data.tbldata[groupColumn][i].toDateTime().toSecsSinceEpoch()-mini)/double(maxi - mini) * 1.0f,(dc.data.tbldata[dataColumn][i].toReal()) / (maxf-minf) * 1.0f);
+        }
+        else
+        {
+            QLineSeries* ls = &gw.line_series[0];
+
+            if(names.contains(dc.data.tbldata[separateColumn][i].toString(),Qt::CaseInsensitive))
+            {
+                for(int a = 0;a<names.size();a++)
+                    if(names[a].toLower() == dc.data.tbldata[separateColumn][i].toString().toLower())
+                    {
+                        ls = &gw.line_series[a];
+                        break;
+                    }
+            }
+
+            if(!bottomAxisIsDate)
+                ls->append((dc.data.tbldata[groupColumn][i].toInt() - mini)/float(maxi-mini) * 1.0f,(dc.data.tbldata[dataColumn][i].toReal()) / (maxf-minf) * 1.0f);
+            else
+                ls->append((dc.data.tbldata[groupColumn][i].toDateTime().toSecsSinceEpoch()-mini)/double(maxi - mini) * 1.0f,(dc.data.tbldata[dataColumn][i].toReal()) / (maxf-minf) * 1.0f);
+
+        }
+    }
+    */
+
+    gw.vay.setMax(maxf);
+    gw.vay.setMin(minf);
+    qDebug()<< "adding series";
+    if(gw.graphTypeCB.currentText() == "Spline")
+    {
+        for(int i=0;i< ColumnData.size();i++)
+            gw.chrt.addSeries(gw.line_series[i]);
+    }
+    else if (gw.graphTypeCB.currentText() == "Line")
+    {
+        for(int i=0;i< ColumnData.size();i++)
+            gw.chrt.addSeries(gw.Straight_line_series[i]);
+    }
+    else if (gw.graphTypeCB.currentText() == "Bar")
+    {
+        gw.chrt.addSeries(&gw.bs);
+    }
+    if(!bottomAxisIsDate)
+    {
+        gw.chrt.removeAxis(&gw.da);
+        gw.chrt.addAxis(&gw.vax,Qt::Alignment::enum_type::AlignBottom);
+        gw.vax.setMax(maxi);
+        gw.vax.setMin(0);
+    }
+    else
+    {
+        gw.chrt.removeAxis(&gw.vax);
+        gw.chrt.addAxis(&gw.da,Qt::Alignment::enum_type::AlignBottom);
+        gw.da.setMax(maxdt);
+        gw.da.setMin(mindt);
+    }
+    ls_iter = 0;
+    for(int i = 0 ;i < gw.line_series.size();i++) // each separator
+    {
+
+        gw.line_series[i]->attachAxis(&gw.vay);
+        gw.vay.setMax(maxf);
+        gw.vay.setMin(minf);
+        if(gw.showLabelsCheckBox.isChecked())
+        {
+            gw.line_series[i]->setPointLabelsColor(gw.line_series[i]->pen().color());
+            qDebug()<<gw.line_series[i]->pen().color();
+            gw.line_series[i]->setPointLabelsFormat("@yPoint");
+            gw.line_series[i]->setPointLabelsClipping(false);
+
+
+            gw.line_series[i]->setPointLabelsColor(gw.line_series[i]->pen().color());
+            gw.line_series[i]->setPointLabelsFormat("@yPoint");
+            gw.line_series[i]->setPointLabelsClipping(false);
+            QFont fnt =  gw.line_series[i]->pointLabelsFont();
+            fnt.setBold(true);
+            gw.line_series[i]->setPointLabelsFont(fnt);
+        }
+        gw.line_series[i]->setPointLabelsVisible(gw.showLabelsCheckBox.isChecked());
+    }
+
+
+    for(int i = 0 ;i < gw.Straight_line_series.size();i++) // each separator
+    {
+        gw.Straight_line_series[i]->attachAxis(&gw.vay);
+        gw.vay.setMax(maxf*1.05f);
+        gw.vay.setMin(minf);
+        if(gw.showLabelsCheckBox.isChecked())
+        {
+            gw.Straight_line_series[i]->setPointLabelsColor(gw.Straight_line_series[i]->pen().color());
+            qDebug()<<gw.Straight_line_series[i]->pen().color();
+            gw.Straight_line_series[i]->setPointLabelsFormat("@yPoint");
+            gw.Straight_line_series[i]->setPointLabelsClipping(false);
+
+            gw.Straight_line_series[i]->setPointLabelsColor(gw.Straight_line_series[i]->pen().color());
+            gw.Straight_line_series[i]->setPointLabelsFormat("@yPoint");
+            gw.Straight_line_series[i]->setPointLabelsClipping(false);
+            QFont fnt =  gw.Straight_line_series[i]->pointLabelsFont();
+            fnt.setBold(true);
+            gw.Straight_line_series[i]->setPointLabelsFont(fnt);
+        }
+        gw.Straight_line_series[i]->setPointLabelsVisible(gw.showLabelsCheckBox.isChecked());
+    }
+
+
+    for(int i = 0 ;i < gw.bar_sets.size();i++) // each separator
+    {
+        gw.bar_sets[i]->setBorderColor(gw.bar_sets[i]->brush().color());
+        gw.bar_sets[i]->pen().setWidthF(0);
+        gw.bar_sets[i]->setLabelColor(gw.bar_sets[i]->brush().color());
+
+        gw.bar_sets[i]->setBorderColor(gw.bar_sets[i]->pen().color());
+        //set->setLabelColor(QColor::fromRgb(0,0,0));
+        QFont fnt = gw.bar_sets[i]->labelFont();
+        fnt.setBold(true);
+        gw.bar_sets[i]->setLabelFont(fnt);
+
+
+    }
+
+    if(gw.showLabelsCheckBox.isChecked())
+    {
+        gw.bs.setLabelsPosition(QAbstractBarSeries::LabelsOutsideEnd);
+        gw.bs.setLabelsVisible(true);
+    }
+    else
+        gw.bs.setLabelsVisible(false);
+
+    gw.bs.attachAxis(&gw.vay);
+
+    gw.vay.setMax(maxf*1.10f);
+    gw.vay.setMin(minf);
+
+}
+void LoaderWidnow::saveGraphAsPDF()
+{
+    QPdfWriter writer(documentsDir + "/out.pdf");
+    writer.setCreator("QTGraph");
+    writer.setPageSize(QPageSize::A4);
+    QPainter painter(&writer);
+    gw.cv.show();
+    gw.cv.render(&painter);
+    painter.end();
 }
 
 void LoaderWidnow::CopySelectionFormTable()
@@ -912,7 +1348,6 @@ void LoaderWidnow::updatesuggestion()
     //qDebug()<<"updatesuggestion()";
     ui->suggestionLabel->setText(cd->lastSuggestedWord);
     ui->textPosLabel->setText(QVariant(cd->textCursor().blockNumber() + 1).toString() + ":" + QVariant(cd->textCursor().positionInBlock() + 1).toString());
-
 }
 void LoaderWidnow::FillSuggest()
 {
@@ -944,9 +1379,41 @@ void LoaderWidnow::replaceTool()
 void LoaderWidnow::SaveWorkspace()
 {
     qDebug()<<"SaveWorkspace()";
-    if(!LastWorkspaceName.endsWith(".sql"))
+    if(LastWorkspaceName.contains(":"))
+    {// saving into global space
+        std::ofstream stream2 ((LastWorkspaceName).toLocal8Bit());
+        QString text = cd->toPlainText();
+        stream2.clear();
+        QStringList tokens;
+
+        if(text.startsWith("-- {"))
+        {
+            QString text2 = text;
+            text.clear();
+            text.reserve(text2.size());
+            int newlinecounter = 0;
+            for(int i=0;i<text2.size();i++)
+            {
+                if(newlinecounter < 1)
+                {
+                    if(text2[i] == '\n')
+                        newlinecounter += 1;
+                }
+                else
+                {
+                    text.push_back(text2[i]);
+
+                }
+            }
+        }
+        stream2 << "-- {" << ui->driverComboBox->currentText().toStdString() << "} ";
+        stream2 << " {" <<   ui->DBNameComboBox->currentText().toStdString() << "}\n";
+        stream2 << text.toStdString();
+        stream2.close();
+    }
+    else if(!LastWorkspaceName.endsWith(".sql"))
         LastWorkspaceName+=".sql";
-    std::ofstream stream2 ((QString("workspaces/") + LastWorkspaceName).toLocal8Bit().toStdString());
+    std::ofstream stream2 ((QString(documentsDir + "/workspaces/") + LastWorkspaceName).toLocal8Bit().toStdString());
     QString text = cd->toPlainText();
     stream2.clear();
     QStringList tokens;
@@ -979,7 +1446,7 @@ void LoaderWidnow::SaveWorkspace()
 void LoaderWidnow::on_SaveXLSXButton_pressed()
 {
     qDebug()<<"on_SaveXLSXButton_pressed()";
-    QString str = "excel/";
+    QString str = documentsDir + "/excel/";
 
     str += userDS.data["ExcelPrefixAliases"][cd->highlighter->dbSchemaName.toStdString()];
     str += ui->saveLineEdit->text();
@@ -999,7 +1466,7 @@ void LoaderWidnow::on_SaveXLSXButton_pressed()
 void LoaderWidnow::on_SaveCSVButton_pressed()
 {
     qDebug()<<"on_SaveCSVButton_pressed()";
-    QString str = "CSV/";
+    QString str = documentsDir + "/CSV/";
     if(!cd->highlighter->dbSchemaName.contains('.'))
         str += cd->highlighter->dbSchemaName;
     str += ui->saveLineEdit->text();
@@ -1038,11 +1505,18 @@ void LoaderWidnow::on_listWidget_currentTextChanged(const QString &currentText)
         QString filename = currentText;
         if(b_showWorkspaceWindow)
         {
-            filename = "workspaces/" + currentText;
+            filename = documentsDir + "/workspaces/" + currentText;
             LastWorkspaceName = currentText;
             ui->workspaceLineEdit->setText(currentText);
         }
-        QFile file(filename);
+        else
+        {
+            filename = documentsDir +"/sqlBackup/"+filename;
+            LastWorkspaceName= "tmp_history";
+            ui->workspaceLineEdit->setText("tmp_history");
+
+        }
+        QFile file( filename);
         if (file.open(QFile::ReadOnly | QFile::Text))
             cd->setPlainText(file.readAll());
         if(b_showWorkspaceWindow)
@@ -1087,7 +1561,7 @@ void LoaderWidnow::on_listWidget_currentTextChanged(const QString &currentText)
                     dc.driver = tokens[0].trimmed();
                     dc.dbname = tokens[1].trimmed();
 
-                    if(userDS.Load("userdata.txt"))
+                    if(userDS.Load((documentsDir + "/userdata.txt").toStdString()))
                     {
 
                         dc.usrname = userDS.data[ui->DBNameComboBox->currentText().toStdString()]["name"].c_str();
@@ -1113,12 +1587,12 @@ void LoaderWidnow::on_listWidget_currentTextChanged(const QString &currentText)
 }
 void LoaderWidnow::on_DBNameComboBox_currentTextChanged(const QString &arg1)
 {
-    if(!userDS.Load("userdata.txt"))
+    if(!userDS.Load((documentsDir + "/userdata.txt").toStdString()))
         return;
     ui->userNameLineEdit->setText(userDS.GetProperty(ui->DBNameComboBox->currentText().toStdString(),"name").c_str());
     ui->passwordLineEdit->setText(userDS.GetProperty(ui->DBNameComboBox->currentText().toStdString(),"password").c_str());
 
-    userDS.Save("userdata.txt");
+    userDS.Save((documentsDir + "/userdata.txt").toStdString());
 }
 
 void LoaderWidnow::on_ImportFromCSVButton_pressed()
@@ -1148,6 +1622,7 @@ void LoaderWidnow::on_the500LinesCheckBox_checkStateChanged(const Qt::CheckState
         dc.stopAt500Lines = false;
 }
 
+// qml test button
 inline QQmlApplicationEngine* TestqmlEngine = nullptr;
 void LoaderWidnow::on_pushButton_pressed()
 {
@@ -1155,18 +1630,15 @@ void LoaderWidnow::on_pushButton_pressed()
     TestqmlEngine->load("DBLoadScript.qml");
 }
 
-
-
-
-
-void LoaderWidnow::on_pushButton_2_pressed()
+void LoaderWidnow::on_pushButton_2_pressed() // token processor test
 {
     QString text = cd->toPlainText();
     QDir directory("sqlBackup");
     QStringList strl = directory.entryList();
 
 
-    tokenProcessor.ds.Load("FrequencyMaps/test.txt");
+    if(!tokenProcessor.ds.Load((documentsDir + "/" +"FrequencyMaps/test2.txt").toStdString()))
+        qDebug() << "failed to load FrequencyMap: " <<  (documentsDir + "/" +"FrequencyMaps/test2.txt").toStdString();
     for(auto x : strl)
     {
         QFile f("sqlBackup/" + x);
@@ -1176,6 +1648,218 @@ void LoaderWidnow::on_pushButton_2_pressed()
         tokenProcessor.processText(text);
         tokenProcessor.addFrequencies();
     }
-    tokenProcessor.ds.Save("FrequencyMaps/test.txt");
+    tokenProcessor.ds.Save((documentsDir + "/" +"FrequencyMaps/test2.txt").toStdString());
+    QFile fl ((documentsDir + "/" +"FrequencyMaps/tokens.txt"));
+    fl.open(QFile::OpenModeFlag::WriteOnly);
+    int i =0;
+    fl.write("tokens\n");
+    fl.write("{\n");
+
+    for(auto a : tokenProcessor.uniqueTokens)
+    {
+        fl.write((" "+QVariant(i).toString() + " " + a + "\n").toLocal8Bit());
+        i++;
+    }
+    fl.write("}\n");
+    fl.close();
+}
+// run query button
+void LoaderWidnow::on_pushButton_3_pressed()
+{
+    runSqlAsync();
+}
+
+void LoaderWidnow::on_nnTestRun_pressed()
+{
+
+    QStringList strl = cd->GetTokensUnderCursor();
+
+    float* inputs = new float[allPosibbleTokens.size()];
+    for(int i=0;i < allPosibbleTokens.size(); i++)
+        inputs[i] = 0;
+    for(auto s : strl)
+        inputs[allPosibbleTokensMap[s]] = 1;
+
+    nn.Run(inputs);
+
+    int maxi = 0;
+    float maxOut = -1000;
+    for(int i=0;i<nn.sizeout;i++)
+    {
+        if(nn.outputs[i] > maxOut)
+        {
+            maxOut = nn.outputs[i];
+            maxi = i;
+        }
+    }
+
+    if(maxi >=0 && allPosibbleTokens.size() > 0 && maxi < allPosibbleTokens.size())
+    {
+        cd->textCursor().insertText(allPosibbleTokens[maxi]);
+        qDebug() << "tokens in: " << strl << " result: [" << maxi << "] = " << allPosibbleTokens[maxi];
+    }
+    delete[] inputs;
+}
+
+void LoaderWidnow::on_nnTestLearn_pressed()
+{
+
+    float* inputs = new float[allPosibbleTokens.size()];
+    float* outputs = new float[allPosibbleTokens.size()];
+    tokenProcessor.ds.Load((documentsDir + "/FrequencyMaps/test.txt").toLocal8Bit().toStdString());
+    qDebug() << "datasize: " << tokenProcessor.ds.data.size();
+
+    dc.data.tbldata.clear();
+    dc.data.headers.clear();
+    dc.data.headers.push_back("id");
+    dc.data.headers.push_back("cost");
+    dc.data.tbldata.resize(2);
+    dc.data.tbldata[0].resize(1000);
+    dc.data.tbldata[1].resize(1000);
+
+    QStringList strl;
+    int cnt = 0;
+    std::vector<int> ids;
+    for(auto x : tokenProcessor.ds.data)
+    {
+        strl = QString(x.first.c_str()).split(' ');
+        strl.push_back("word");// to make word-3 word-2 word-1 word0 structure
+        if(strl.size() >= 4)
+            ids.push_back(cnt);
+        cnt++;
+    }
+
+    nn.h = 1.0f;
+    for(int it =0;it < 1000; it++)
+    {
+        strl.clear();
+        // = cd->GetTokensUnderCursor();
+        int rng = rand() % ids.size();
+        cnt = 0;
+        for(auto x : tokenProcessor.ds.data)
+        {
+            if(cnt >= ids[rng])
+            {
+                strl = QString(x.first.c_str()).split(' ');
+                strl.push_back("word");// to make word-3 word-2 word-1 word0 structure
+                if(strl.size() < 4)
+                    continue;
+                break;
+            }
+            cnt++;
+        }
+
+        qDebug() << "selected tokens: " << strl ;
+
+        for(int i=0;i < allPosibbleTokens.size(); i++)
+            inputs[i] = 0;
+        for(auto s : strl)
+            inputs[allPosibbleTokensMap[s]] = 1;
+        //get frequency data
+        QVector<QString> token_keys;
+        QMap<QString,int> token_key_values;
+
+        QString tokenkey = strl[strl.size()-4].toLower() + " " + strl[strl.size()-3].toLower() + " " + strl[strl.size()-2].toLower();
+        tokenkey = tokenkey.trimmed();
+
+        for(auto s : tokenProcessor.ds.data[tokenkey.toStdString()])
+        {
+            token_keys.push_back(s.first.c_str());
+            token_key_values[s.first.c_str()] = (tokenProcessor.ds.GetPropertyAsInt(tokenkey.toStdString(),s.first));
+        }
+
+        tokenkey = strl[strl.size()-3].toLower() + " " + strl[strl.size()-2].toLower();
+        tokenkey = tokenkey.trimmed();
+
+        for(auto s : tokenProcessor.ds.data[tokenkey.toStdString()])
+        {
+            token_key_values[s.first.c_str()] += (tokenProcessor.ds.GetPropertyAsInt(tokenkey.toStdString(),s.first));
+        }
+
+
+        tokenkey = strl[strl.size()-2].toLower();
+        tokenkey = tokenkey.trimmed();
+
+        for(auto s : tokenProcessor.ds.data[tokenkey.toStdString()])
+        {
+            token_key_values[s.first.c_str()] += (tokenProcessor.ds.GetPropertyAsInt(tokenkey.toStdString(),s.first));
+        }
+        if(token_keys.size() <3)
+        {
+            it--;
+            continue;
+        }
+
+        // get data for normalization
+        float devider = 0.0f;
+        for(auto s : token_key_values)
+        {
+            if (devider < s)
+                devider = s;
+        }
+        if(devider > 0.0000001f)
+            devider = 1.0f / devider;
+        else
+            devider = 0.0000001f;
+
+
+        nn.SetupLearing();
+        int learndepth = 0;
+        while (true)
+        {
+            learndepth++;
+            if(learndepth > 10)
+                break;
+            nn.Run(inputs);
+            // rank outputs
+            float cost = 0;
+            for(int i=0;i<allPosibbleTokens.size();i++)
+            {
+                if(float(token_key_values[allPosibbleTokens[i]]) > 0)
+                {
+                    cost += (nn.outputs[i] - (float(token_key_values[allPosibbleTokens[i]])*devider)) * (nn.outputs[i] - (float(token_key_values[allPosibbleTokens[i]])*devider));
+                }
+            }
+            qDebug() <<"cost: " << cost;
+            dc.data.tbldata[0][it]=it;
+            dc.data.tbldata[1][it]=cost;
+            if(nn.lastCost < cost)
+            {
+                nn.DeApplyGrad();
+                break;
+            }
+            else
+            {
+                nn.lastCost = cost;
+                nn.ApplyGrad();// aaply grads, try again
+                qDebug() <<"something better " << cost;
+            }
+        }
+
+        // decode word
+        int maxi = 0;
+        float maxOut = -1000;
+        for(int i=0;i<nn.sizeout;i++)
+        {
+            if(nn.outputs[i] > maxOut)
+            {
+                maxOut = nn.outputs[i];
+                maxi = i;
+            }
+        }
+        if(maxi >=0 && allPosibbleTokens.size() > 0 && maxi < allPosibbleTokens.size())
+        {
+            cd->textCursor().insertText(strl[strl.size()-4].toLower() + " " + strl[strl.size()-3].toLower() + " " + strl[strl.size()-2].toLower() + " ");
+            cd->textCursor().insertText(allPosibbleTokens[maxi] + "\n");
+            qDebug() << "tokens in: " << strl << " result: [" << maxi << "] = " << allPosibbleTokens[maxi];
+
+        }
+    }
+
+
+
+
+    delete[] inputs;
+    delete[] outputs;
 }
 

@@ -17,6 +17,8 @@
 #include <math.h>
 
 
+inline QString usrDir;
+inline QString documentsDir;
 inline DataStorage userDS;
 inline QColor braccketHighlightColor = QColor(Qt::GlobalColor::darkRed).lighter(35);
 
@@ -64,7 +66,7 @@ CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent)
 
     connect( this, SIGNAL(tabDetected()), this, SLOT(fillName()), Qt::QueuedConnection );
 
-    if(userDS.Load("userdata.txt"))
+    if(userDS.Load((documentsDir + "/userdata.txt").toStdString()))
     {
         QStringList strl = QString(userDS.data["UserTheme"]["BracketHighlightColor"].c_str()).split(',');
         QColor col = QColor(Qt::GlobalColor::darkRed).lighter(35);
@@ -669,7 +671,7 @@ void CodeEditor::suggestName()
 
         if(token_keys.contains(k,Qt::CaseInsensitive)) // if its a processed token, make it more likely to show it
         {
-            modifier -= (token_key_values[k] * 0.002f);
+            modifier -= (token_key_values[k] * 0.004f);
             //diff -=token_key_values[k];
         }
         if(likelykeys.contains(k,Qt::CaseInsensitive))
@@ -754,7 +756,48 @@ void CodeEditor::suggestName()
             break;
         }
     }
+    for(auto ke : highlighter->tmpTableColumnMap.keys())
+    {
+        if(lastSuggestedWord == ke)
+        {
+            lastwordisTableColumn = true;
+            break;
+        }
+    }
 
+    if(hasdot)
+    {
+        if(highlighter->TableColumnMap.contains(PrevPrevWord))
+            for(auto ke : highlighter->TableColumnMap[PrevPrevWord].keys())
+            {
+                if(lastSuggestedWord == ke)
+                {
+                    lastwordisTableColumn = true;
+                    break;
+                }
+            }
+        if(highlighter->TableColumnAliasMap.contains(PrevPrevWord))
+            for(auto ke : highlighter->TableColumnMap[highlighter->TableColumnAliasMap[PrevPrevWord]].keys())
+            {
+                if(lastSuggestedWord == ke)
+                {
+                    lastwordisTableColumn = true;
+                    break;
+                }
+            }
+        if(highlighter->tmpTableColumnMap.contains(PrevPrevWord))
+            for(auto ke : highlighter->tmpTableColumnMap[PrevPrevWord].keys())
+            {
+                if(highlighter->tmpTableColumnMap[PrevPrevWord][ke])
+                {
+                    if(lastSuggestedWord == ke)
+                    {
+                        lastwordisTableColumn = true;
+                        break;
+                    }
+                }
+            }
+    }
 
     emit s_suggestedName();
 
@@ -879,4 +922,139 @@ void CodeEditor::CommentSelected()
 }
 
 
+QStringList CodeEditor::GetTokensUnderCursor()
+{
+    QStringList out_strl;
+    QString word = "";
+    QString PrevWord= "";
+    QString PrevPrevWord= "";
+    QString PrevPrevPrevWord= "";
+    int depth = 3; // 3 prevwords
+    QString text = toPlainText();
+    int curs = textCursor().position();
+    if(curs>=1)
+        curs-=1;
+    int curscop = curs;
+    int start = curs;
+    int end = curs;
 
+
+
+    while(text[curscop].isLetter() ||text[curscop] == '_'||text[curscop] == '\"'||text[curscop] == '$' )
+    {
+        start = curscop;
+        curscop-=1;
+        if(curscop<0)
+            break;
+    }
+    while(text[curs].isLetter() ||text[curs] == '_'|| text[curs] == '\"' ||text[curs] == '$')
+    {
+        end = curs;
+        curs+=1;
+        if(curs>text.size())
+            break;
+    }
+    for(int i=start;i<=end;i++)
+    {
+        if(text[i]!='"')
+            word+=text[i];
+    }
+
+    int curs2 = start - 1;
+    if(curs2>=1)
+        curs2-=1;
+    int curscop2 = curs2;
+    int start2 = curs2;
+    int end2 = curs2;
+    for(int i =0;i < depth; i++)
+    {
+        curs2 = start2 - 1;
+        if(curs2>=1)
+            curs2-=1;
+        curscop2 = curs2;
+        start2 = curs2;
+        end2 = curs2;
+        while(text[curscop2].isLetter() ||text[curscop2] == '_'||text[curscop2] == '\"'||text[curscop2] == '$' )
+        {
+            start2 = curscop2;
+            curscop2-=1;
+            if(curscop2<0)
+                break;
+        }
+        while(text[curs2].isLetter() ||text[curs2] == '_'||text[curs2] == '\"'||text[curs2] == '$')
+        {
+            end2 = curs2;
+            curs2+=1;
+            if(curs>text.size())
+                break;
+        }
+        QString wrd = "";
+        for(int i=start2;i<=end2;i++)
+        {
+            if(text[i]!='"')
+                wrd+=text[i];
+        }
+        if(i==0)
+            PrevWord = wrd;
+        if(i==1)
+            PrevPrevWord = wrd;
+        if(i==2)
+            PrevPrevPrevWord = wrd;
+    }
+
+
+
+    word = word;
+    PrevWord = "";
+    PrevPrevWord = "";
+    PrevPrevPrevWord = "";
+
+    QString text_interval = "";
+    for(int i=start2; i <= end && i < text.size();i++)
+    {
+        text_interval += text[i];
+    }
+
+
+    QStringList text_interval_strl = processBlockToTokens(text_interval);
+    if(textCursor().position()-1 >=0 && (text[textCursor().position()-1] == ' ' || text[textCursor().position()-1] == '\t'|| text[textCursor().position()-1] == '\n'))
+    {
+        if(text_interval_strl.size() >= 3)
+            PrevPrevPrevWord = text_interval_strl[text_interval_strl.size()-3].toLower();
+        if(text_interval_strl.size() >= 2)
+            PrevPrevWord = text_interval_strl[text_interval_strl.size()-2].toLower();
+        if(text_interval_strl.size() >= 1)
+            PrevWord = text_interval_strl[text_interval_strl.size()-1].toLower();
+        word = "";
+        qDebug() << "On whitespace";
+    }
+    else
+    {
+
+        if(text_interval_strl.size() >= 4)
+            PrevPrevPrevWord= text_interval_strl[text_interval_strl.size()-4].toLower();
+        if(text_interval_strl.size() >= 3)
+            PrevPrevWord = text_interval_strl[text_interval_strl.size()-3].toLower();
+        if(text_interval_strl.size() >= 2)
+            PrevWord = text_interval_strl[text_interval_strl.size()-2].toLower();
+        if(text_interval_strl.size() >= 1)
+            word = text_interval_strl[text_interval_strl.size()-1].toLower();
+    }
+    PrevWord = PrevWord.replace('\n',' ');
+    PrevWord = PrevWord.replace('\t',' ');
+    PrevPrevWord = PrevPrevWord.replace('\n',' ');
+    PrevPrevWord = PrevPrevWord.replace('\t',' ');
+    PrevPrevPrevWord = PrevPrevPrevWord.replace('\n',' ');
+    PrevPrevPrevWord = PrevPrevPrevWord.replace('\t',' ');
+
+    word = word.replace('\u0000',' ').trimmed().toLower();
+    PrevWord = PrevWord.replace('\u0000',' ').trimmed().toLower();
+    PrevPrevWord = PrevPrevWord.replace('\u0000',' ').trimmed().toLower();
+    PrevPrevPrevWord = PrevPrevPrevWord.replace('\u0000',' ').trimmed().toLower();
+
+    out_strl.push_back(PrevPrevPrevWord);
+    out_strl.push_back(PrevPrevWord);
+    out_strl.push_back(PrevWord);
+    out_strl.push_back(word);
+    return out_strl;
+}
