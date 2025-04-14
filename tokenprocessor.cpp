@@ -22,87 +22,76 @@ void TokenProcessor::addFrequencies()
     QString prevprevprevtoken = "";
     QString prevprevtoken = "";
     QString prevtoken = "";
+    QStringList prevtokens;
+    int depth = 6;
+
+    bool in_qutes = false;
+    bool in_doublequtes = false;
+    bool inComment = false;
     for(auto s : tokens)
     {
+        // if(s.contains("--"))
+        //     inComment=true;
+        // if(inComment && s.contains("\n"))
+        // {
+        //     inComment = false;
+        //     continue;
+        // }
+        // if(inComment)
+        //     continue;
+
+        int quotes = s.count('\'');
+        if(quotes % 2 == 1)
+        {
+            in_qutes = !in_qutes;
+            continue;
+        }
+        if(in_qutes)
+            continue;
+
+
+        int double_quotes = s.count('"');
+        if(quotes % 2 == 1)
+        {
+            in_doublequtes = !in_doublequtes;
+            continue;
+        }
+        if(in_doublequtes)
+            continue;
+
         if(s.trimmed().size() < 1 || s.trimmed() ==" ")
             continue;
-        if(prevtoken.trimmed().size() == 0)
+        if(prevtokens.size() > 0)
         {
-            prevprevprevtoken = prevprevtoken.replace('\t',' ').replace('\n',' ').trimmed();
-            prevprevtoken = prevtoken.replace('\t',' ').replace('\n',' ').trimmed();
-            prevtoken = s.replace('\t',' ').replace('\n',' ').trimmed();
+            QString str = s.replace('\n',' ').replace('\t',' ').replace('\u0000',' ').toLower().trimmed();
+            if((!isNumber(str) || (!isWord(str) && !isNumber(str))) && !str.contains('{') && !str.contains('}')&& !str.contains(','))
+            {
+                QString tokenkey = "";
 
-            continue;
+                int wordcount = 0;
+                for (int a =  prevtokens.size()-1; a >= 0 ;a--)
+                {
+                    wordcount ++;
+                    tokenkey = prevtokens[a] + " " + tokenkey;
+                    tokenkey = tokenkey.trimmed();
+                    if(wordcount >= 0)
+                    {
+                        float val = pow(3,a) * 0.1f * sqrt(str.size());
+                        float freq = ds.GetPropertyAsFloat(tokenkey.toLower().toStdString(),str.trimmed().toLower().toStdString()); // get freq
+                        freq += val;
+                        if(freq > 10000)
+                            freq = 10000;
+                        ds.SetProperty(tokenkey.toLower().toStdString(),str.trimmed().toLower().toStdString(),freq); //set to freq + val
+                    }
+                }
+                prevtokens.push_back(str);
+                if(prevtokens.size()>depth)
+                    prevtokens.pop_front();
+            }
         }
         else
-        {
-            QString keystring = prevprevprevtoken.trimmed().toLower() + " " + prevprevtoken.trimmed().toLower() + " " + prevtoken.trimmed().toLower();
-            keystring = keystring.trimmed();
-            if(!(keystring.trimmed().size() <=4 || keystring.contains('{')||keystring.contains('"')||keystring.contains('\'')|| keystring.contains('}') || keystring.contains(';')) &&
-                (!((s.trimmed().size() <=1 && !s.contains('*')&& !s.contains('.')&& !s.contains('(')&& !s.contains(')')&& !s.contains('=')) || s.contains('{')|| s.contains('\'')|| s.contains('"')|| s.contains('}')|| s.contains(';')))  &&!isNumber(s) )
-            {
-                uniqueTokens[s.replace('\t',' ').replace('\n',' ').trimmed()] = s.replace('\t',' ').replace('\n',' ').trimmed();
-                int freq = 0;
-                if(keystring.size() >=3)
-                {
-                    freq = ds.GetPropertyAsInt(keystring.toLower().toStdString(),s.replace('\t',' ').replace('\n',' ').trimmed().toLower().toStdString()); // get freq
-                    if(freq > 10000)
-                        freq = 10000;
-                    ds.SetProperty(keystring.toLower().toStdString(),s.replace('\t',' ').replace('\n',' ').trimmed().toLower().toStdString(),freq + 10); //set to freq + 1
-                }
-                keystring = prevprevtoken.trimmed().toLower() + " " + prevtoken.trimmed().toLower();
-                keystring = keystring.trimmed();
-                if(keystring.size() >=3)
-                {
-                    freq = ds.GetPropertyAsInt(keystring.toLower().toStdString(),s.trimmed().toLower().toStdString()); // get freq
-                    if(freq > 10000)
-                        freq = 10000;
-                    ds.SetProperty(keystring.toLower().toStdString(),s.trimmed().toLower().toStdString(),freq + 5); //set to freq + 1
-                }
-
-                keystring = prevtoken.trimmed().toLower();
-                if(keystring.size() >=3)
-                {
-                    freq = ds.GetPropertyAsInt(keystring.toLower().toStdString(),s.trimmed().toLower().toStdString()); // get freq
-                    if(freq > 10000)
-                        freq = 10000;
-                    ds.SetProperty(keystring.toLower().toStdString(),s.trimmed().toLower().toStdString(),freq + 2); //set to freq + 1
-                }
-            }
-
-            prevprevprevtoken = prevprevtoken.trimmed();
-            prevprevtoken = prevtoken.trimmed();
-            prevtoken = s.trimmed();
-
-            prevprevprevtoken.replace('\n',' ');
-            prevprevprevtoken.replace('\t',' ');
-            prevprevtoken.replace('\n',' ');
-            prevprevtoken.replace('\t',' ');
-            prevtoken.replace('\n',' ');
-            prevtoken.replace('\t',' ');
-
-            if(isNumber(prevtoken))
-                prevtoken = "";
-            if(isNumber(prevprevtoken))
-                prevprevtoken = "";
-            if(isNumber(prevprevprevtoken))
-                prevprevprevtoken = "";
-
-            if(prevprevprevtoken.startsWith('\'') && (prevtoken.startsWith('\'') || prevtoken.endsWith('\'')))
-            {
-                prevprevtoken = "";
-            }
-            else if(prevtoken.contains('\'')>0 && prevprevprevtoken.count('\'')<=0 && prevprevtoken.count('\'')<=0)
-            {
-                prevprevprevtoken = "";
-                prevprevtoken = "";
-            }
-            prevprevprevtoken = prevprevprevtoken.trimmed();
-            prevprevtoken = prevprevtoken.trimmed();
-            prevtoken = prevtoken.trimmed();
-        }
+            prevtokens.push_back(s.replace('\n',' ').replace('\t',' ').replace('\u0000',' ').toLower().trimmed());
     }
-
 }
 
 

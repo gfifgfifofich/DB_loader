@@ -38,6 +38,7 @@ Highlighter::Highlighter(QTextDocument *parent)
 {
     HighlightingRule rule;
 
+    // load user theme
     if(userDS.Load("userdata.txt"))
     {
         if(QString(userDS.data["UserTheme"]["KeyWordItalic"].c_str()).trimmed().toLower() == "true")
@@ -140,6 +141,7 @@ Highlighter::Highlighter(QTextDocument *parent)
     }
     else
     {
+        // if cant open file, set stock theme
         keywordFormat.setFontItalic(false);
         if(true)
             keywordFormat.setFontWeight(QFont::Bold);
@@ -184,13 +186,14 @@ void Highlighter::highlightBlock(const QString &text)
     int bn = currentBlock().blockNumber();
     currentBlock().setUserState(bn);
 
-
     tokens[bn].clear();
     QStringList words = text.split(' ');
     int wordstart = 0;
     int wordend = 0;
     bool inword = false;
     QString word = "";
+
+    // split, Cant use one sqlSubfunction.h due to tokens beeng a TextInterval
     for(int i =0;i<text.size();i++)
     {
         // word handling
@@ -495,6 +498,7 @@ void Highlighter::highlightBlock(const QString &text)
         }
     }
 
+    // basic token highlighting, depending on what it is
     for(int i=0;i < tokens[bn].size();i++)
     {
         if(tokens[bn][i].start<0 || tokens[bn][i].end < 0)
@@ -609,7 +613,7 @@ void Highlighter::highlightBlock(const QString &text)
     std::vector <int> bracketstarts;
     bool comment = false;
 
-
+    //positional highlighting, brackets, comments, quotes.
     for(int i = 0;i < tokens[bn].size();i++)
     {
         if(tokens[bn][i].text.contains("--") || (i > 0 && tokens[bn][i].text.startsWith('-') && tokens[bn][i-1].text.endsWith('-') && tokens[bn][i-1].end +1 == tokens[bn][i].start))
@@ -703,7 +707,8 @@ void Highlighter::highlightBlock(const QString &text)
         }
     }
     bool rehighlightNext = false;
-    // Special pass, for errors like no commas before keywords
+
+    // Special highlighting pass, for errors like no commas before 'from' and other simple errors
     for(int i = 0; i < tokens[bn].size();i++)
     {
         bool markPrevAsError = false;
@@ -826,6 +831,7 @@ void Highlighter::highlightBlock(const QString &text)
 
 void Highlighter::OnBlockCountChanged(int newBlockCount)
 {
+    // attempt to rehighlight only whats needed
     prevBlockCount = currentBlockCount;
     currentBlockCount = newBlockCount;
     BlockCountDiff = currentBlockCount - prevBlockCount;
@@ -835,7 +841,8 @@ void Highlighter::OnBlockCountChanged(int newBlockCount)
 }
 
 void Highlighter::UpdateTableColumns(QSqlDatabase* db, QString dbname)
-{
+{// update data about tables, columns and dbPatterns
+
     ColumnMap.clear();
     TableAliasMapPerRow.clear();
     TableColumnAliasMap.clear();
@@ -855,6 +862,7 @@ void Highlighter::UpdateTableColumns(QSqlDatabase* db, QString dbname)
     else
         keywordPatterns = OraclePatterns;
 
+    // if not sqlite, load using special query, save as schemaName.txt
     if(!QSLiteStyle)
     {
         QStringList strl = db->databaseName().split(';');
@@ -901,7 +909,7 @@ void Highlighter::UpdateTableColumns(QSqlDatabase* db, QString dbname)
         }
     }
     else
-    {
+    {// if sqlite, load directly from it
 
         db->open();
         QStringList tblnames = db->driver()->tables(QSql::AllTables);

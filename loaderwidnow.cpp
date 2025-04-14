@@ -91,60 +91,69 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     , ui(new Ui::LoaderWidnow)
 {
     ui->setupUi(this);
+    ui->stopLoadingQueryButton->hide();
+
 
     cd = new CodeEditor();
     ui->CodeEditorLayout->addWidget(cd);
 
-    ui->stopLoadingQueryButton->hide();
+    //open new app instance
+    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_N), this, SLOT(OpenNewWindow()));
 
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_R), this, SLOT(runSqlAsync())); // Run sql async
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Return), this, SLOT(runSqlAsync()));// Run sql async
+    // run query
+    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_R), this, SLOT(runSqlAsync()));
+    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Return), this, SLOT(runSqlAsync()));
 
+    //.xlsx export
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_E), this, SLOT(on_SaveXLSXButton_pressed())); // save to file
+    // open .xlsx file
+    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_O), this, SLOT(OpenFile()));
+
+    // save workspace
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_S), this, SLOT(SaveWorkspace()));
 
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_O), this, SLOT(OpenFile()));
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Space), this, SLOT(FillSuggest()));
+    // replace code
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_F), this, SLOT(replaceTool()));
+    // comment code
+    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_B), cd, SLOT(CommentSelected()));
 
-
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_N), this, SLOT(OpenNewWindow()));
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_I), this, SLOT(ShowIterateWindow()));
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_G), this, SLOT(ShowGraph()));
+    // copy from tableview
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_C), this, SLOT(CopySelectionFormTable()));
     new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_C), this, SLOT(CopySelectionFormTableSql()));
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_B), cd, SLOT(CommentSelected())); // comment code
 
+    // switching different windows
+    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_G), this, SLOT(ShowGraph()));
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_H), this, SLOT(ShowHistoryWindow()));
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_W), this, SLOT(ShowWorkspacesWindow()));
 
+    // graph window init
     gw.Init();
     //ui->CodeEditorLayout->addLayout(&iw.iter_layout);
     ui->CodeEditorLayout->addLayout(&gw.graph_layout);
     ui->listWidget->hide();
 
-    connect( &iw.button, SIGNAL(pressed()), this, SLOT(IterButtonPressed()));
-    connect( cd, SIGNAL(s_suggestedName()), this, SLOT(updatesuggestion()), Qt::QueuedConnection );
-    connect( &dc, SIGNAL(execedSql()), this, SLOT(UpdateTable()), Qt::QueuedConnection );
-    connect( &dc, SIGNAL(querySuccess()), this, SLOT(onQuerySuccess()), Qt::QueuedConnection );
-    connect( &dc, SIGNAL(queryBeginExecuting()), this, SLOT(onQueryBegin()), Qt::QueuedConnection );
+
+
+    //signal binding
+    //query states
     connect( &dc, SIGNAL(queryBeginCreating()), this, SLOT(onQueryBeginCreating()), Qt::QueuedConnection );
+    connect( &dc, SIGNAL(queryBeginExecuting()), this, SLOT(onQueryBegin()), Qt::QueuedConnection );
+    connect( &dc, SIGNAL(querySuccess()), this, SLOT(onQuerySuccess()), Qt::QueuedConnection );
+    connect( &dc, SIGNAL(execedSql()), this, SLOT(UpdateTable()), Qt::QueuedConnection );
     connect(&executionTimer, SIGNAL(timeout()), this, SLOT(executionTimerTimeout()));
-
-
+    //codeeditor
+    connect( cd, SIGNAL(s_suggestedName()), this, SLOT(updatesuggestion()), Qt::QueuedConnection );
+    //graph
     connect( &gw.buildGraphButton, SIGNAL(pressed()), this, SLOT(UpdateGraph()), Qt::QueuedConnection );
     connect( &gw.saveAsPDFButton, SIGNAL(pressed()), this, SLOT(saveGraphAsPDF()), Qt::QueuedConnection );
-
     connect( &gw.groupBysb, SIGNAL(valueChanged(int)), this, SLOT(on_graph_group_change(int)), Qt::QueuedConnection );
     connect( &gw.separateBysb, SIGNAL(valueChanged(int)), this, SLOT(on_graph_separator_change(int)), Qt::QueuedConnection );
     connect( &gw.dataColumnsb, SIGNAL(valueChanged(int)), this, SLOT(on_graph_data_change(int)), Qt::QueuedConnection );
 
-    if(!tokenProcessor.ds.Load((documentsDir + "/" +"FrequencyMaps/test.txt").toStdString()))
-        qDebug() << "failed to load FrequencyMap: " <<  (documentsDir + "/" +"FrequencyMaps/test.txt").toStdString();
-
-
+    //maximize code editor
     ui->splitter->setSizes({1,2000,1});
 
+    // load last database/driver
     if(userDS.Load((documentsDir + "/userdata.txt").toStdString()))
     {
         QStringList strl;
@@ -166,6 +175,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
         userDS.Save("userdata.txt");
     }
 
+    // if program was opened from command line with filename to open
     if(launchOpenFile)
     {
         QFile file(launchOpenFileName);
@@ -182,9 +192,9 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
         QFile file(documentsDir + "/" +"workspaces/" + LastWorkspaceName);
         if (file.open(QFile::ReadOnly | QFile::Text))
             cd->setPlainText(file.readAll());
-
-        //cd->setPlainText(cd->toPlainText());
     }
+
+    // get database from file header
     QString text = cd->toPlainText();
     if(text.startsWith("-- {"))
     {
@@ -226,9 +236,20 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     QString username = userDS.GetObject( ui->DBNameComboBox->currentText().toStdString())["name"].c_str();
     QString password = userDS.GetObject(ui->DBNameComboBox->currentText().toStdString())["password"].c_str();
 
+    // set focus on code editor
     cd->setFocus();
 
+    //load tokenprocessor data
+    if(!tokenProcessor.ds.Load((documentsDir + "/" +"FrequencyMaps/test.txt").toStdString()))
+        qDebug() << "failed to load FrequencyMap: " <<  (documentsDir + "/" +"FrequencyMaps/test.txt").toStdString();
+
+    // connect to database
     on_ConnectButton_pressed();
+
+
+
+
+    // testing:
 
     DataStorage tmptokends;
     tmptokends.Load((documentsDir + "/FrequencyMaps/tokens.txt").toStdString());
@@ -254,19 +275,23 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     qDebug()<<"Randomized";
     nn.lastCost = 10000000;
 
+    //int arch[7] = {1,10,10,10,10,10,1};
+
+    //nn.Create(arch,7);
+    //qDebug()<<"created nn {" << arch[0] << ", " << arch[1] << ", " << arch[2] << ", " << arch[3] ;//<< ", " << arch[4] << "}";
+    //nn.Randomize();
+    //nn.Randomize();
+    //qDebug()<<"Randomized";
+    //nn.lastCost = 1000000000;
+
+
+
+
+
 }
 void LoaderWidnow::Init()
 {
-    //ui->driverComboBox->setCurrentText(driver);
-    //ui->DBNameComboBox->setCurrentText(dbname);
-    //ui->userNameLineEdit->setText(usrname);
-    //ui->passwordLineEdit->setText(password);
-    //ui->saveLineEdit->setText(SaveFileName);
-    //cd->setPlainText(sql);
-    //ui->workspaceLineEdit->setText(LastWorkspaceName);
-    //dc.sqlCode = sql;
     tokenProcessor.ds.Load((documentsDir + "/" +"FrequencyMaps/test.txt").toStdString());
-
 }
 
 LoaderWidnow::~LoaderWidnow()
@@ -274,6 +299,9 @@ LoaderWidnow::~LoaderWidnow()
     qDebug()<<"closing window";
     if(sqlexecThread != nullptr)
     {
+        // stop query if loading.
+        // if query is executing, thead will be left alive untill executed
+        // still cant cancel query propperly
         dc.stopNow = true;
     }
     delete ui;
@@ -384,6 +412,7 @@ void LoaderWidnow::on_ConnectButton_pressed()
 
 }
 
+// function to give to thread to process query async
 void _AsyncFunc(LoaderWidnow* loader)
 {
     loader->dc.execSql();
@@ -393,15 +422,17 @@ void LoaderWidnow::runSqlAsync()
 {
     qDebug()<<"RunSqlAsync()";
 
+
+    // save new lastOpenedDb
     if(userDS.Load((documentsDir + "/userdata.txt").toStdString()))
     {
-        userDS.GetObject("User")["lastDriver"] = ui->driverComboBox->currentText().toStdString();
-        userDS.GetObject("User")["lastDBName"] = ui->DBNameComboBox->currentText().toStdString();
-        userDS.GetObject("User")["name"] = ui->userNameLineEdit->text().toStdString();
-        userDS.GetObject("User")["password"] = ui->passwordLineEdit->text().toStdString();
+        userDS.data["User"]["lastDriver"] = ui->driverComboBox->currentText().toStdString();
+        userDS.data["User"]["lastDBName"] = ui->DBNameComboBox->currentText().toStdString();
+        userDS.data["User"]["name"] = ui->userNameLineEdit->text().toStdString();
+        userDS.data["User"]["password"] = ui->passwordLineEdit->text().toStdString();
 
-        userDS.GetObject(ui->DBNameComboBox->currentText().toStdString())["name"] = ui->userNameLineEdit->text().toStdString();
-        userDS.GetObject(ui->DBNameComboBox->currentText().toStdString())["password"] = ui->passwordLineEdit->text().toStdString();
+        userDS.data[ui->DBNameComboBox->currentText().toStdString()]["name"] = ui->userNameLineEdit->text().toStdString();
+        userDS.data[ui->DBNameComboBox->currentText().toStdString()]["password"] = ui->passwordLineEdit->text().toStdString();
 
         userDS.Save("userdata.txt");
     }
@@ -412,7 +443,7 @@ void LoaderWidnow::runSqlAsync()
     }
 
     queryExecutionState = 0;
-    QRandomGenerator64 gen;
+    QRandomGenerator64 gen; // random 64 bit connection name, to not close previous connections with 99.9% chance.
     QString conname = QVariant(gen.generate()).toString();
     QString driver = ui->driverComboBox->currentText();
     QString dbname = ui->DBNameComboBox->currentText();
@@ -421,6 +452,7 @@ void LoaderWidnow::runSqlAsync()
 
     dc.executing = true;
 
+    // cut part of code to execute
     int sqlstart = 0;
     int sqlend = cd->toPlainText().size();
     if(cd->textCursor().selectedText().size() <= 5)
@@ -480,6 +512,7 @@ void LoaderWidnow::runSqlAsync()
     qDebug()<<dc.sqlCode;
     qDebug()<<"";
 
+    // save sqlBacup
     QString str = "sqlBackup/";
     QDate dt = QDate::currentDate();
     str += QVariant(dt.year()).toString();
@@ -501,16 +534,7 @@ void LoaderWidnow::runSqlAsync()
     stream.close();
     SaveWorkspace();
 
-
-
-    if(historyDS.Load((documentsDir + "/" +"sqlHistoryList.txt").toStdString()))
-    {
-        historyDS.data["wSQL_BACKUP_LIST"][str.toStdString()] = str.toStdString();
-        historyDS.Save((documentsDir + "/" +"sqlHistoryList.txt").toStdString());
-    }
-
-
-
+    // move cursor to end of code, to highlight some user errors with missing ;
     QTextCursor cursor = cd->textCursor();
     cursor.setPosition(sqlstart, QTextCursor::MoveAnchor);
     cursor.setPosition(sqlend+1, QTextCursor::KeepAnchor);
@@ -528,7 +552,8 @@ void LoaderWidnow::runSqlAsync()
         qDebug() << "created connection";
     }
 
-    QString SIDsql = "SELECT  s.sid, s.serial#, s.sql_id, s.username, s.program FROM v$session s WHERE  s.type != 'BACKGROUND' AND S.USERNAME = 'PLHOLKOVSKIY'";
+    // code to get session info for oracle
+    //QString SIDsql = "SELECT  s.sid, s.serial#, s.sql_id, s.username, s.program FROM v$session s WHERE  s.type != 'BACKGROUND' AND S.USERNAME = 'PLHOLKOVSKIY'";
 
     ui->miscStatusLabel->setText("running sql...");
     sqlexecThread = QThread::create(_AsyncFunc,this);
@@ -547,7 +572,7 @@ void LoaderWidnow::IterButtonPressed()
 }
 
 void LoaderWidnow::executionTimerTimeout()
-{
+{// update label
 
     QString msg = "";
     if(queryExecutionState >=3)
@@ -617,6 +642,8 @@ void LoaderWidnow::onQuerySuccess()
 }
 void LoaderWidnow::UpdateTable()
 {
+    // clear tableData, fill tableView with new data up to  25k rows, update info label
+
     queryExecutionState = 4;
     executionTimer.stop();
 
@@ -697,6 +724,7 @@ void LoaderWidnow::UpdateTable()
     on_graph_group_change(gw.groupBysb.value());
     on_graph_separator_change(gw.separateBysb.value());
     on_graph_data_change(gw.dataColumnsb.value());
+    //UpdateGraph();
     emit TableUpdated();
 }
 
@@ -724,7 +752,7 @@ void LoaderWidnow::OpenNewWindow()
 
 void LoaderWidnow::ShowIterateWindow()
 {
-    qDebug()<<"ShowIterateWindow()";
+    qDebug()<<"ShowIterateWindow() depracated";
     b_showIteratorWindow = !b_showIteratorWindow;
     if(b_showIteratorWindow)
     {
@@ -874,6 +902,7 @@ void LoaderWidnow::on_graph_data_change(int val)
 
 void LoaderWidnow::UpdateGraph()
 {
+    // set theme
     if(gw.graphThemeCheckBox.isChecked())
     {
         gw.cv.setBackgroundBrush(QColor::fromRgb(255,255,255));
@@ -899,12 +928,6 @@ void LoaderWidnow::UpdateGraph()
 
     std::map<QString,std::map<QString,float>> ColumnData; // ColumnData[separator][grouper] == value
 
-    qDebug()<< "0";
-
-
-
-
-
     long int maxi = -1000000;
     long int mini = QDateTime::currentSecsSinceEpoch();
     QDateTime maxdt = QDateTime::currentDateTime();
@@ -914,14 +937,12 @@ void LoaderWidnow::UpdateGraph()
     bool bottomAxisIsDate = false;
     QStringList names;
 
-
-
-    qDebug()<< "1";
-
     if(dc.data.tbldata.size() <=0)
         return;
     if(dc.data.tbldata[groupColumn].size() <1)
         return;
+
+    // use dateAxis or valueAxis
     if(dc.data.tbldata[groupColumn].size() >=2)
     {
         bottomAxisIsDate = dc.data.tbldata[groupColumn][0].toDateTime().isValid() && !dc.data.tbldata[groupColumn][0].toDateTime().isNull();
@@ -929,9 +950,8 @@ void LoaderWidnow::UpdateGraph()
     else
         bottomAxisIsDate = false;
 
-    qDebug()<< "2 fill";
 
-    // fill
+    // fill ColumnData
     for(int i=0;i < dc.data.tbldata[groupColumn].size();i++)
     {
         bool isReal = false;
@@ -944,11 +964,8 @@ void LoaderWidnow::UpdateGraph()
             ColumnData["Value1"][dc.data.tbldata[groupColumn][i].toString()] += a;
     }
 
-    qDebug()<< "2.5 filled";
 
-
-
-    qDebug()<< "3 minmax";
+    // get min and max
     for(auto a : ColumnData) // separation
     {
         for(auto i : a.second) // group
@@ -1022,7 +1039,6 @@ void LoaderWidnow::UpdateGraph()
 
 
 
-    qDebug()<< "4 push";
     qDebug()<<mindt ;
     qDebug()<<maxdt ;
 
@@ -1033,7 +1049,7 @@ void LoaderWidnow::UpdateGraph()
 
     maxf *= 1.0f;
 
-
+    // graph type setups
     if(gw.graphTypeCB.currentText() == "Spline")
     {
         for(int i=0;i< ColumnData.size();i++)
@@ -1050,13 +1066,12 @@ void LoaderWidnow::UpdateGraph()
             gw.Straight_line_series.push_back(ls);
         }
     }
-    // Fix colors &shit
+
     gw.ls.clear();
-    //gw.chrt.removeAllSeries();
+    //gw.chrt.removeAllSeries(); // crashes the app, doing it by hand
     gw.chrt.removeSeries(&gw.ls);
     gw.vay.setGridLineColor(QColor::fromRgbF(0,0,0,0));
     gw.da.setGridLineColor(QColor::fromRgbF(0,0,0,0));
-    //gw.vax.setGridLineColor(QColor::fromRgbF(0,0,0,0));
 
     for(int i=0;i<gw.line_series.size();i++)
     {
@@ -1085,9 +1100,9 @@ void LoaderWidnow::UpdateGraph()
     gw.bs.clear();
     gw.chrt.removeSeries(&gw.bs);
 
-    qDebug()<< "appending";
     int ls_iter = 0;
     gw.bar_sets.clear();
+    // fill series with data
     for(auto x : ColumnData) // each separator
     {
         if(gw.graphTypeCB.currentText() == "Spline" || gw.graphTypeCB.currentText() == "Line")
@@ -1103,9 +1118,9 @@ void LoaderWidnow::UpdateGraph()
             for(auto i : x.second) // each group
             {
                 qDebug()<<(QVariant(i.first).toDateTime().toSecsSinceEpoch()-mini)/double(maxi - mini) * 1.0f << i.second;
-                if(!bottomAxisIsDate)
+                if(!bottomAxisIsDate && QVariant(i.first).toInt() > 0)
                     ls->append((QVariant(i.first).toInt() - mini)/float(maxi-mini) * 1.0f,i.second);
-                else
+                else if(bottomAxisIsDate)
                     ls->append((QVariant(i.first).toDateTime().toSecsSinceEpoch()-mini)/double(maxi - mini) * 1.0f,i.second);
             }
         }
@@ -1128,7 +1143,6 @@ void LoaderWidnow::UpdateGraph()
         ls_iter++;
     }
 
-    /*
     for(int i=0;i<dc.data.tbldata[dataColumn].size();i++)
     {
         if(!separate)
@@ -1159,11 +1173,11 @@ void LoaderWidnow::UpdateGraph()
 
         }
     }
-    */
+
 
     gw.vay.setMax(maxf);
     gw.vay.setMin(minf);
-    qDebug()<< "adding series";
+
     if(gw.graphTypeCB.currentText() == "Spline")
     {
         for(int i=0;i< ColumnData.size();i++)
@@ -1178,6 +1192,8 @@ void LoaderWidnow::UpdateGraph()
     {
         gw.chrt.addSeries(&gw.bs);
     }
+
+    // setup chart
     if(!bottomAxisIsDate)
     {
         gw.chrt.removeAxis(&gw.da);
@@ -1192,6 +1208,7 @@ void LoaderWidnow::UpdateGraph()
         gw.da.setMax(maxdt);
         gw.da.setMin(mindt);
     }
+
     ls_iter = 0;
     for(int i = 0 ;i < gw.line_series.size();i++) // each separator
     {
@@ -1214,10 +1231,16 @@ void LoaderWidnow::UpdateGraph()
             fnt.setBold(true);
             gw.line_series[i]->setPointLabelsFont(fnt);
         }
+        gw.line_series[i]->setPointsVisible();
+
+
+
         gw.line_series[i]->setPointLabelsVisible(gw.showLabelsCheckBox.isChecked());
     }
 
 
+
+    // series formating setup, after they were added to chart
     for(int i = 0 ;i < gw.Straight_line_series.size();i++) // each separator
     {
         gw.Straight_line_series[i]->attachAxis(&gw.vay);
@@ -1239,7 +1262,6 @@ void LoaderWidnow::UpdateGraph()
         }
         gw.Straight_line_series[i]->setPointLabelsVisible(gw.showLabelsCheckBox.isChecked());
     }
-
 
     for(int i = 0 ;i < gw.bar_sets.size();i++) // each separator
     {
@@ -1345,7 +1367,6 @@ void LoaderWidnow::CopySelectionFormTableSql()
 
 void LoaderWidnow::updatesuggestion()
 {
-    //qDebug()<<"updatesuggestion()";
     ui->suggestionLabel->setText(cd->lastSuggestedWord);
     ui->textPosLabel->setText(QVariant(cd->textCursor().blockNumber() + 1).toString() + ":" + QVariant(cd->textCursor().positionInBlock() + 1).toString());
 }
@@ -1443,6 +1464,8 @@ void LoaderWidnow::SaveWorkspace()
     stream2 << text.toStdString();
     stream2.close();
 }
+
+// export
 void LoaderWidnow::on_SaveXLSXButton_pressed()
 {
     qDebug()<<"on_SaveXLSXButton_pressed()";
@@ -1487,6 +1510,19 @@ void LoaderWidnow::on_SaveSQLiteButton_pressed()
         ui->miscStatusLabel->setText(QString("Saved to SQLite table") + ui->saveLineEdit->text());
     else
         ui->miscStatusLabel->setText(QString("Failed to save to SQLite, check colomn names / repetitions") + ui->saveLineEdit->text());
+}
+
+void LoaderWidnow::on_ImportFromCSVButton_pressed()
+{
+    dc.data.ImportFromCSV(QFileDialog::getOpenFileName(this, tr("Select csv file")),';',true);
+    UpdateTable();
+    ui->tableDBNameLabel->setText("Imported from csv");
+}
+void LoaderWidnow::on_importFromExcelButton_pressed()
+{
+    dc.data.ImportFromExcel(QFileDialog::getOpenFileName(),0,0,0,0,true);
+    UpdateTable();
+    ui->tableDBNameLabel->setText("Imported from Excel");
 }
 
 void LoaderWidnow::on_workspaceLineEdit_textChanged(const QString &arg1)
@@ -1595,19 +1631,6 @@ void LoaderWidnow::on_DBNameComboBox_currentTextChanged(const QString &arg1)
     userDS.Save((documentsDir + "/userdata.txt").toStdString());
 }
 
-void LoaderWidnow::on_ImportFromCSVButton_pressed()
-{
-    dc.data.ImportFromCSV(QFileDialog::getOpenFileName(this, tr("Select csv file")),';',true);
-    UpdateTable();
-    ui->tableDBNameLabel->setText("Imported from csv");
-}
-void LoaderWidnow::on_importFromExcelButton_pressed()
-{
-    dc.data.ImportFromExcel(QFileDialog::getOpenFileName(),0,0,0,0,true);
-    UpdateTable();
-    ui->tableDBNameLabel->setText("Imported from Excel");
-}
-
 void LoaderWidnow::on_stopLoadingQueryButton_pressed()
 {
     dc.stopNow = true;
@@ -1622,15 +1645,8 @@ void LoaderWidnow::on_the500LinesCheckBox_checkStateChanged(const Qt::CheckState
         dc.stopAt500Lines = false;
 }
 
-// qml test button
-inline QQmlApplicationEngine* TestqmlEngine = nullptr;
-void LoaderWidnow::on_pushButton_pressed()
-{
-
-    TestqmlEngine->load("DBLoadScript.qml");
-}
-
-void LoaderWidnow::on_pushButton_2_pressed() // token processor test
+// token processor test
+void LoaderWidnow::on_pushButton_2_pressed()
 {
     QString text = cd->toPlainText();
     QDir directory("sqlBackup");
@@ -1669,6 +1685,17 @@ void LoaderWidnow::on_pushButton_3_pressed()
     runSqlAsync();
 }
 
+// qml test button
+inline QQmlApplicationEngine* TestqmlEngine = nullptr;
+void LoaderWidnow::on_pushButton_pressed()
+{
+
+    TestqmlEngine->load("DBLoadScript.qml");
+}
+
+
+// nn testbed
+
 void LoaderWidnow::on_nnTestRun_pressed()
 {
 
@@ -1699,15 +1726,116 @@ void LoaderWidnow::on_nnTestRun_pressed()
         qDebug() << "tokens in: " << strl << " result: [" << maxi << "] = " << allPosibbleTokens[maxi];
     }
     delete[] inputs;
+
+
+    //float* inputs = new float[1];
+
+    //dc.data.tbldata.clear();
+    //dc.data.headers.clear();
+    //dc.data.headers.push_back("id");
+    //dc.data.headers.push_back("cost");
+    //dc.data.headers.push_back("type");
+    //dc.data.tbldata.resize(3);
+    //dc.data.tbldata[0].resize(2000);
+    //dc.data.tbldata[1].resize(2000);
+    //dc.data.tbldata[2].resize(2000);
+
+
+    //for(int i=0;i < 1000;i++)
+    //{
+    //    float val = (i / 500.0f-1.0f) * 2.0f;
+
+
+    //    nn.Run(&val);
+
+    //    QString str = QVariant(i).toString();
+    //    while (str.size() < 4)
+    //        str = '0' + str;
+
+    //    dc.data.tbldata[0][i]=str;
+    //    dc.data.tbldata[1][i]=(nn.outputs[0] );
+    //    dc.data.tbldata[2][i]="NN";
+
+    //    dc.data.tbldata[0][1000 + i]=str;
+    //    dc.data.tbldata[1][1000 + i]=(sin(val*3.14159f) * cos(val*3.14159f));
+    //    dc.data.tbldata[2][1000 + i]="Target";
+
+    //}
+
+
+    //UpdateTable();
+    //UpdateGraph();
+    //delete[] inputs;
 }
+
+/*
+void LoaderWidnow::on_nnTestLearn_pressed()
+{
+    float* inputs = new float[100];
+    float* outputs = new float[100];
+    //nn.Randomize();
+    dc.data.tbldata.clear();
+    dc.data.headers.clear();
+    dc.data.headers.push_back("id");
+    dc.data.headers.push_back("cost");
+    dc.data.tbldata.resize(2);
+    dc.data.tbldata[0].resize(1000);
+    dc.data.tbldata[1].resize(1000);
+    for(int i=0;i < 20;i++)
+    {
+        float val = (i / 10.0f-1.0f) * 2.0f;
+        inputs[i] = val;
+        outputs[i] = sin(val*3.14159f) * cos(val*3.14159f);
+    }
+
+    for(int it=0;it<1000;it++)
+    {
+        float cost = 0.0f;
+
+        nn.h = 0.1f;
+        //nn.SetupLearing();
+        nn.learn(0.002f,inputs,outputs,20);
+
+        //for(int i=0;i < 100;i++)
+        //{
+        //    float val = i / 100.0f;
+        //    //inputs[i] = val;
+        //    //outputs[i] = sin(val*3.14159f) * cos(val*3.14159f);
+        //    nn.Run(&val);
+
+        //    cost += ((nn.outputs[0] - (sin(val*3.14159f) * cos(val*3.14159f))) * (nn.outputs[0] - (sin(val*3.14159f) * cos(val*3.14159f))));
+        //}
+
+
+        QString str = QVariant(it).toString();
+        while (str.size() < 4)
+            str = '0' + str;
+
+        dc.data.tbldata[0][it]=str;
+        dc.data.tbldata[1][it]=nn.lastCost;
+    }
+    UpdateTable();
+    UpdateGraph();
+    delete[] inputs;
+}
+*/
+
 
 void LoaderWidnow::on_nnTestLearn_pressed()
 {
 
-    float* inputs = new float[allPosibbleTokens.size()];
-    float* outputs = new float[allPosibbleTokens.size()];
+
     tokenProcessor.ds.Load((documentsDir + "/FrequencyMaps/test.txt").toLocal8Bit().toStdString());
     qDebug() << "datasize: " << tokenProcessor.ds.data.size();
+
+
+    float* inputs = new float[allPosibbleTokens.size()];
+    float* outputs = new float[allPosibbleTokens.size()];
+
+    std::vector <float> allInputs;
+    std::vector <float> allOutputs;
+
+
 
     dc.data.tbldata.clear();
     dc.data.headers.clear();
@@ -1717,6 +1845,7 @@ void LoaderWidnow::on_nnTestLearn_pressed()
     dc.data.tbldata[0].resize(1000);
     dc.data.tbldata[1].resize(1000);
 
+    int dataCount = 0;
     QStringList strl;
     int cnt = 0;
     std::vector<int> ids;
@@ -1728,26 +1857,21 @@ void LoaderWidnow::on_nnTestLearn_pressed()
             ids.push_back(cnt);
         cnt++;
     }
-
+    qDebug() << "creating data";
     nn.h = 1.0f;
-    for(int it =0;it < 1000; it++)
+    float outputsMax = -10.0f;
+    float inputsMax = -10.0f;
+    float outputsMin = 10.0f;
+    float inputsMin = 10.0f;
+    for(auto x : tokenProcessor.ds.data)
     {
         strl.clear();
-        // = cd->GetTokensUnderCursor();
-        int rng = rand() % ids.size();
-        cnt = 0;
-        for(auto x : tokenProcessor.ds.data)
-        {
-            if(cnt >= ids[rng])
-            {
-                strl = QString(x.first.c_str()).split(' ');
-                strl.push_back("word");// to make word-3 word-2 word-1 word0 structure
-                if(strl.size() < 4)
-                    continue;
-                break;
-            }
-            cnt++;
-        }
+
+        strl = QString(x.first.c_str()).split(' ');
+        strl.push_back("word");// to make word-3 word-2 word-1 word0 structure
+        if(strl.size() < 4)
+            continue;
+
 
         qDebug() << "selected tokens: " << strl ;
 
@@ -1755,6 +1879,7 @@ void LoaderWidnow::on_nnTestLearn_pressed()
             inputs[i] = 0;
         for(auto s : strl)
             inputs[allPosibbleTokensMap[s]] = 1;
+
         //get frequency data
         QVector<QString> token_keys;
         QMap<QString,int> token_key_values;
@@ -1786,7 +1911,6 @@ void LoaderWidnow::on_nnTestLearn_pressed()
         }
         if(token_keys.size() <3)
         {
-            it--;
             continue;
         }
 
@@ -1801,65 +1925,130 @@ void LoaderWidnow::on_nnTestLearn_pressed()
             devider = 1.0f / devider;
         else
             devider = 0.0000001f;
+        devider = 1.0f;
+        dataCount++;
 
-
-        nn.SetupLearing();
-        int learndepth = 0;
-        while (true)
+        float outputsMax = -10.0f;
+        float inputsMax = -10.0f;
+        float outputsMin = 10.0f;
+        float inputsMin = 10.0f;
+        // make inputs
+        for(int i=0;i < allPosibbleTokens.size(); i++)
         {
-            learndepth++;
-            if(learndepth > 10)
-                break;
-            nn.Run(inputs);
-            // rank outputs
-            float cost = 0;
-            for(int i=0;i<allPosibbleTokens.size();i++)
+            if(inputsMax < inputs[i])
+                inputsMax = inputs[i];
+            if(inputsMin > inputs[i])
+                inputsMin = inputs[i];
+            allInputs.push_back(inputs[i]);
+        }
+        // make outputs
+        float cost = 0;
+        for(int i=0;i<allPosibbleTokens.size();i++)
+        {
+            if(outputsMax < float(token_key_values[allPosibbleTokens[i]])*devider)
+                outputsMax = float(token_key_values[allPosibbleTokens[i]])*devider;
+            if(outputsMin > float(token_key_values[allPosibbleTokens[i]])*devider)
+                outputsMin = float(token_key_values[allPosibbleTokens[i]])*devider;
+
+            if(float(token_key_values[allPosibbleTokens[i]]) > 0)
             {
-                if(float(token_key_values[allPosibbleTokens[i]]) > 0)
-                {
-                    cost += (nn.outputs[i] - (float(token_key_values[allPosibbleTokens[i]])*devider)) * (nn.outputs[i] - (float(token_key_values[allPosibbleTokens[i]])*devider));
-                }
-            }
-            qDebug() <<"cost: " << cost;
-            dc.data.tbldata[0][it]=it;
-            dc.data.tbldata[1][it]=cost;
-            if(nn.lastCost < cost)
-            {
-                nn.DeApplyGrad();
-                break;
+                allOutputs.push_back(float(token_key_values[allPosibbleTokens[i]])*devider);
             }
             else
-            {
-                nn.lastCost = cost;
-                nn.ApplyGrad();// aaply grads, try again
-                qDebug() <<"something better " << cost;
-            }
+                allOutputs.push_back(0);
         }
 
-        // decode word
-        int maxi = 0;
-        float maxOut = -1000;
-        for(int i=0;i<nn.sizeout;i++)
-        {
-            if(nn.outputs[i] > maxOut)
-            {
-                maxOut = nn.outputs[i];
-                maxi = i;
-            }
-        }
-        if(maxi >=0 && allPosibbleTokens.size() > 0 && maxi < allPosibbleTokens.size())
-        {
-            cd->textCursor().insertText(strl[strl.size()-4].toLower() + " " + strl[strl.size()-3].toLower() + " " + strl[strl.size()-2].toLower() + " ");
-            cd->textCursor().insertText(allPosibbleTokens[maxi] + "\n");
-            qDebug() << "tokens in: " << strl << " result: [" << maxi << "] = " << allPosibbleTokens[maxi];
+    }
 
+    for(int i=0; i< allOutputs.size();i++)
+    {
+        if(outputsMax < allOutputs[i])
+            outputsMax = allOutputs[i];
+        if(outputsMin > allOutputs[i])
+            outputsMin = allOutputs[i];
+    }
+    for(int i=0; i< allInputs.size();i++)
+    {
+        if(inputsMax < allInputs[i])
+            inputsMax = allInputs[i];
+        if(inputsMax > allInputs[i])
+            inputsMax = allInputs[i];
+    }
+
+    qDebug() << "learning data " << dataCount <<allInputs.size() << allOutputs.size();
+    qDebug() << "outputsMax:" << outputsMax << "outputsMin:" << outputsMin << "inputsMax:" << inputsMax << "inputsMin:" << inputsMin;
+
+    //nn.learn(0.00000002f,allInputs.data(),allOutputs.data(),dataCount);
+
+    std::map<int,float> affectedWeights;
+    std::map<int,float> affectedBiases;
+
+    for(int i=0;i<dataCount;i++)
+    {
+        int size = nn.Arch[1];
+        int weightsPerNode = nn.Arch[0];
+        int node = 0;
+        for (int n = nn.NodesStep[0]; n < nn.NodesStep[0] + size; n++)
+        {//each node of layer
+
+            //WeightsStep[i-1]
+
+            int start = (0 + node * weightsPerNode);
+            int PrevLayerNode = 0;
+            for (int w = start; w < start + weightsPerNode; w++)
+            {
+                //sum +=  nn.weights[w] * nn.Nodes[PrevLayerNode];
+                PrevLayerNode++;
+
+                if(allOutputs[i * nn.sizein  + n] > 0.0f && allInputs[i * nn.sizein + PrevLayerNode] > 0.0f)
+                {
+                    affectedWeights[w] += allOutputs[i * nn.sizein + n] * 1.0f;
+                    qDebug() << w << affectedWeights[w];
+                }
+                else
+                    affectedWeights[w] -= 1.1f;
+            }
+            if(allOutputs[i * nn.sizein  + n] > 0.0f && allInputs[i * nn.sizein + n] > 0.0f)
+            {
+                affectedBiases[n] += allOutputs[i * nn.sizein + n] * 1.0f;
+                qDebug() << n << affectedBiases[n];
+            }
+            else
+                affectedBiases[n] -= 1.1f;
+            node++;
         }
     }
 
+    for(auto x : affectedWeights)
+    {
+        nn.weights[x.first] += x.second;
+    }
+    for(auto x : affectedBiases)
+    {
+        nn.biases[x.first] += x.second;
+    }
 
+    // decode word
+    //int maxi = 0;
+    //float maxOut = -1000;
+    //for(int i=0;i<nn.sizeout;i++)
+    //{
+    //    if(nn.outputs[i] > maxOut)
+    //    {
+    //        maxOut = nn.outputs[i];
+    //        maxi = i;
+    //    }
+    //}
+    //if(maxi >=0 && allPosibbleTokens.size() > 0 && maxi < allPosibbleTokens.size())
+    //{
+    //    cd->textCursor().insertText(strl[strl.size()-4].toLower() + " " + strl[strl.size()-3].toLower() + " " + strl[strl.size()-2].toLower() + " ");
+    //    cd->textCursor().insertText(allPosibbleTokens[maxi] + "\n");
+    //    qDebug() << "tokens in: " << strl << " result: [" << maxi << "] = " << allPosibbleTokens[maxi];
 
+    //}
 
     delete[] inputs;
     delete[] outputs;
 }
+
 

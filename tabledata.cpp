@@ -37,6 +37,7 @@ void TableData::Init()
     types.clear();
 }
 
+// import
 void TableData::ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHeader)
 {
     if(fileName.size() < 2)
@@ -158,9 +159,11 @@ void TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_st
 }
 void TableData::ImportFromSQLiteTable(QString fileName, QString tableName)
 {
+    // mostly  pointless in this sort of application
     qDebug()<<"TableData::ImportFromSQLiteTable Unimplemented";
 }
 
+// export
 bool TableData::ExportToCSV(QString fileName, char delimeter, bool firstRowHeader)
 {
     QFile fl((additionalSaveFileData + fileName));
@@ -459,6 +462,9 @@ bool TableData::ExportToSQLiteTable(QString tableName)
 }
 
 
+
+
+// QML funtions, QAbstractTableData overrides
 
 // move table(x_s,y_s,x_s,y_s) by dx, dy
 // ExcelMove(0,0,10,10, 5,5); // move block 5 right 5 down

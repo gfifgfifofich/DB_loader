@@ -13,8 +13,6 @@
 inline int thrnum;
 
 
-
-
 inline DataStorage userDS;
 inline DataStorage historyDS;
 inline QString appfilename;
@@ -100,6 +98,7 @@ int main(int argc, char *argv[])
             launchOpenFileName = "";
         }
     }
+
     QQmlApplicationEngine eng;
     TestqmlEngine = &eng;
     QObject::connect(

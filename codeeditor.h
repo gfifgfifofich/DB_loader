@@ -18,29 +18,25 @@ public:
     QString lastSuggestedWord=" ";
     bool lastwordisTableColumn = false;
 
-    int prevTabPos = 0;
-    int prevTabTextSize;
-
+    void replace(int _from, int _to, QString _what, QString _with);
     void FillsuggestName();
     QStringList GetTokensUnderCursor();
 
-    void replace(int _from, int _to, QString _what, QString _with);
 protected:
     void resizeEvent(QResizeEvent *event) override;
     void keyPressEvent(QKeyEvent *e) override;
+
 private slots:
     void updateLineNumberAreaWidth(int newBlockCount);
-    void highlightCurrentLine();
     void updateLineNumberArea(const QRect &rect, int dy);
 
+    void CommentSelected();
+    void highlightCurrentLine();
     void suggestName();
     void fillName();
 
-    void CommentSelected();
-
 signals:
     void s_suggestedName();
-
     void tabDetected();
 
 private:

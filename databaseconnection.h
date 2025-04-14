@@ -13,56 +13,68 @@ class DatabaseConnection : public QObject
     Q_OBJECT
     QML_ELEMENT
 public:
+    explicit DatabaseConnection(QObject *parent = nullptr);
+
 
     QSqlDatabase db;
     QSqlQuery* query = nullptr;
     QString sqlCode;
 
-    QString LastDBName = "";
-
+    // Connection info
     QString connectionName = "";
     QString driver = "";
     QString dbname = "";
     QString usrname =  "";
     QString password = "";
 
+    QString LastDBName = "";
+
+    //Options on data downloading
     bool stopAt500Lines = false;
     bool stopNow = false;
 
+    // Current connected db driver
     bool sqlite = false;
     bool oracle = false;
     bool postgre = false;
     bool ODBC = false;
 
+    //Current Executin query info
     bool executing = false;
     qint64 executionTime = 0;
     QDateTime executionStart = QDateTime::currentDateTime();
     QDateTime executionEnd = QDateTime::currentDateTime();
 
-    int _code_start_line = 0; // store blocknum of start of the code, to output more preciese errors
-
-    int sid  = -1, serial  = -1, sql_ID = -1; // probably wont be able to use sqlid // probably cant use it at all
-
+    // QUery data output
     TableData data;
-
     QMutex tableDataMutex;
+
+    // Position of current query in code, used to correct error messages from databases
+    int _code_start_line = 0;
+
+
     Q_INVOKABLE void Init();
 
     Q_INVOKABLE bool Create(QString driver, QString DBName, QString userName, QString password);
     Q_INVOKABLE bool Create(QString driver, QString DBName); // create dc connection, using userdata
     Q_INVOKABLE bool execSql(QString sql = "");
-    Q_INVOKABLE TableData* getData();
 
+    // QML functions
     Q_INVOKABLE QString replace(QString str,QString what, QString with);
     Q_INVOKABLE QString getDay();
     Q_INVOKABLE QString getMonth();
-    Q_INVOKABLE QString getYear();
+    Q_INVOKABLE QString getYear();    
+    Q_INVOKABLE TableData* getData();
 
+
+
+    // Info for scripts, depricated
     int scriptReturnPosition = 0;
     QString scriptCommand = "";
     DatabaseConnection* subscriptConnesction = nullptr;
 
-    explicit DatabaseConnection(QObject *parent = nullptr);
+    //unused id's of current query/session
+    int sid  = -1, serial  = -1, sql_ID = -1; // probably wont be able to use sqlid // probably cant use it at all
 
 signals:
     void ConnectionCreated();

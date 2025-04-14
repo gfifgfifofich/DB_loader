@@ -1,3 +1,15 @@
+
+/*
+depricated window
+first iteration of loader.
+Now used to decieve Kasperskiy antivirus, cuz if z delete this from file,  it simetimes makrs .exe as virus, and goed into infinite loop of scaning it
+
+
+*/
+
+
+
+
 #include "table.h"
 #include "datastorage.h"
 #include "ui_table.h"

@@ -31,6 +31,8 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
     ODBC = false;
     bool QODBC_Excel = false;
     QString dbSchemaName = "NoName";
+
+    // decide driver type
     if(driver.trimmed() != "LOCAL_SQLITE_DB")
     {
         if(driver =="QOCI")
@@ -163,6 +165,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
         qDebug() << connectString;
     }
 
+    // open db
     bool ok = db.open();
     if(ok)
     {
@@ -182,6 +185,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
     return false;
 }
 
+// create db connection using user data
 bool DatabaseConnection::Create(QString driver, QString DBName)
 {
     if(userDS.Load((documentsDir + "/userdata.txt").toStdString()))
@@ -225,6 +229,8 @@ bool DatabaseConnection::execSql(QString sql)
     qDebug()<<"Entered sql subcomand processing ";
     bool reset = true;
     int loopcount = -1;
+
+    // loop while keywords can be possible in code (due to nested loops and other syntax)
     while (reset)
     {
         formatedSql = "";
@@ -786,7 +792,7 @@ bool DatabaseConnection::execSql(QString sql)
     qDebug()<<"Resulting formatedSql is";
     QString str = formatedSql.trimmed();
 
-
+    // run result
     while(str.endsWith('\n') || str.endsWith('}') ||str.endsWith('\t') || str.endsWith(' '))
         str.resize(str.size()-1);
     qDebug()<<str;
@@ -799,8 +805,6 @@ bool DatabaseConnection::execSql(QString sql)
 
     q.setForwardOnly(true);
     data.headers.clear();
-    qDebug() << "Prepairing query";
-    qDebug() <<QApplication::libraryPaths();
     qDebug() << "executing query";
     emit queryBeginExecuting();
     if(q.exec(str) && q.isSelect())
@@ -842,15 +846,13 @@ bool DatabaseConnection::execSql(QString sql)
         data.headers.push_back("db Error");
         data.headers.push_back("driver Error");
 
+        // if oracle, run oracle specific error handling
         if(oracle)
         {
-            // run the get error query from oracle
-            //QString GetErrorSQL = "DECLARE        c   INTEGER := DBMS_SQL.open_cursor (); errorpos integer := -1;     BEGIN        DBMS_SQL.parse (c, '";
             QString GetErrorSQL = "declare    v_count number;    v_bad_sql varchar2(32767) :=         '";
             while(str.endsWith(' ') || str.endsWith('\n')|| str.endsWith('\t')|| str.endsWith(';'))
                 str.resize(str.size()-1);
             GetErrorSQL +=  str.replace('\'', "''" );
-            //GetErrorSQL += "', DBMS_SQL.native);           DBMS_SQL.close_cursor (c);     EXCEPTION        WHEN OTHERS THEN   errorpos := DBMS_SQL.LAST_ERROR_POSITION();       DBMS_OUTPUT.put_line ('Last Error: ' || DBMS_SQL.LAST_ERROR_POSITION ());  DBMS_SQL.close_cursor (c);  RAISE;  END;";
             GetErrorSQL +="';begin    execute immediate v_bad_sql into v_count;exception when others then    begin        execute immediate            'begin for i in ( '||v_bad_sql||') loop null; end loop; end;';    exception when others then        dbms_output.put_line(sqlerrm);  RAISE; end;  end;";
             if(q.exec(GetErrorSQL))
             {
@@ -936,15 +938,18 @@ bool DatabaseConnection::execSql(QString sql)
     return true;
 }
 
+
+
+// functions for QML
 TableData* DatabaseConnection::getData()
 {
     return &data;
 }
+
 QString DatabaseConnection::replace(QString str,QString what, QString with)
 { // love qml strings
     return str.replace(what,with);
 }
-
 
 QString DatabaseConnection::getDay()
 {

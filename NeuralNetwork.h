@@ -1,4 +1,6 @@
 #pragma once
+
+// class yoinked from Engine
 #include <vector>
 #include <string>
 #include <fstream>
@@ -86,22 +88,27 @@ inline float sigmoid(float x)
 
 inline float sigmoidApprox(float x)
 {
-    if (x > -2.05f && x < 2.05f)
-        return x * 0.2f + 0.5f;
+    //if (x > -2.05f && x < 2.05f)
+    //    return sin((x * 0.2f + 0.5f)*3.14159f);
 
-    if (x < -5)
-        return 0.0f;
+    //if (x < -5)
+    //    return sin(0.0f);
 
-    if (x > 5)
-        return 1.0f;
+    //if (x > 5)
+    //    return sin(3.14159f);
 
-    if (x < -2.05f)
-        return x * 0.03f + 0.15f;
+    //if (x < -2.05f)
+    //    return sin((x * 0.03f + 0.15f)*3.14159f);
 
-    if (x > 2.05f)
-        return x * 0.03f + 0.85f;
+    //if (x > 2.05f)
+    //    return sin((x * 0.03f + 0.85f)*3.14159f);
 
-    return x * 0.03f + 0.85f; // random bulshit to stop warnings
+    if(x >= -1.0f && x <= 1.0f)
+        return (sin(((x)*0.5f)*3.14159f) + 1.0f) * 0.5f;
+    else if (x > 1.0f)
+        return 0.95f + x * 0.05f;
+    else
+        return 0.05 + x * 0.05f ;
 }
 inline float ReLu(float x)
 {

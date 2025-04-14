@@ -8,3 +8,7 @@ void DatabaseTask::exec()
 {
 
 }
+
+/*
+maybe gonna implement multithreaded query loading through task system, idono
+*/

@@ -1,4 +1,5 @@
-// DataStorage stolen from Engine
+
+// class yoinked from Engine
 
 #ifndef DATASTORAGE_H
 #define DATASTORAGE_H

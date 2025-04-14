@@ -25,14 +25,15 @@ public:
     void Init();
 
 private slots:
+    //replace from line to line
+    void on_spinBox_valueChanged(int arg1);
     void on_spinBox_2_valueChanged(int arg1);
 
-    void on_spinBox_valueChanged(int arg1);
-
+    // replace [what][with]
     void on_lineEdit_textChanged(const QString &arg1);
-
     void on_lineEdit_2_textChanged(const QString &arg1);
 
+    // replace with '\n' symbol
     void on_checkBox_checkStateChanged(const Qt::CheckState &arg1);
 
 private:

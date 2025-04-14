@@ -41,102 +41,27 @@ public:
 
     CodeEditor* cd = nullptr;
 
-    NeuralNetwork nn;
-
-    /*
-     * Create thread
-     * Thread creates DB connection
-     * thread done -> set dc
-     * exec -> set dc back to nullptr
-     */
     DatabaseConnection dc;
     QThread* sqlexecThread = nullptr;
 
+    // Query states
     int queryExecutionState = 0;
     QTimer executionTimer;
 
-
-    bool createconnection = false;
-    bool runall = false;
-
+    //Workspace info/ history
     QString tmpSql = ""; // for history to return back
     QString LastWorkspaceName = "WorkSpace0";
 
+    //subwindow states
     bool b_showHistoryWindow = false;
     bool b_showWorkspaceWindow = false;
     bool b_showIteratorWindow = true;
 
-    QString autofilename = "";
-    bool autosaveXLSX = false;
-    bool autosaveSQLITE = false;
-    bool autosaveCSV = false;
-
-
+    // replacer info
     QString _replacePrev_What = "";
     QString _replacePrev_With = "";
     int _replacePrev_from = 0;
     int _replacePrev_to = 99999;
-
-    struct iter_Window
-    {
-        QVBoxLayout iter_layout;
-        QHBoxLayout SpinBox_layout;
-        QHBoxLayout Labels_layout;
-
-        QSpinBox sb1;
-        QSpinBox sb2;
-        QSpinBox sb3;
-
-        QLabel lbls1;
-        QLabel lbls2;
-        QLabel lbls3;
-
-        QLineEdit nameline;
-
-        QPushButton button;
-
-
-        void Init()
-        {
-            SpinBox_layout.addWidget(&sb1);
-            SpinBox_layout.addWidget(&sb2);
-            SpinBox_layout.addWidget(&sb3);
-
-            lbls1.setText("first");
-            lbls2.setText("last");
-            lbls3.setText("step");
-
-            Labels_layout.addWidget(&lbls1);
-            Labels_layout.addWidget(&lbls2);
-            Labels_layout.addWidget(&lbls3);
-            lbls1.setMaximumHeight(16);
-            lbls2.setMaximumHeight(16);
-            lbls3.setMaximumHeight(16);
-
-            iter_layout.addLayout(&Labels_layout);
-            iter_layout.addLayout(&SpinBox_layout);
-
-            nameline.setPlaceholderText("Name_To_Replace");
-            iter_layout.addWidget(&nameline);
-
-            button.setText("Run in separate windows");
-            iter_layout.addWidget(&button);
-
-            sb1.hide();
-            sb2.hide();
-            sb3.hide();
-            lbls1.hide();
-            lbls2.hide();
-            lbls3.hide();
-            nameline.hide();
-            button.hide();
-        }
-
-    };
-
-    iter_Window iw;
-
-
 
     struct graph_Window
     {
@@ -260,72 +185,174 @@ public:
         }
 
     };
-
     graph_Window gw;
 
+    // init used inly in scripts
     void Init();
+    //autosave after exec, used only in depricated scripts
+    QString autofilename = "";
+    bool autosaveXLSX = false;
+    bool autosaveSQLITE = false;
+    bool autosaveCSV = false;
+
+    // used inly in scripts
+    bool createconnection = false;
+    bool runall = false;
+
+    // depracated
+    struct iter_Window
+    {
+        QVBoxLayout iter_layout;
+        QHBoxLayout SpinBox_layout;
+        QHBoxLayout Labels_layout;
+
+        QSpinBox sb1;
+        QSpinBox sb2;
+        QSpinBox sb3;
+
+        QLabel lbls1;
+        QLabel lbls2;
+        QLabel lbls3;
+
+        QLineEdit nameline;
+
+        QPushButton button;
+
+
+        void Init()
+        {
+            SpinBox_layout.addWidget(&sb1);
+            SpinBox_layout.addWidget(&sb2);
+            SpinBox_layout.addWidget(&sb3);
+
+            lbls1.setText("first");
+            lbls2.setText("last");
+            lbls3.setText("step");
+
+            Labels_layout.addWidget(&lbls1);
+            Labels_layout.addWidget(&lbls2);
+            Labels_layout.addWidget(&lbls3);
+            lbls1.setMaximumHeight(16);
+            lbls2.setMaximumHeight(16);
+            lbls3.setMaximumHeight(16);
+
+            iter_layout.addLayout(&Labels_layout);
+            iter_layout.addLayout(&SpinBox_layout);
+
+            nameline.setPlaceholderText("Name_To_Replace");
+            iter_layout.addWidget(&nameline);
+
+            button.setText("Run in separate windows");
+            iter_layout.addWidget(&button);
+
+            sb1.hide();
+            sb2.hide();
+            sb3.hide();
+            lbls1.hide();
+            lbls2.hide();
+            lbls3.hide();
+            nameline.hide();
+            button.hide();
+        }
+
+    };
+    iter_Window iw;
+
+
+    NeuralNetwork nn;
 
 private slots:
 
-    void executionTimerTimeout();
+    // on DB switch
+    void on_DBNameComboBox_currentTextChanged(const QString &arg1);
 
+    // connect to db
     void on_ConnectButton_pressed();
 
+    // run query
     void runSqlAsync();
-    void IterButtonPressed();
+    void on_pushButton_3_pressed();
 
+    // Query states
     void onQueryBeginCreating();
     void onQueryBegin();
     void onQuerySuccess();
     void UpdateTable();
 
+    // update label/timer
+    void executionTimerTimeout();
+
+
+    // ForceStop query dwonloading
+    void on_stopLoadingQueryButton_pressed();
+    void on_the500LinesCheckBox_checkStateChanged(const Qt::CheckState &arg1);
+
+
+    // data export
     void on_SaveXLSXButton_pressed();
     void on_SaveCSVButton_pressed();
     void on_SaveSQLiteButton_pressed();
 
+    // data import
+    void on_ImportFromCSVButton_pressed();
+    void on_importFromExcelButton_pressed();
+
+
+    // open last saved exel file
     void OpenFile();
+
+    // open new app instance
     void OpenNewWindow();
 
-    void SaveWorkspace();
 
+
+    // Code editor bindings
     void updatesuggestion();
     void FillSuggest();
     void replaceTool();
 
+    // Copying from tableView
     void CopySelectionFormTable();
     void CopySelectionFormTableSql();
 
+    // SubWindow switches
     void ShowHistoryWindow();
     void ShowWorkspacesWindow();
     void ShowIterateWindow();
     void ShowGraph();
 
+    // Graph stuff
     void UpdateGraph();
     void saveGraphAsPDF();
-
+    // Update column labels of graph
     void on_graph_group_change(int val);
     void on_graph_separator_change(int val);
     void on_graph_data_change(int val);
 
+
+    //Workspace name change
     void on_workspaceLineEdit_textChanged(const QString &arg1);
+    // history/workspace loading
     void on_listWidget_currentTextChanged(const QString &currentText);
-    void on_DBNameComboBox_currentTextChanged(const QString &arg1);
 
-    void on_ImportFromCSVButton_pressed();
-    void on_importFromExcelButton_pressed();
+    void SaveWorkspace();
 
-    void on_stopLoadingQueryButton_pressed();
-    void on_the500LinesCheckBox_checkStateChanged(const Qt::CheckState &arg1);
 
+
+    // QML test
     void on_pushButton_pressed();
-
+    // TokenProcessortest
     void on_pushButton_2_pressed();
-
-    void on_pushButton_3_pressed();
-
+    //NN tests
     void on_nnTestRun_pressed();
-
     void on_nnTestLearn_pressed();
+
+
+
+
+    //Depricated
+    void IterButtonPressed();
+
 
 private:
     Ui::LoaderWidnow *ui;

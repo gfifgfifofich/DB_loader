@@ -1,6 +1,10 @@
 #ifndef SQLSUBFUNCTIONS_H
 #define SQLSUBFUNCTIONS_H
 
+/*
+Functions for easier format translation & stuff
+*/
+
 #include <qdatetime.h>
 #include <qobject.h>
 #include <qvariant.h>
@@ -126,7 +130,6 @@ inline QStringList processBlockToTokens(QString& text)
     }
     return tokens;
 }
-
 
 inline QVariant fixQVariantTypeFormat(QVariant var)
 {

@@ -1,9 +1,11 @@
 
-
+// yoinked from engine
 
 #include "NeuralNetwork.h"
 
 #include <iostream>
+#include <qdebug.h>
+#include <qlogging.h>
 #include <strstream>
 #include <thread>
 #include <algorithm>
@@ -129,7 +131,7 @@ void NeuralNetwork::Run(float* inputData)
 				PrevLayerNode++;
 			}
 
-			Nodes[n] = sigmoidApprox(sum + biases[n]);
+            Nodes[n] = sigmoidApprox(sum);// + biases[n];
 			node++;
 		}
 		PrevNodeStart = NodesStep[i];
@@ -175,25 +177,24 @@ void NeuralNetwork::Run(float ActFunc(float), float* inputData)
 		outputs[i] = Nodes[PrevNodeStart + i];
 }
 
+std::vector<int> rand_ids;
 // inputs an array through a NN and calculates diviation from output 
 float NeuralNetwork::Cost(float* input, float* output, int amount)
 {
 	float sum = 0.0f;
 
 
-	for (int i = 0; i < amount; i++)
-	{
-		float* arr = new float[sizein];
+
+    // take random from amount
+    float* arr = new float[sizein];
+
+    for (auto i : rand_ids)
+    {
 
 		for (int iter = 0; iter < sizein; iter++)
 			arr[iter] = input[i * sizein + iter];
-
-
-		Run(arr);
-
-		delete[] arr;
-
-		float tmp = 0.0f;
+        Run(arr);
+        float tmp = 0.0f;
 		for (int a = 0; a < sizeout; a++)
 		{
 			tmp = outputs[a] - output[i * sizeout + a];
@@ -202,8 +203,9 @@ float NeuralNetwork::Cost(float* input, float* output, int amount)
 			sum += tmp;
 		}
 	}
+    delete[] arr;
 
-	sum /= amount;
+    //sum /= amount;
 	return sum;
 }
 void NeuralNetwork::ApplyGrad()
@@ -226,9 +228,9 @@ void NeuralNetwork::DeApplyGrad()
 void NeuralNetwork::SetupLearing()
 {
 	for (int i = 0; i < WeightsAmount; i++)
-		weightGradients[i] = weights[i] * h * ((rand() % 100000) / 100000.0f - 0.5f) * 2.0f;
+        weightGradients[i] = weights[i] * h * ((rand() % 100000) / 100000.0f - 0.5f) * 2.0f + h * ((rand() % 100000) / 100000.0f - 0.5f) * 2.0f;
 	for (int i = 0; i < NodesAmount; i++)
-		biasGradients[i] = biases[i] * h * ((rand() % 100000) / 100000.0f - 0.5f) * 2.0f;
+        biasGradients[i] = biases[i] * h * ((rand() % 100000) / 100000.0f - 0.5f) * 2.0f +  h * ((rand() % 100000) / 100000.0f - 0.5f) * 2.0f;
 	ApplyGrad();
 }
 void NeuralNetwork::ApplyLearing(float cost)
@@ -274,7 +276,12 @@ void NeuralNetwork::learn(float rate, float* input, float* output, int amount)
 	float h = 0.0001f;
 	float c1 = Cost(input, output, amount);
 
+    // reshuffle training data;
+    rand_ids.clear();
+    for(int i=0;i < 10;i++)
+        rand_ids.push_back(rand()%amount);
 
+    qDebug() <<  WeightsAmount <<  " bisaes:" << NodesAmount  << "data" << amount << " estimated datacount in " << amount * sizein;
 	for (int i = 0; i < WeightsAmount; i++)
 	{
 		weights[i] += h;
@@ -284,6 +291,7 @@ void NeuralNetwork::learn(float rate, float* input, float* output, int amount)
 		float slope = (c2 - c1) / h;
 
 		weightGradients[i] = slope * rate;
+        qDebug() <<  "weight["<<i << "]" <<weightGradients[i];
 	}
 	for (int i = 0; i < NodesAmount; i++)
 	{
@@ -294,8 +302,7 @@ void NeuralNetwork::learn(float rate, float* input, float* output, int amount)
 		float slope = (c2 - c1) / h;
 
 		biasGradients[i] = slope * rate;
-	}
-
+    }
 
 	ApplyGrad();
 	float cst = Cost(input, output, amount);
@@ -311,10 +318,13 @@ void NeuralNetwork::learn(float rate, float* input, float* output, int amount)
 		{
 			run = true;
 			cst = cst2;
+            lastCost = cst;
 		}
 		else
+        {
 			DeApplyGrad();
-	}
+        }
+    }
 }
 //std::string throutputs[12];
 

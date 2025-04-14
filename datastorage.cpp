@@ -2,6 +2,10 @@
 #include <fstream>
 #include <iostream>
 
+/*
+yoinked from engine
+*/
+
 void DataStorage::AddObject(std::string ObjectName)
 {
     std::map<std::string, std::string> a;

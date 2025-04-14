@@ -1,6 +1,12 @@
 #ifndef TABLE_H
 #define TABLE_H
 
+/*
+depricated, do not compile if not needed
+used as a code mass, cuz without it Kasperskiy antivirus, sometimes, will mark program as virus and stall in infinite scaning loop of this .exe file.
+Adding this header into main.cpp fixes this 'issue'
+*/
+
 #include <QMainWindow>
 
 #include <QSqlQuery>

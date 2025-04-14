@@ -2,6 +2,7 @@
 #include <QString>
 #include "Patterns.h"
 
+// for better compilation speeds its not in .h
 
 // a list of sql keywords. Doesn't include stuff from oracle, postgres, etc
 
