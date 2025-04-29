@@ -13,6 +13,8 @@
 inline int thrnum;
 
 
+#include "Shlobj.h"
+
 inline DataStorage userDS;
 inline DataStorage historyDS;
 inline QString appfilename;
@@ -23,18 +25,30 @@ inline QQmlApplicationEngine* TestqmlEngine = nullptr;
 
 int main(int argc, char *argv[])
 {
+    qDebug()<< "started";
     fillPaterns();
+    qDebug()<< "filled paths";
     usrDir = QStandardPaths::standardLocations(QStandardPaths::HomeLocation)[0];
+    if(argc <2)
+    {
+        usrDir = argv[0];
+        if(usrDir.endsWith(".exe"))
+        {
+            while(!usrDir.endsWith('/') && !usrDir.endsWith('\\') )
+            {
+                usrDir.resize(usrDir.size()-1);
+            }
+        }
+    }
+
+
     documentsDir = QStandardPaths::standardLocations(QStandardPaths::DocumentsLocation)[0] ;
 
 
-    if(!QDir(usrDir+ "/DBLoader").exists())
-        QDir().mkdir(usrDir+ "/DBLoader");
     if(!QDir(documentsDir+ "/DBLoader").exists())
         QDir().mkdir(documentsDir+ "/DBLoader");
 
     //+ "/DBLoader"
-    usrDir = usrDir + "/DBLoader";
     documentsDir = documentsDir + "/DBLoader";
 
     //create app file scheme if not exists
@@ -71,10 +85,17 @@ int main(int argc, char *argv[])
     bool darktheme = false;
     if(userDS.Load((documentsDir + "/userdata.txt").toStdString()))
     {
+
+        if(argc >= 2)
+        {
+            usrDir = userDS.data["user"]["appdir"].c_str();
+        }
+
         if(userDS.GetPropertyAsInt("UserTheme", "DarkMainTheme ")>0)
         {
             darktheme = true;
         }
+        userDS.data["user"]["appdir"] = usrDir.toStdString();
     }
 
     qputenv("QT_QPA_PLATFORM", "windows:darkmode=1");

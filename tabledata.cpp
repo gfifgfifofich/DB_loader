@@ -335,7 +335,7 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
 bool TableData::ExportToSQLiteTable(QString tableName)
 {
     QSqlDatabase tmpdb = QSqlDatabase::addDatabase("QSQLITE","SQLITE db connection");
-    tmpdb.setDatabaseName("SQLiteDB.db");
+    tmpdb.setDatabaseName(documentsDir + "/SQLiteDB.db");
     tmpdb.open();
     QSqlQuery SQLITE_q(tmpdb);
 
@@ -462,6 +462,61 @@ bool TableData::ExportToSQLiteTable(QString tableName)
 }
 
 
+bool TableData::AppendToCSV(QString fileName, char delimeter)
+{
+    QFile fl((additionalSaveFileData + fileName));
+    fl.open(QFile::OpenModeFlag::Append);
+    if(fl.isOpen())
+    {
+        if(tbldata.size() > 0 && tbldata[0].size() > 0)
+            for(int a=0;a<tbldata[0].size();a++)
+            {
+                for(int i=0;i<tbldata.size();i++)
+                {
+                    QString str = tbldata[i][a].toString();
+
+                    if(str.contains(delimeter))
+                    {
+                        if(delimeter == ';')
+                            str = str.replace(";",",");
+                        else
+                            str = str.replace(delimeter,";");
+                    }
+                    if(tbldata[i][a].typeId() == 16)
+                    {
+
+                        str.resize(19);
+                        str = str.replace("T"," ");
+                        fl.write(str.toUtf8().constData());
+                    }
+                    else if(tbldata[i][a].typeId() == 6)
+                    {
+                        str = str.replace(".",",");
+                        fl.write(str.toUtf8());
+                    }
+                    else
+                        fl.write(str.toUtf8().constData());
+                    if(i != tbldata.size()-1) // remove last delimeter in line, .csv should end with \n, not delimeter
+                        fl.write(QString(delimeter).toUtf8().constData());
+
+                }
+                fl.write(QString('\n').toUtf8().constData());
+            }
+    }
+    else
+    {
+        qDebug() <<"failed to open file "<< (additionalSaveFileData + fileName);
+        return false;
+    }
+    fl.close();
+    return true;
+}
+
+bool TableData::AppendToExcel(QString fileName)
+{
+    qDebug() << "TableData::AppendToExcel Unimplemented";
+    return false;
+}
 
 
 // QML funtions, QAbstractTableData overrides

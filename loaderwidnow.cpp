@@ -7,6 +7,7 @@
 #include <qrandom.h>
 #include <qshortcut.h>
 #include <fstream>
+#include <qsqldriver.h>
 #include <qsqlerror.h>
 #include <QDesktopServices>
 #include <QFileDialog>
@@ -15,11 +16,6 @@
 #include <qtimer.h>
 #include "tokenprocessor.h"
 /*
-+- unknown crash when typing, probably in some highlighting cases
-    on mouse highlighting of "reports."
-        probably dealt with, crash at copying from table but nothing was selected in table
-
-
 +                                          add togglable "add db name into file name" // feature added, not togglable
 +                                          add ability to stop downloading query at any point of downloading, mb togglable autopause at 500
 +                                          save only driver and db name in workspaces, fetch the rest from userdata, its safer
@@ -51,7 +47,7 @@
         }
 
 
-- Iterate magic/arrays by 10k each
++- Iterate magic/arrays by 10k each -- possible through regular forloops
 
 + ForLoop{
         --{value} {opt1,opt2,opt3}
@@ -297,12 +293,29 @@ void LoaderWidnow::Init()
 LoaderWidnow::~LoaderWidnow()
 {
     qDebug()<<"closing window";
+    dc.stopRunning();
+    dc.db.close();
     if(sqlexecThread != nullptr)
     {
-        // stop query if loading.
-        // if query is executing, thead will be left alive untill executed
-        // still cant cancel query propperly
-        dc.stopNow = true;
+        // a mess to have more chances of clearing db connection
+        try
+        {
+            dc.stopNow = true;
+            // stop query if loading.
+            // if query is executing, thead will be left alive untill executed
+            // still cant cancel query propperly
+            dc.db.driver()->cancelQuery(); // in case it will be possible some day...
+            dc.db.close();
+            dc.db.driver()->close();
+            if(dc.query != nullptr)
+                dc.query->finish();
+            sqlexecThread->terminate();
+
+        } catch (...)
+        {
+
+            sqlexecThread->terminate();
+        }
     }
     delete ui;
 }
@@ -422,6 +435,7 @@ void LoaderWidnow::runSqlAsync()
 {
     qDebug()<<"RunSqlAsync()";
 
+    ui->stopLoadingQueryButton->show();
 
     // save new lastOpenedDb
     if(userDS.Load((documentsDir + "/userdata.txt").toStdString()))
@@ -439,9 +453,11 @@ void LoaderWidnow::runSqlAsync()
 
     if(dc.executing)
     {
+
+        qDebug() << dc.db.driver()->cancelQuery();
         return;
     }
-
+    ui->pushButton_3->hide();
     queryExecutionState = 0;
     QRandomGenerator64 gen; // random 64 bit connection name, to not close previous connections with 99.9% chance.
     QString conname = QVariant(gen.generate()).toString();
@@ -469,6 +485,7 @@ void LoaderWidnow::runSqlAsync()
         QTextCursor tc = cd->textCursor();
         tc.setPosition(start,QTextCursor::MoveAnchor);
         dc._code_start_line = tc.blockNumber();
+        dc._code_start_pos = tc.position();
         int iter = start;
         sqlstart = start;
         dc.sqlCode.push_back(text[iter]);
@@ -482,7 +499,6 @@ void LoaderWidnow::runSqlAsync()
             iter++;
         }
         tc.setPosition(iter,QTextCursor::MoveAnchor);
-        cd->setTextCursor(tc);
         qDebug()<<"sql start "<<start;
         qDebug()<<"sql start "<<iter-1;
         while(dc.sqlCode.endsWith(';'))
@@ -497,10 +513,12 @@ void LoaderWidnow::runSqlAsync()
         QTextCursor tc = cd->textCursor();
         tc.setPosition(cd->textCursor().selectionStart(),QTextCursor::MoveAnchor);
         dc._code_start_line = tc.blockNumber();
+        dc._code_start_pos = tc.position();
     }
     if(runall)
     {
         dc._code_start_line = 0;
+        dc._code_start_pos = 0;
         dc.sqlCode = cd->toPlainText();
         while(dc.sqlCode.endsWith(';'))
             dc.sqlCode.resize(dc.sqlCode.size()-1);
@@ -518,11 +536,11 @@ void LoaderWidnow::runSqlAsync()
     str += QVariant(dt.year()).toString();
     str += "_";
     if(QVariant(dt.month() ).toString().size() <=1)
-        str+=0;
+        str+="0";
     str += QVariant(dt.month()).toString();
     str += "_";
     if(QVariant(dt.day() ).toString().size() <=1)
-        str+=0;
+        str+="0";
     str += QVariant(dt.day() ).toString();
     str += "_";
     str += QTime::currentTime().toString();
@@ -552,8 +570,6 @@ void LoaderWidnow::runSqlAsync()
         qDebug() << "created connection";
     }
 
-    // code to get session info for oracle
-    //QString SIDsql = "SELECT  s.sid, s.serial#, s.sql_id, s.username, s.program FROM v$session s WHERE  s.type != 'BACKGROUND' AND S.USERNAME = 'PLHOLKOVSKIY'";
 
     ui->miscStatusLabel->setText("running sql...");
     sqlexecThread = QThread::create(_AsyncFunc,this);
@@ -614,6 +630,9 @@ void LoaderWidnow::executionTimerTimeout()
     msg += secs;
     msg += ".";
     msg += msecs;
+
+    msg += "   Successfull queries: ";
+    msg += QVariant(dc.savefilecount).toString();
     ui->miscStatusLabel->setText(msg);
 }
 void LoaderWidnow::onQueryBeginCreating()
@@ -622,7 +641,7 @@ void LoaderWidnow::onQueryBeginCreating()
     ui->miscStatusLabel->setText(QString("creating sql query...start: ") + dc.executionStart.toString());
     queryExecutionState = 1;
     ui->pushButton_3->hide();
-    ui->stopLoadingQueryButton->hide();
+    //ui->stopLoadingQueryButton->hide();
 }
 void LoaderWidnow::onQueryBegin()
 {
@@ -630,7 +649,7 @@ void LoaderWidnow::onQueryBegin()
     ui->miscStatusLabel->setText(QString("executing sql query...start: ") + dc.executionStart.toString());
     queryExecutionState = 2;
     ui->pushButton_3->hide();
-    ui->stopLoadingQueryButton->hide();
+    //ui->stopLoadingQueryButton->hide();
 }
 void LoaderWidnow::onQuerySuccess()
 {
@@ -646,6 +665,16 @@ void LoaderWidnow::UpdateTable()
 
     queryExecutionState = 4;
     executionTimer.stop();
+
+    if(dc.lastLaunchIsError)
+    {
+        qDebug() << "errpos = " << dc._code_start_pos + dc.lastErrorPos;
+        QTextCursor tc = cd->textCursor();
+        tc.setPosition(dc._code_start_pos + dc.lastErrorPos);
+        tc.select(QTextCursor::WordUnderCursor);
+        cd->setTextCursor(tc);
+    }
+
 
     dc.executionEnd = QDateTime::currentDateTime();
     dc.executionTime = dc.executionEnd.toSecsSinceEpoch() - dc.executionStart.toSecsSinceEpoch();
@@ -703,6 +732,8 @@ void LoaderWidnow::UpdateTable()
     msg += secs;
     msg += ".";
     msg += msecs;
+    msg += "   Successfull queries: ";
+    msg += QVariant(dc.savefilecount).toString();
     ui->miscStatusLabel->setText(QString("data downloaded ") + msg);
     ui->dataSizeLabel_2->setText(msg);
     ui->tableDBNameLabel->setText(dc.dbname);
@@ -1143,36 +1174,6 @@ void LoaderWidnow::UpdateGraph()
         ls_iter++;
     }
 
-    for(int i=0;i<dc.data.tbldata[dataColumn].size();i++)
-    {
-        if(!separate)
-        {
-            if(!bottomAxisIsDate)
-                gw.ls.append((dc.data.tbldata[groupColumn][i].toInt() - mini)/float(maxi-mini) * 1.0f,(dc.data.tbldata[dataColumn][i].toReal()) / (maxf-minf) * 1.0f);
-            else
-                gw.ls.append((dc.data.tbldata[groupColumn][i].toDateTime().toSecsSinceEpoch()-mini)/double(maxi - mini) * 1.0f,(dc.data.tbldata[dataColumn][i].toReal()) / (maxf-minf) * 1.0f);
-        }
-        else
-        {
-            QLineSeries* ls = &gw.line_series[0];
-
-            if(names.contains(dc.data.tbldata[separateColumn][i].toString(),Qt::CaseInsensitive))
-            {
-                for(int a = 0;a<names.size();a++)
-                    if(names[a].toLower() == dc.data.tbldata[separateColumn][i].toString().toLower())
-                    {
-                        ls = &gw.line_series[a];
-                        break;
-                    }
-            }
-
-            if(!bottomAxisIsDate)
-                ls->append((dc.data.tbldata[groupColumn][i].toInt() - mini)/float(maxi-mini) * 1.0f,(dc.data.tbldata[dataColumn][i].toReal()) / (maxf-minf) * 1.0f);
-            else
-                ls->append((dc.data.tbldata[groupColumn][i].toDateTime().toSecsSinceEpoch()-mini)/double(maxi - mini) * 1.0f,(dc.data.tbldata[dataColumn][i].toReal()) / (maxf-minf) * 1.0f);
-
-        }
-    }
 
 
     gw.vay.setMax(maxf);
@@ -1368,7 +1369,7 @@ void LoaderWidnow::CopySelectionFormTableSql()
 void LoaderWidnow::updatesuggestion()
 {
     ui->suggestionLabel->setText(cd->lastSuggestedWord);
-    ui->textPosLabel->setText(QVariant(cd->textCursor().blockNumber() + 1).toString() + ":" + QVariant(cd->textCursor().positionInBlock() + 1).toString());
+    ui->textPosLabel->setText(QVariant(cd->textCursor().blockNumber() + 1).toString() + ":" + QVariant(cd->textCursor().positionInBlock() + 1).toString() + "(" + QVariant(cd->textCursor().position() + 1).toString() + ")");
 }
 void LoaderWidnow::FillSuggest()
 {
@@ -1633,7 +1634,7 @@ void LoaderWidnow::on_DBNameComboBox_currentTextChanged(const QString &arg1)
 
 void LoaderWidnow::on_stopLoadingQueryButton_pressed()
 {
-    dc.stopNow = true;
+    dc.stopRunning();
 }
 void LoaderWidnow::on_the500LinesCheckBox_checkStateChanged(const Qt::CheckState &arg1)
 {
@@ -1694,361 +1695,12 @@ void LoaderWidnow::on_pushButton_pressed()
 }
 
 
-// nn testbed
 
-void LoaderWidnow::on_nnTestRun_pressed()
-{
-
-    QStringList strl = cd->GetTokensUnderCursor();
-
-    float* inputs = new float[allPosibbleTokens.size()];
-    for(int i=0;i < allPosibbleTokens.size(); i++)
-        inputs[i] = 0;
-    for(auto s : strl)
-        inputs[allPosibbleTokensMap[s]] = 1;
-
-    nn.Run(inputs);
-
-    int maxi = 0;
-    float maxOut = -1000;
-    for(int i=0;i<nn.sizeout;i++)
-    {
-        if(nn.outputs[i] > maxOut)
-        {
-            maxOut = nn.outputs[i];
-            maxi = i;
-        }
-    }
-
-    if(maxi >=0 && allPosibbleTokens.size() > 0 && maxi < allPosibbleTokens.size())
-    {
-        cd->textCursor().insertText(allPosibbleTokens[maxi]);
-        qDebug() << "tokens in: " << strl << " result: [" << maxi << "] = " << allPosibbleTokens[maxi];
-    }
-    delete[] inputs;
-
-
-    //float* inputs = new float[1];
-
-    //dc.data.tbldata.clear();
-    //dc.data.headers.clear();
-    //dc.data.headers.push_back("id");
-    //dc.data.headers.push_back("cost");
-    //dc.data.headers.push_back("type");
-    //dc.data.tbldata.resize(3);
-    //dc.data.tbldata[0].resize(2000);
-    //dc.data.tbldata[1].resize(2000);
-    //dc.data.tbldata[2].resize(2000);
-
-
-    //for(int i=0;i < 1000;i++)
-    //{
-    //    float val = (i / 500.0f-1.0f) * 2.0f;
-
-
-    //    nn.Run(&val);
-
-    //    QString str = QVariant(i).toString();
-    //    while (str.size() < 4)
-    //        str = '0' + str;
-
-    //    dc.data.tbldata[0][i]=str;
-    //    dc.data.tbldata[1][i]=(nn.outputs[0] );
-    //    dc.data.tbldata[2][i]="NN";
-
-    //    dc.data.tbldata[0][1000 + i]=str;
-    //    dc.data.tbldata[1][1000 + i]=(sin(val*3.14159f) * cos(val*3.14159f));
-    //    dc.data.tbldata[2][1000 + i]="Target";
-
-    //}
-
-
-    //UpdateTable();
-    //UpdateGraph();
-    //delete[] inputs;
-}
-
-/*
+ void LoaderWidnow::on_nnTestRun_pressed()
+ {
+     qDebug() << "nntestrun undefined";
+ }
 void LoaderWidnow::on_nnTestLearn_pressed()
-{
-    float* inputs = new float[100];
-    float* outputs = new float[100];
-    //nn.Randomize();
-    dc.data.tbldata.clear();
-    dc.data.headers.clear();
-    dc.data.headers.push_back("id");
-    dc.data.headers.push_back("cost");
-    dc.data.tbldata.resize(2);
-    dc.data.tbldata[0].resize(1000);
-    dc.data.tbldata[1].resize(1000);
-    for(int i=0;i < 20;i++)
-    {
-        float val = (i / 10.0f-1.0f) * 2.0f;
-        inputs[i] = val;
-        outputs[i] = sin(val*3.14159f) * cos(val*3.14159f);
-    }
-
-    for(int it=0;it<1000;it++)
-    {
-        float cost = 0.0f;
-
-        nn.h = 0.1f;
-        //nn.SetupLearing();
-        nn.learn(0.002f,inputs,outputs,20);
-
-        //for(int i=0;i < 100;i++)
-        //{
-        //    float val = i / 100.0f;
-        //    //inputs[i] = val;
-        //    //outputs[i] = sin(val*3.14159f) * cos(val*3.14159f);
-        //    nn.Run(&val);
-
-        //    cost += ((nn.outputs[0] - (sin(val*3.14159f) * cos(val*3.14159f))) * (nn.outputs[0] - (sin(val*3.14159f) * cos(val*3.14159f))));
-        //}
-
-
-        QString str = QVariant(it).toString();
-        while (str.size() < 4)
-            str = '0' + str;
-
-        dc.data.tbldata[0][it]=str;
-        dc.data.tbldata[1][it]=nn.lastCost;
-    }
-    UpdateTable();
-    UpdateGraph();
-    delete[] inputs;
-}
-*/
-
-
-void LoaderWidnow::on_nnTestLearn_pressed()
-{
-
-
-    tokenProcessor.ds.Load((documentsDir + "/FrequencyMaps/test.txt").toLocal8Bit().toStdString());
-    qDebug() << "datasize: " << tokenProcessor.ds.data.size();
-
-
-    float* inputs = new float[allPosibbleTokens.size()];
-    float* outputs = new float[allPosibbleTokens.size()];
-
-    std::vector <float> allInputs;
-    std::vector <float> allOutputs;
-
-
-
-    dc.data.tbldata.clear();
-    dc.data.headers.clear();
-    dc.data.headers.push_back("id");
-    dc.data.headers.push_back("cost");
-    dc.data.tbldata.resize(2);
-    dc.data.tbldata[0].resize(1000);
-    dc.data.tbldata[1].resize(1000);
-
-    int dataCount = 0;
-    QStringList strl;
-    int cnt = 0;
-    std::vector<int> ids;
-    for(auto x : tokenProcessor.ds.data)
-    {
-        strl = QString(x.first.c_str()).split(' ');
-        strl.push_back("word");// to make word-3 word-2 word-1 word0 structure
-        if(strl.size() >= 4)
-            ids.push_back(cnt);
-        cnt++;
-    }
-    qDebug() << "creating data";
-    nn.h = 1.0f;
-    float outputsMax = -10.0f;
-    float inputsMax = -10.0f;
-    float outputsMin = 10.0f;
-    float inputsMin = 10.0f;
-    for(auto x : tokenProcessor.ds.data)
-    {
-        strl.clear();
-
-        strl = QString(x.first.c_str()).split(' ');
-        strl.push_back("word");// to make word-3 word-2 word-1 word0 structure
-        if(strl.size() < 4)
-            continue;
-
-
-        qDebug() << "selected tokens: " << strl ;
-
-        for(int i=0;i < allPosibbleTokens.size(); i++)
-            inputs[i] = 0;
-        for(auto s : strl)
-            inputs[allPosibbleTokensMap[s]] = 1;
-
-        //get frequency data
-        QVector<QString> token_keys;
-        QMap<QString,int> token_key_values;
-
-        QString tokenkey = strl[strl.size()-4].toLower() + " " + strl[strl.size()-3].toLower() + " " + strl[strl.size()-2].toLower();
-        tokenkey = tokenkey.trimmed();
-
-        for(auto s : tokenProcessor.ds.data[tokenkey.toStdString()])
-        {
-            token_keys.push_back(s.first.c_str());
-            token_key_values[s.first.c_str()] = (tokenProcessor.ds.GetPropertyAsInt(tokenkey.toStdString(),s.first));
-        }
-
-        tokenkey = strl[strl.size()-3].toLower() + " " + strl[strl.size()-2].toLower();
-        tokenkey = tokenkey.trimmed();
-
-        for(auto s : tokenProcessor.ds.data[tokenkey.toStdString()])
-        {
-            token_key_values[s.first.c_str()] += (tokenProcessor.ds.GetPropertyAsInt(tokenkey.toStdString(),s.first));
-        }
-
-
-        tokenkey = strl[strl.size()-2].toLower();
-        tokenkey = tokenkey.trimmed();
-
-        for(auto s : tokenProcessor.ds.data[tokenkey.toStdString()])
-        {
-            token_key_values[s.first.c_str()] += (tokenProcessor.ds.GetPropertyAsInt(tokenkey.toStdString(),s.first));
-        }
-        if(token_keys.size() <3)
-        {
-            continue;
-        }
-
-        // get data for normalization
-        float devider = 0.0f;
-        for(auto s : token_key_values)
-        {
-            if (devider < s)
-                devider = s;
-        }
-        if(devider > 0.0000001f)
-            devider = 1.0f / devider;
-        else
-            devider = 0.0000001f;
-        devider = 1.0f;
-        dataCount++;
-
-        float outputsMax = -10.0f;
-        float inputsMax = -10.0f;
-        float outputsMin = 10.0f;
-        float inputsMin = 10.0f;
-        // make inputs
-        for(int i=0;i < allPosibbleTokens.size(); i++)
-        {
-            if(inputsMax < inputs[i])
-                inputsMax = inputs[i];
-            if(inputsMin > inputs[i])
-                inputsMin = inputs[i];
-            allInputs.push_back(inputs[i]);
-        }
-        // make outputs
-        float cost = 0;
-        for(int i=0;i<allPosibbleTokens.size();i++)
-        {
-            if(outputsMax < float(token_key_values[allPosibbleTokens[i]])*devider)
-                outputsMax = float(token_key_values[allPosibbleTokens[i]])*devider;
-            if(outputsMin > float(token_key_values[allPosibbleTokens[i]])*devider)
-                outputsMin = float(token_key_values[allPosibbleTokens[i]])*devider;
-
-            if(float(token_key_values[allPosibbleTokens[i]]) > 0)
-            {
-                allOutputs.push_back(float(token_key_values[allPosibbleTokens[i]])*devider);
-            }
-            else
-                allOutputs.push_back(0);
-        }
-
-    }
-
-    for(int i=0; i< allOutputs.size();i++)
-    {
-        if(outputsMax < allOutputs[i])
-            outputsMax = allOutputs[i];
-        if(outputsMin > allOutputs[i])
-            outputsMin = allOutputs[i];
-    }
-    for(int i=0; i< allInputs.size();i++)
-    {
-        if(inputsMax < allInputs[i])
-            inputsMax = allInputs[i];
-        if(inputsMax > allInputs[i])
-            inputsMax = allInputs[i];
-    }
-
-    qDebug() << "learning data " << dataCount <<allInputs.size() << allOutputs.size();
-    qDebug() << "outputsMax:" << outputsMax << "outputsMin:" << outputsMin << "inputsMax:" << inputsMax << "inputsMin:" << inputsMin;
-
-    //nn.learn(0.00000002f,allInputs.data(),allOutputs.data(),dataCount);
-
-    std::map<int,float> affectedWeights;
-    std::map<int,float> affectedBiases;
-
-    for(int i=0;i<dataCount;i++)
-    {
-        int size = nn.Arch[1];
-        int weightsPerNode = nn.Arch[0];
-        int node = 0;
-        for (int n = nn.NodesStep[0]; n < nn.NodesStep[0] + size; n++)
-        {//each node of layer
-
-            //WeightsStep[i-1]
-
-            int start = (0 + node * weightsPerNode);
-            int PrevLayerNode = 0;
-            for (int w = start; w < start + weightsPerNode; w++)
-            {
-                //sum +=  nn.weights[w] * nn.Nodes[PrevLayerNode];
-                PrevLayerNode++;
-
-                if(allOutputs[i * nn.sizein  + n] > 0.0f && allInputs[i * nn.sizein + PrevLayerNode] > 0.0f)
-                {
-                    affectedWeights[w] += allOutputs[i * nn.sizein + n] * 1.0f;
-                    qDebug() << w << affectedWeights[w];
-                }
-                else
-                    affectedWeights[w] -= 1.1f;
-            }
-            if(allOutputs[i * nn.sizein  + n] > 0.0f && allInputs[i * nn.sizein + n] > 0.0f)
-            {
-                affectedBiases[n] += allOutputs[i * nn.sizein + n] * 1.0f;
-                qDebug() << n << affectedBiases[n];
-            }
-            else
-                affectedBiases[n] -= 1.1f;
-            node++;
-        }
-    }
-
-    for(auto x : affectedWeights)
-    {
-        nn.weights[x.first] += x.second;
-    }
-    for(auto x : affectedBiases)
-    {
-        nn.biases[x.first] += x.second;
-    }
-
-    // decode word
-    //int maxi = 0;
-    //float maxOut = -1000;
-    //for(int i=0;i<nn.sizeout;i++)
-    //{
-    //    if(nn.outputs[i] > maxOut)
-    //    {
-    //        maxOut = nn.outputs[i];
-    //        maxi = i;
-    //    }
-    //}
-    //if(maxi >=0 && allPosibbleTokens.size() > 0 && maxi < allPosibbleTokens.size())
-    //{
-    //    cd->textCursor().insertText(strl[strl.size()-4].toLower() + " " + strl[strl.size()-3].toLower() + " " + strl[strl.size()-2].toLower() + " ");
-    //    cd->textCursor().insertText(allPosibbleTokens[maxi] + "\n");
-    //    qDebug() << "tokens in: " << strl << " result: [" << maxi << "] = " << allPosibbleTokens[maxi];
-
-    //}
-
-    delete[] inputs;
-    delete[] outputs;
-}
-
-
+ {
+     qDebug() << "on_nnTestLearn_pressed undefined";
+ }

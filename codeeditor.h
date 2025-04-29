@@ -6,7 +6,9 @@
 
 class CodeEditor : public QPlainTextEdit
 {
+
     Q_OBJECT
+    bool ctrl_pressed = false;
 
 public:
     CodeEditor(QWidget *parent = nullptr);
@@ -22,9 +24,15 @@ public:
     void FillsuggestName();
     QStringList GetTokensUnderCursor();
 
+    void getScreenshot(QPixmap &map);
+
+    QPixmap zoomOutView;
+    bool updateZoomOutViewOnScroll = true;
+
 protected:
     void resizeEvent(QResizeEvent *event) override;
     void keyPressEvent(QKeyEvent *e) override;
+    void keyReleaseEvent(QKeyEvent *e) override;
 
 private slots:
     void updateLineNumberAreaWidth(int newBlockCount);

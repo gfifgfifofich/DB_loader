@@ -36,9 +36,11 @@ void fillPaterns()
 "    2 QPSQL \n"
 "    3 QODBC \n"
 "    4 QODBC_Excel \n"
+"    5 Oracle \n"
 "}\n"
 "UserTheme\n"
 "{\n"
+"	 CodePreview = false"
 "    BracketHighlightColor 5,5,35,255 \n"
 "    ColumnBold true \n"
 "    ColumnColor 255,100,10,255 \n"
@@ -64,12 +66,14 @@ void fillPaterns()
 "}\n";
 
 
-    subCommandPatterns.push_back("SubexecToSilentSqliteTable");
-    subCommandPatterns.push_back("SubexecToSilentExcelTable");
+    subCommandPatterns.push_back("SilentSubexecToSqliteTable");
+    subCommandPatterns.push_back("SilentSubexecToExcelTable");
     subCommandPatterns.push_back("SubexecToUnionAllTable");
+    subCommandPatterns.push_back("SilentSubexecAppendCSV");
     subCommandPatterns.push_back("SubexecToSqliteTable");
     subCommandPatterns.push_back("SubexecToExcelTable");
-    subCommandPatterns.push_back("SubexecToSilentCSV");
+    subCommandPatterns.push_back("SilentSubexecToCSV");
+    subCommandPatterns.push_back("SubexecAppendCSV");
     subCommandPatterns.push_back("SubexecToMagic");
     subCommandPatterns.push_back("SubexecToArray");
     subCommandPatterns.push_back("SubexecToCSV");

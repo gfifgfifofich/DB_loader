@@ -42,6 +42,9 @@ public:
     Q_INVOKABLE bool ExportToExcel(QString fileName, int x_start,int x_end,int y_start,int y_end, bool firstRowHeader);
     Q_INVOKABLE bool ExportToSQLiteTable(QString tableName);
 
+    Q_INVOKABLE bool AppendToCSV(QString fileName, char delimeter);
+    Q_INVOKABLE bool AppendToExcel(QString fileName);
+
     // QAbstractTableModel overrides
     int rowCount(const QModelIndex & = QModelIndex()) const override;
     int columnCount(const QModelIndex & = QModelIndex()) const override;

@@ -11,10 +11,157 @@
 #include "Patterns.h"
 #include "highlighter.h"
 #include <QFont>
+#include <QProxyStyle>
+#include <QScrollBar>
 #include <QtGui>
 #include "sqlSubfunctions.h"
 #include "tokenprocessor.h"
 #include <math.h>
+#include <qstyleoption.h>
+
+
+class VProxyStyle : public QProxyStyle
+{
+public:
+    int scrollBarEdgeOffset = 0;
+
+    VProxyStyle(QStyle *style = nullptr) : QProxyStyle(style) { }
+
+    QRect subControlRect(QStyle::ComplexControl cc, const QStyleOptionComplex* opt, QStyle::SubControl sc, const QWidget *widget = nullptr) const override
+    {
+        if (cc == CC_ScrollBar || sc == QStyle::SC_ScrollBarGroove)
+        {
+            QRect rect = QProxyStyle::subControlRect(cc, opt, sc, widget);
+            // Exclude the top and bottom arrows area.
+
+            rect.setTop(rect.top() - scrollBarEdgeOffset);
+            rect.setBottom(rect.bottom() + scrollBarEdgeOffset);
+            return rect;
+        }
+
+        return QProxyStyle::subControlRect(cc, opt, sc, widget);
+    }
+};
+
+class VScrollBar : public QScrollBar
+{
+
+public:
+    CodeEditor* cd = nullptr;
+    VScrollBar(Qt::Orientation orientation, QWidget *parent) : QScrollBar(orientation, parent)
+    {
+        VProxyStyle *proxyStyle = new VProxyStyle(style());
+        setStyle(proxyStyle);
+
+        QStyleOptionSlider scrollBarStyleOption;
+        scrollBarStyleOption.initFrom(this);
+
+        proxyStyle->scrollBarEdgeOffset = this->style()->subControlRect(QStyle::CC_ScrollBar,
+                                                                        &scrollBarStyleOption,
+                                                                        QStyle::SC_ScrollBarAddLine,
+                                                                        this).width();
+    }
+
+
+
+    void paintEvent(QPaintEvent *event) override
+    {
+
+        QPainter painter(this);
+        QRect sliderRect = sliderHandleRect();
+
+        sliderRect.setX(sliderRect.width()*0.9f);
+        sliderRect.setWidth(sliderRect.width());
+
+        QRect arearect(0,0,width(),height());
+
+
+
+        if(cd != nullptr && cd->updateZoomOutViewOnScroll)
+        {
+            QPainterPath path;
+            cd->updateZoomOutViewOnScroll = false;
+            cd->getScreenshot(cd->zoomOutView);
+            painter.drawPixmap(arearect, cd->zoomOutView, cd->zoomOutView.rect());
+            path.addRect(arearect);
+            painter.setPen(QColor::fromRgbF(0.7f,0.7f,0.7f,0.1f));
+            painter.fillPath(path, QColor::fromRgbF(0.7f,0.7f,0.7f,0.1f));
+
+            painter.drawPath(path);
+            cd->updateZoomOutViewOnScroll=true;
+        }
+
+
+        QPainterPath path;
+        path.addRect(sliderRect);
+        painter.setPen(QColor::fromRgbF(0.7f,0.7f,0.7f,0.3f));
+        painter.fillPath(path, QColor::fromRgbF(0.7f,0.7f,0.7f,0.3f));
+        painter.drawPath(path);
+
+
+    }
+
+    QRect sliderHandleRect() const
+    {
+        QStyleOptionSlider opt;
+        initStyleOption(&opt);
+        return style()->subControlRect(QStyle::CC_ScrollBar, &opt, QStyle::SC_ScrollBarSlider, this);
+    }
+};
+
+void CodeEditor::getScreenshot(QPixmap &map)
+{
+    QSize sizebuff = size();
+    map = QPixmap(size().width()*0.75f,size().height()* 1.0f);
+
+
+    QPainter painter(&map);
+    painter.scale(0.75f,1.0f);
+
+    float offset = 0;
+    int end_at = 200;
+    float step = float(size().height()) /end_at;
+    if(step <= 0)
+        step = 1;
+
+    QTextBlock block;
+    if(this->firstVisibleBlock().blockNumber()-end_at*0.5f >=0)
+        block = document()->findBlockByNumber( this->firstVisibleBlock().blockNumber()-end_at*0.5f);
+    else
+        block = document()->findBlockByNumber( 0);
+
+    if(document()->blockCount()-end_at<=0)
+        end_at =document()->blockCount();
+
+    if(block.blockNumber() + end_at > document()->blockCount())
+    {
+        block = document()->findBlockByNumber( document()->blockCount()-end_at);
+    }
+
+    while (block.isValid() && end_at >0)
+    {
+        end_at--;
+        QRectF r = blockBoundingRect(block);
+        QTextLayout *layout = block.layout();
+
+        if (!block.isVisible())
+        {
+            offset +=  step  ;
+            block = block.next();
+            continue;
+        }
+        else
+        {
+            layout->draw(&painter, QPoint(0,offset),{},QRect(0,0,size().width(),size().height()));
+        }
+
+        offset +=  step  ;
+
+        block = block.next();
+    }
+
+
+}
 
 
 inline QString usrDir;
@@ -30,6 +177,10 @@ void CodeEditor::keyPressEvent(QKeyEvent *e)
     //16777248 SHIFT
     //16777249 ctrl
     //qDebug()<< e->key();
+    if(e->key() == 16777249)
+    {
+        ctrl_pressed = true;
+    }
     if(e->key() == 16777217)
     {
         FillsuggestName();
@@ -38,11 +189,21 @@ void CodeEditor::keyPressEvent(QKeyEvent *e)
     QPlainTextEdit::keyPressEvent(e);
 }
 
+void CodeEditor::keyReleaseEvent(QKeyEvent *e)
+{
+    //16777217 tab
+    //16777220 return
+    //16777248 SHIFT
+    //16777249 ctrl
+    //qDebug()<< e->key();
+    if(e->key() == 16777249)
+    {
+        ctrl_pressed = false;
+    }
+    QPlainTextEdit::keyReleaseEvent(e);
+}
 CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent)
 {
-
-    setTabStopDistance(QFontMetricsF(this->font()).horizontalAdvance(' ') * 4);
-
     lineNumberArea = new LineNumberArea(this);
     highlighter = new Highlighter(document());
 
@@ -64,7 +225,11 @@ CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent)
 
     // autocompleation on tab press
     connect( this, SIGNAL(tabDetected()), this, SLOT(fillName()), Qt::QueuedConnection );
+    setTabStopDistance(QFontMetricsF(this->font()).horizontalAdvance(' ') * 4);
 
+
+
+    qDebug() << "Opening code editors DS";
     // user theme
     if(userDS.Load((documentsDir + "/userdata.txt").toStdString()))
     {
@@ -78,7 +243,26 @@ CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent)
             if(i==3) col.setAlpha(QVariant(strl[i]).toInt());
         }
         braccketHighlightColor = col;
+
+
+        qDebug() << userDS.data["UserTheme"].count("CodePreview")<< userDS.data["UserTheme"]["CodePreview"];
+        if(userDS.GetPropertyAsBool("UserTheme","CodePreview"))
+        {
+            VScrollBar* vsb = new VScrollBar(Qt::Vertical,this);
+            vsb->cd = this;
+            setVerticalScrollBar(vsb);
+            verticalScrollBar()->setStyleSheet("QScrollBar:vertical { width: 150px; }");
+        }
     }
+    else
+    {
+        qDebug() << "file not opened userdata.txt in code editor";
+    }
+
+    //Scroll bar setup
+
+
+
 }
 
 int CodeEditor::lineNumberAreaWidth()
@@ -140,6 +324,8 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
 
 void CodeEditor::highlightCurrentLine()
 {
+
+
     QString text = toPlainText();
     int cursor_position = textCursor().position();
 
@@ -162,6 +348,9 @@ void CodeEditor::highlightCurrentLine()
     //always highlight brackets
     if(validCursorPos && (text[cursor_position] == '(' || (cursor_position-1 >0 && text[cursor_position-1] == '(')))
     {
+
+
+
         QTextEdit::ExtraSelection bracketSelection;
 
         int bracketStart = cursor_position;
@@ -541,13 +730,13 @@ void CodeEditor::suggestName()
 
     word = word.replace('\u0000',' ').trimmed().toLower();
 
-    qDebug() << "word is " <<word << onWhiteSpace;
-    qDebug() << "PrevWord is " <<PrevWord ;
-    qDebug() << "PrevPrevWord is " <<PrevPrevWord ;
-    qDebug() << "PrevPrevPrevWord is " <<PrevPrevPrevWord ;
+    //qDebug() << "word is " <<word << onWhiteSpace;
+    // qDebug() << "PrevWord is " <<PrevWord ;
+    // qDebug() << "PrevPrevWord is " <<PrevPrevWord ;
+    // qDebug() << "PrevPrevPrevWord is " <<PrevPrevPrevWord ;
     if(PrevWord.contains('.'))
         hasdot = true;
-    qDebug()<<text_interval;
+    //qDebug()<<text_interval;
 
     QVector<QString> keys;
     QVector<QString> token_keys;
@@ -606,13 +795,13 @@ void CodeEditor::suggestName()
             tokenkey = str + " " + tokenkey;
 
             tokenkey = tokenkey.trimmed();
-            qDebug() << "tk is: " << tokenkey << " } word" << str;
+            //qDebug() << "tk is: " << tokenkey << " } word" << str;
             for(auto s : tokenProcessor.ds.data[tokenkey.toStdString()])
             {
                 keys.push_back(s.first.c_str());
                 token_keys.push_back(s.first.c_str());
                 token_key_values[s.first.c_str()] += (tokenProcessor.ds.GetPropertyAsFloat(tokenkey.toStdString(),s.first));
-                qDebug() << s.first << tokenProcessor.ds.GetPropertyAsFloat(tokenkey.toStdString(),s.first);
+                //qDebug() << s.first << tokenProcessor.ds.GetPropertyAsFloat(tokenkey.toStdString(),s.first);
             }
         }
     }
@@ -848,11 +1037,59 @@ void CodeEditor::fillName()
 
 void CodeEditor::FillsuggestName()
 {
+    QString text = toPlainText();
     QTextCursor cursor = textCursor();
     QString lasttext = lastSuggestedWord;
 
+    if(cursor.hasSelection())
+    {
+        int s_start = cursor.selectionStart();
+        int s_end = cursor.selectionEnd();
+
+        cursor.setPosition(s_start);
+        int b_start = cursor.block().blockNumber();
+        cursor.setPosition(s_end);
+        int b_end = cursor.block().blockNumber();
+
+        cursor.setPosition(s_start);
+
+        QTextBlock tb = cursor.block();
+
+
+        cursor.beginEditBlock();
+
+        if(!ctrl_pressed)
+        {
+            while(tb.blockNumber() <= blockCount() && tb.isValid()  && tb.blockNumber() <= b_end)
+            {
+                cursor.setPosition(tb.position());
+
+                 cursor.insertText("\t");
+
+
+                tb = tb.next();
+            }
+        }
+        else
+        {
+            while(tb.blockNumber() <= blockCount() && tb.isValid()  && tb.blockNumber() <= b_end)
+            {
+                if(toPlainText()[tb.position()] == '\t')
+                {
+                    cursor.setPosition(tb.position());
+                    cursor.deleteChar();
+                }
+
+                tb = tb.next();
+            }
+        }
+
+        cursor.endEditBlock();
+        return;
+    }
+
     //decide if its a real word, or a tab symbol needs to be placed
-    if(cursor.atBlockStart() || (lasttext.size()<=1 && (lasttext.size() > 0 && lasttext[0]!='.'&& lasttext[0]!='='&& lasttext[0]!='*'&& lasttext[0]!='\''&& lasttext[0]!='(' && lasttext[0]!=')' )))
+    if((cursor.position()-1>=0 && (text[cursor.position()-1]=='\n' ||text[cursor.position()-1]=='\t' ||text[cursor.position()-1]=='\r')) || cursor.atBlockStart() || (lasttext.size()<=1 && (lasttext.size() > 0 && lasttext[0]!='.'&& lasttext[0]!='='&& lasttext[0]!='*'&& lasttext[0]!='\''&& lasttext[0]!='(' && lasttext[0]!=')')))
     {
         cursor.insertText("\t");
         return;
@@ -860,7 +1097,6 @@ void CodeEditor::FillsuggestName()
 
     bool lasttexttablecolumn = lastwordisTableColumn;
     QString word = "";
-    QString text = toPlainText();
 
     QTextCursor tx =textCursor();
 
@@ -906,7 +1142,7 @@ void CodeEditor::FillsuggestName()
 
     }
 
-    qDebug() << word;
+
     bool CursedStarSymbolDetected = false;
     if(start-1 >=0 && ((isSpecialSymbol(text[start-1]) && text[start-1] != '"' && text[start-1] != '\'' && text[start-1] != '.') || text[start-1].isDigit()))
         CursedStarSymbolDetected = true;
@@ -921,6 +1157,9 @@ void CodeEditor::FillsuggestName()
         if(lasttext.back() == '.')
             cursor.setPosition(start-1, QTextCursor::MoveAnchor);
         else
+            cursor.setPosition(start, QTextCursor::MoveAnchor);
+
+        if(cursor.position()-1>=0 && (text[cursor.position()-1]==' '))
             cursor.setPosition(start, QTextCursor::MoveAnchor);
     }
 
@@ -956,6 +1195,30 @@ void CodeEditor::CommentSelected()
     bool uncoment = false;
     cursor.setPosition(s_start);
 
+    int counter = 0;
+    for(int i=0;i < cursor.block().text().size();i++)
+    {
+        qDebug() << cursor.block().text()[i];
+        if(cursor.block().text()[i]==' ' || cursor.block().text()[i]=='\t' || cursor.block().text()[i]=='\n' || cursor.block().text()[i]=='\r' || cursor.block().text()[i]=='\x9')
+            continue;
+        else if(cursor.block().text()[i]=='-')
+        {
+            counter ++;
+            if(counter==2)
+            {
+                uncoment = true;
+                break;
+            }
+        }
+        else
+        {
+            uncoment = false;
+            break;
+        }
+
+
+    }
+
     if(cursor.block().text().startsWith("--"))
         uncoment = true;
     else
@@ -967,14 +1230,35 @@ void CodeEditor::CommentSelected()
     cursor.beginEditBlock();
     while(tb.blockNumber() <= blockCount() && tb.isValid()  && tb.blockNumber() <= b_end)
     {
-        cursor.setPosition(tb.position());
-        if(uncoment && tb.text().startsWith("--"))
+        counter = 0;
+        qDebug() << "0 is = " << tb.text()[0]<< tb.text()[1]<< tb.text()[2];
+        if(uncoment)
         {
-            cursor.deleteChar();
-            cursor.deleteChar();
+            for(int i=0;i < tb.text().size();i++)
+            {
+                if(tb.text()[i]==' ' || tb.text()[i]=='\t' || tb.text()[i]=='\n' || tb.text()[i]=='\r' || cursor.block().text()[i]=='\x9')
+                    continue;
+                else if(tb.text()[i]=='-')
+                    counter ++;
+                else
+                {
+                    break;
+                }
+                if(counter==2)
+                {
+                    if(tb.position() + i -1 >= 0)
+                    {
+                        cursor.setPosition(tb.position() + i -1);
+                        cursor.deleteChar();
+                        cursor.deleteChar();
+                    }
+                    break;
+                }
+            }
         }
-        else if (!tb.text().startsWith("--"))
+        else
         {
+            cursor.setPosition(tb.position());
             cursor.insertText("--");
         }
 

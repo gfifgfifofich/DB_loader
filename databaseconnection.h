@@ -8,6 +8,7 @@
 #include "tabledata.h"
 #include <QMutex>
 
+
 class DatabaseConnection : public QObject
 {
     Q_OBJECT
@@ -27,7 +28,12 @@ public:
     QString usrname =  "";
     QString password = "";
 
+    QString schemaName = "";
+    QString ipAddres = "";
+    QString port = "";
+
     QString LastDBName = "";
+    int savefilecount = 0;
 
     //Options on data downloading
     bool stopAt500Lines = false;
@@ -38,8 +44,10 @@ public:
     bool oracle = false;
     bool postgre = false;
     bool ODBC = false;
+    bool customOracle = false;
 
     //Current Executin query info
+    bool dataDownloading = false;
     bool executing = false;
     qint64 executionTime = 0;
     QDateTime executionStart = QDateTime::currentDateTime();
@@ -51,6 +59,10 @@ public:
 
     // Position of current query in code, used to correct error messages from databases
     int _code_start_line = 0;
+    int _code_start_pos = 0;
+    int lastErrorPos = 0;
+    bool lastLaunchIsError = false;
+
 
 
     Q_INVOKABLE void Init();
@@ -72,6 +84,9 @@ public:
     int scriptReturnPosition = 0;
     QString scriptCommand = "";
     DatabaseConnection* subscriptConnesction = nullptr;
+
+    void stopRunning();
+
 
     //unused id's of current query/session
     int sid  = -1, serial  = -1, sql_ID = -1; // probably wont be able to use sqlid // probably cant use it at all

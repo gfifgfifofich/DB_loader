@@ -24,6 +24,7 @@
 #include "codeeditor.h"
 #include "databaseconnection.h"
 
+
 //  Launch options
 inline QString launchOpenFileName = "";
 inline bool launchOpenFile = false;
@@ -38,6 +39,7 @@ class LoaderWidnow : public QMainWindow
 public:
     explicit LoaderWidnow(QWidget *parent = nullptr);
     ~LoaderWidnow();
+
 
     CodeEditor* cd = nullptr;
 

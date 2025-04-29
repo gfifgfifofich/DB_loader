@@ -33,11 +33,11 @@ inline bool isWord(QString s)
 }
 inline bool isNumber(QString s)
 {
-    if(s.startsWith('.') || s.count('.')>1)
+    if(s.count('.') + s.count(',')>1)
         return false;
     for(auto x : s)
     {
-        if(!x.isDigit() && x!='.')
+        if(!x.isDigit() && x!='.'&& x!=',')
             return false;
     }
     return true;
@@ -158,14 +158,9 @@ inline QVariant fixQVariantTypeFormat(QVariant var)
             if(str.contains(','))
                 hascomas = true;
 
-            if(strl.size()==2)
+            if(isNumber(str))
             {
-                bool ok1 = false;
-                bool ok2 = false;
-                QVariant(strl[0]).toInt(&ok1);
-                QVariant(strl[1]).toInt(&ok2);
-                if(ok1 && ok2)
-                    force_double = true;
+                force_double = true;
             }
             strl = str.split('.');
 
