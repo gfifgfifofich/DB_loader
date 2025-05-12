@@ -186,6 +186,23 @@ void CodeEditor::keyPressEvent(QKeyEvent *e)
         FillsuggestName();
         return;
     }
+    if(e->key() == 16777220)
+    {//
+        QTextCursor c = this->textCursor();
+        QString str =  c.block().text();
+        QString prefix = "";
+        int pos =0;
+        while(pos<str.size() && (str[pos]==' ' || str[pos]=='\t'))
+        {
+            prefix+=str[pos];
+            pos++;
+        }
+        c.beginEditBlock();
+        QPlainTextEdit::keyPressEvent(e);
+        c.insertText(prefix);
+        c.endEditBlock();
+        return;
+    }
     QPlainTextEdit::keyPressEvent(e);
 }
 
@@ -729,11 +746,14 @@ void CodeEditor::suggestName()
     }
 
     word = word.replace('\u0000',' ').trimmed().toLower();
+    if(word.back() == '.')
+        word="";
 
     //qDebug() << "word is " <<word << onWhiteSpace;
     // qDebug() << "PrevWord is " <<PrevWord ;
     // qDebug() << "PrevPrevWord is " <<PrevPrevWord ;
     // qDebug() << "PrevPrevPrevWord is " <<PrevPrevPrevWord ;
+    qDebug() << PrevWords << "onWhiteSpace" << onWhiteSpace << word;
     if(PrevWord.contains('.'))
         hasdot = true;
     //qDebug()<<text_interval;
@@ -752,21 +772,11 @@ void CodeEditor::suggestName()
     tokenkey = "";
 
     // grabbing data from tokenProcessor of requered depth
+    if(onWhiteSpace ) // currently, due to really bad data from tokenprocessor, its data is disabled from autocompleate, in case user started typing something
+        // skip current word, to not ruin map find. Ruins everyting else due to bad data from tokenprocessor
     for (int a = PrevWords.size() -1; a >= 0 ;a--)
     {
-        //if(onWhiteSpace && a == 0)
-        //    continue;
 
-
-        //if(PrevWords[a].contains("--"))
-        //    inComment=true;
-        //if(inComment && PrevWords[a].contains("\n"))
-        //{
-        //    inComment = false;
-        //    continue;
-        //}
-        //if(inComment)
-        //    continue;
 
         int quotes = PrevWords[a].count('\'');
         if(quotes % 2 == 1)
@@ -789,13 +799,15 @@ void CodeEditor::suggestName()
 
         if(PrevWords[a].trimmed().size() < 1 || PrevWords[a].trimmed() ==" ")
             continue;
+
+
         QString str =  PrevWords[a].replace('\n',' ').replace('\t',' ').replace('\u0000',' ').toLower().trimmed();
-        if((!isNumber(str) || (!isWord(str) && !isNumber(str))) && !str.contains('{')&& !str.contains(',') && !str.contains('}'))
+        if((!isNumber(str) || str == "." || (!isWord(str) && !isNumber(str))) && !str.contains('{')&& !str.contains(',') && !str.contains('}'))
         {
             tokenkey = str + " " + tokenkey;
 
             tokenkey = tokenkey.trimmed();
-            //qDebug() << "tk is: " << tokenkey << " } word" << str;
+            qDebug() << "tk is: " << tokenkey << " } word" << str;
             for(auto s : tokenProcessor.ds.data[tokenkey.toStdString()])
             {
                 keys.push_back(s.first.c_str());
@@ -812,6 +824,8 @@ void CodeEditor::suggestName()
     QVector<QString> likelykeys;
     QVector<QString> lesslikelykeys;
 
+
+    int _tmp_key_size = keys.size();
     if(hasdot)
     { // its most likely to be a column of random table
         if(highlighter->TableColumnMap.contains(PrevPrevWord))
@@ -835,6 +849,29 @@ void CodeEditor::suggestName()
                     morelikelykeys.push_back(ke);
                 }
             }
+        if(_tmp_key_size == keys.size())
+        {// 0 results in these tables, so probably its a schema name or smth
+            // add table names, cuz there is no point in keywords after dot
+            for(auto ke : highlighter->TableColumnMap.keys())
+            {
+                keys.push_back(ke);
+                morelikelykeys.push_back(ke);
+            }
+            for(auto ke : highlighter->tmpTableColumnMap.keys())
+            {
+                keys.push_back(ke);
+                morelikelykeys.push_back(ke);
+            }
+            for(auto ke : highlighter->TableColumnAliasMap.keys())
+            {
+                if(highlighter->TableColumnAliasMap.contains(ke))
+                {
+                    keys.push_back(ke);
+                    morelikelykeys.push_back(ke);
+                }
+            }
+
+        }
     }
     else
     {
@@ -1142,7 +1179,6 @@ void CodeEditor::FillsuggestName()
 
     }
 
-
     bool CursedStarSymbolDetected = false;
     if(start-1 >=0 && ((isSpecialSymbol(text[start-1]) && text[start-1] != '"' && text[start-1] != '\'' && text[start-1] != '.') || text[start-1].isDigit()))
         CursedStarSymbolDetected = true;
@@ -1219,27 +1255,29 @@ void CodeEditor::CommentSelected()
 
     }
 
-    if(cursor.block().text().startsWith("--"))
-        uncoment = true;
-    else
-        uncoment = false;
 
 
     QTextBlock tb = cursor.block();
 
     cursor.beginEditBlock();
-    while(tb.blockNumber() <= blockCount() && tb.isValid()  && tb.blockNumber() <= b_end)
+    if(uncoment)
     {
-        counter = 0;
-        qDebug() << "0 is = " << tb.text()[0]<< tb.text()[1]<< tb.text()[2];
-        if(uncoment)
+        while(tb.blockNumber() <= blockCount() && tb.isValid()  && tb.blockNumber() <= b_end)
         {
+            counter = 0;
+
             for(int i=0;i < tb.text().size();i++)
             {
-                if(tb.text()[i]==' ' || tb.text()[i]=='\t' || tb.text()[i]=='\n' || tb.text()[i]=='\r' || cursor.block().text()[i]=='\x9')
+
+                qDebug() << tb.text()[i];
+                if(tb.text()[i]==' ' || tb.text()[i]=='\t' || tb.text()[i]=='\n' || tb.text()[i]=='\r' || tb.text()[i]=='\x9')
+                {
                     continue;
-                else if(tb.text()[i]=='-')
+                }
+                else if(tb.text()[i]=='-' )
+                {
                     counter ++;
+                }
                 else
                 {
                     break;
@@ -1255,14 +1293,25 @@ void CodeEditor::CommentSelected()
                     break;
                 }
             }
+
+
+
+            tb = tb.next();
         }
-        else
+    }
+    else
+    {
+        while(tb.blockNumber() <= blockCount() && tb.isValid()  && tb.blockNumber() <= b_end)
         {
+            counter = 0;
+
             cursor.setPosition(tb.position());
             cursor.insertText("--");
-        }
 
-        tb = tb.next();
+
+
+            tb = tb.next();
+        }
     }
     cursor.endEditBlock();
 
@@ -1411,3 +1460,8 @@ QStringList CodeEditor::GetTokensUnderCursor()
     out_strl.push_back(word);
     return out_strl;
 }
+
+
+
+
+

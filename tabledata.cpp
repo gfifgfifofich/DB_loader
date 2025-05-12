@@ -105,14 +105,19 @@ void TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_st
     if(fileName.size() < 2)
         return;
     bool serachall = x_start == 0 && y_start == 0 && x_end == 0 && y_end == 0;
-    qDebug()<<"TableData::ImportFromExcel Unimplemented";
 
     tbldata.clear();
     headers.clear();
     QXlsx::Document xlsxR3(fileName);
-    qDebug()<< "xlsxR3.load() " << xlsxR3.load();
-
     qDebug() << "importing excel table from " << fileName;
+    if(!xlsxR3.load())
+    {
+        qDebug()<< "xlsxR3.load() failed";
+        return;
+    }
+    else
+        qDebug()<< "xlsxR3.load() success";
+
 
     QVariant lastcellval = xlsxR3.read(1,1);
 
@@ -351,7 +356,7 @@ bool TableData::ExportToSQLiteTable(QString tableName)
     SQLITE_sql += " ( ";
     for(int i=0;i<headers.size();i++)
     {
-        SQLITE_sql += headers[i];
+        SQLITE_sql += "\"" + headers[i] + "\"";
 
         int doublecnt = 0;
         int othercnt = 0;
@@ -374,38 +379,24 @@ bool TableData::ExportToSQLiteTable(QString tableName)
 
 
 
+
+
     SQLITE_sql = "Insert into ";
     SQLITE_sql += tableName;
-    SQLITE_sql += " Select ";
+    SQLITE_sql += " values ";
 
-
-    if(tbldata.size()>0 && tbldata[0].size()>0)
-    {
-        bool first = true;
-        for(int a=0;a<tbldata.size();a++)
-        {
-            if(!first)
-                SQLITE_sql += ",";
-            first = false;
-                SQLITE_sql += " '";
-            SQLITE_sql += tbldata[a][0].toString();
-                SQLITE_sql += "' ";
-            SQLITE_sql += " as ";
-            SQLITE_sql += " '";
-            SQLITE_sql += headers[a];
-            SQLITE_sql += "' ";
-        }
-    }
-    else
-    {
-        return false;
-    }
+    bool firstVal = true;
     qDebug() << SQLITE_sql;
     int lasti=0;
-    for(int i=1;i<tbldata[0].size();i++)
+    for(int i=0;i<tbldata[0].size();i++)
     {
+        if(!firstVal)
+            SQLITE_sql += ",";
+        if(firstVal)
+                firstVal=false;
+        SQLITE_sql += " (";
 
-        SQLITE_sql += " union all Select ";
+        //SQLITE_sql += " union all Select ";
         bool first = true;
         for(int a=0;a<tbldata.size();a++)
         {
@@ -424,36 +415,38 @@ bool TableData::ExportToSQLiteTable(QString tableName)
                 SQLITE_sql += "' ";
 
         }
-        if(i - lasti > 300)
+        SQLITE_sql += " )";
+        if(i - lasti > 500)
         {
-            lasti = i+1;
+            firstVal=true;
+            lasti = i;
             if(!SQLITE_q.exec (SQLITE_sql))
                 qDebug()<< "Failed to save to sqlite: " <<SQLITE_q.lastError().text();
 
             SQLITE_sql = "Insert into ";
             SQLITE_sql += tableName;
-            SQLITE_sql += " Select ";
+            SQLITE_sql += " values ";
+            //SQLITE_sql += " Select ";
 
 
-            if(tbldata[0].size()>lasti)
-            {
-                bool first = true;
-                for(int a=0;a<tbldata.size();a++)
-                {
-                    if(!first)
-                        SQLITE_sql += ",";
-                    first = false;
-                        SQLITE_sql += " '";
-                    SQLITE_sql += tbldata[a][lasti].toString();
-                        SQLITE_sql += "' ";
-                    SQLITE_sql += " as ";
-                        SQLITE_sql += " '";
-                    SQLITE_sql += headers[a];
-                        SQLITE_sql += "' ";
-                }
-            }
+            //if(tbldata[0].size()>lasti)
+            //{
+            //    bool first = true;
+            //    for(int a=0;a<tbldata.size();a++)
+            //    {
+            //        if(!first)
+            //            SQLITE_sql += ",";
+            //        first = false;
+            //            SQLITE_sql += " '";
+            //        SQLITE_sql += tbldata[a][lasti].toString();
+            //            SQLITE_sql += "' ";
+            //        SQLITE_sql += " as ";
+            //            SQLITE_sql += " '";
+            //        SQLITE_sql += headers[a];
+            //            SQLITE_sql += "' ";
+            //    }
+            //}
 
-            i+=1;
         }
     }
     if(!SQLITE_q.exec (SQLITE_sql))

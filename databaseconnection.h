@@ -17,6 +17,11 @@ public:
     explicit DatabaseConnection(QObject *parent = nullptr);
 
 
+    void* OCI_lastenv = nullptr;
+    void* OCI_lastcon = nullptr;
+    void* OCI_laststmt = nullptr;
+    int queryExecutionState = 0;
+
     QSqlDatabase db;
     QSqlQuery* query = nullptr;
     QString sqlCode;
@@ -60,6 +65,7 @@ public:
     // Position of current query in code, used to correct error messages from databases
     int _code_start_line = 0;
     int _code_start_pos = 0;
+    int _code_end_pos = 0;
     int lastErrorPos = 0;
     bool lastLaunchIsError = false;
 
@@ -97,6 +103,7 @@ signals:
     void queryBeginExecuting();
     void querySuccess();//staring to download
     void execedSql();
+    void sendMail(QString host, QString Sender, QString SenderName, QStringList to,QStringList cc, QString Subject, QString messageText, QStringList attachments);
 };
 
 #endif // DATABASECONNECTION_H

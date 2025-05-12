@@ -8,6 +8,7 @@ Functions for easier format translation & stuff
 #include <qdatetime.h>
 #include <qobject.h>
 #include <qvariant.h>
+
 inline bool isSpecialSymbol(QChar c)
 {
     return c=='!' || c=='=' || c=='*' || c=='&' || c=='%' || c=='(' || c==')' || c=='-' || c=='+' || c=='/' || c==',' || c=='.' || c=='<' || c=='>' || c==';' || c==':' || c=='\"' || c=='\'';
@@ -210,6 +211,8 @@ inline QVariant fixQVariantTypeFormat(QVariant var)
     }
     return var;
 }
+
+
 
 
 #endif // SQLSUBFUNCTIONS_H

@@ -10,8 +10,6 @@
 
 
 
-
-
 inline QString usrDir;
 inline QString documentsDir;
 
@@ -30,13 +28,12 @@ void DatabaseConnection::Init()
 #include "oracledriver.h"
 
 
-inline oracle::occi::Environment *lastenv = nullptr;
-inline oracle::occi::Connection *lastcon = nullptr;
-inline oracle::occi::Statement *laststmt = nullptr;
+// inline oracle::occi::Environment *((oracle::occi::Environment*)OCI_lastenv) = nullptr;
+// inline oracle::occi::Connection *((oracle::occi::Connection*)OCI_lastcon) = nullptr;
+// inline oracle::occi::Statement *((oracle::occi::Statement*)OCI_laststmt) = nullptr;
+
 inline OCIServer* lastlastserv;
 inline QString lastOracleError = "";
-
-
 
 
 bool DatabaseConnection::Create(QString driver, QString dbname, QString username, QString password)
@@ -97,7 +94,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
 
     if(!sqlite){
         QString connectString = "Driver={";
-        connectString.append(driver.trimmed()); // "Oracle in OraClient12Home1_32bit"
+        connectString.append(driver.trimmed());
         connectString.append("};");
         if(oracle && !customOracle)
         {
@@ -258,9 +255,10 @@ bool DatabaseConnection::Create(QString driver, QString DBName)
 
 //inline OracleDriver* currentRunningOracleDriver = nullptr;
 
-
-std::vector<std::vector<oracle::occi::MetaData>> mtl; // yep, imma gonna shart into memory, and not deal with crashes when attempting to clear MetaData.
-//Oracle straight up crashes whole app if you try doing that when there are more than some amount of columns. Storing MetaData untill very end will delay crash to when user will want to close app, so works. But app will crash instead of closing if user used Oracle driver(
+/*Oracle straight up crashes whole app if you try doing that when there are more than some amount of columns. Storing MetaData untill very end will delay crash to when user will want to close app, so works. But app will crash instead of closing if user used Oracle driver(
+yep, imma gonna shart into memory, and not deal with crashes when attempting to clear MetaData.
+*/
+std::vector<std::vector<oracle::occi::MetaData>> mtl;
 
 bool DatabaseConnection::execSql(QString sql)
 {
@@ -270,6 +268,7 @@ bool DatabaseConnection::execSql(QString sql)
     lastErrorPos = -1;
     savefilecount = 0;
 
+    queryExecutionState = 0;
 
 
 
@@ -279,6 +278,7 @@ bool DatabaseConnection::execSql(QString sql)
     tableDataMutex.unlock();
     executionTime = QDateTime::currentSecsSinceEpoch();
     executionStart = QDateTime::currentDateTime();
+    executionEnd = QDateTime::currentDateTime();
     if(!db.isOpen())
     {
         bool ok = db.open();
@@ -344,11 +344,11 @@ bool DatabaseConnection::execSql(QString sql)
                                 qDebug()<< a;
                                 break;
                             }
-                            if(justOutOfBrackets && sql[buff_a] != '-'&& sql[buff_a] != '{'&& sql[buff_a] != '}'&& sql[buff_a] != ' '&& sql[buff_a] != '\t'&& sql[buff_a] != '\t'&& sql[buff_a] != '\r')
+                            if(justOutOfBrackets && sql[buff_a] != '-'&& sql[buff_a] != '{'&& sql[buff_a] != '}'&& sql[buff_a] != ' '&& sql[buff_a] != '\t'&& sql[buff_a] != '\n'&& sql[buff_a] != '\t'&& sql[buff_a] != '\r')
                                 inlineVariables = false;
                             if(inlineVariables)
                             {
-                                if(bracketValue > 1 &&  sql[buff_a] != '{'&& sql[buff_a] != '}'&& sql[buff_a] != ' ' && sql[buff_a] != '\t'&& sql[buff_a] != '\t'&& sql[buff_a] != '\r')
+                                if(bracketValue > 1 &&  sql[buff_a] != '{'&& sql[buff_a] != '}' && sql[buff_a] != '\t'&& sql[buff_a] != '\t'&& sql[buff_a] != '\r')
                                 {
                                     lastVar += sql[buff_a];
                                 }
@@ -401,9 +401,10 @@ bool DatabaseConnection::execSql(QString sql)
                         a = buff_a;
                         qDebug()<< "subexec variables " << funcVariables;
                         // recursion does its thing, recursive subexec's are possible and infinite^tm
-                        if(subCommandPatterns[i].startsWith("Subexec") ||subCommandPatterns[i].startsWith("SilentSubexec"))
+                        if(subCommandPatterns[i].startsWith("Subexec") ||subCommandPatterns[i].startsWith("SilentSubexec") || subCommandPatterns[i].startsWith("ExcelTo"))
                         {// its a subexec, crop part from next { to }, exec it in subscriptConnection
-                            qDebug()<<"Its SubExec";
+                            qDebug()<<"Its SubExec or ExcelTo";
+
 
 
                             qDebug()<< "";
@@ -465,14 +466,72 @@ bool DatabaseConnection::execSql(QString sql)
                             qDebug()<< "subscriptDBname: " << subscriptDBname;
                             subscriptConnesction = new DatabaseConnection();
 
-                            QString username = userDS.GetObject(subscriptDBname.toStdString())["name"].c_str();
-                            QString password = userDS.GetObject(subscriptDBname.toStdString())["password"].c_str();
-                            qDebug()<< subscriptDriver << subscriptDBname << username.trimmed() << password.trimmed();
-                            subscriptConnesction->connectionName = connectionName + QVariant(a).toString();
-                            subscriptConnesction->Create(subscriptDriver.trimmed(),subscriptDBname.trimmed(),username.trimmed(),password.trimmed());
-                            while(scriptCommand.endsWith(' ') ||scriptCommand.endsWith('\t') ||scriptCommand.endsWith('\n') || scriptCommand.endsWith('\r'))
-                                scriptCommand.resize(scriptCommand.size()-1);
-                            subscriptConnesction->execSql(scriptCommand.trimmed());
+
+                            // subCommandPatterns.push_back("ExcelToMagic");
+                            // subCommandPatterns.push_back("ExcelToArray");
+                            // if its subexec, subexec, else load from excel file
+                            if(subCommandPatterns[i].startsWith("Subexec") ||subCommandPatterns[i].startsWith("SilentSubexec"))
+                            {
+                                QString username = userDS.GetObject(subscriptDBname.toStdString())["name"].c_str();
+                                QString password = userDS.GetObject(subscriptDBname.toStdString())["password"].c_str();
+                                qDebug()<< subscriptDriver << subscriptDBname << username.trimmed() << password.trimmed();
+                                subscriptConnesction->connectionName = connectionName + QVariant(a).toString();
+                                subscriptConnesction->Create(subscriptDriver.trimmed(),subscriptDBname.trimmed(),username.trimmed(),password.trimmed());
+                                while(scriptCommand.endsWith(' ') ||scriptCommand.endsWith('\t') ||scriptCommand.endsWith('\n') || scriptCommand.endsWith('\r'))
+                                    scriptCommand.resize(scriptCommand.size()-1);
+
+                                subscriptConnesction->execSql(scriptCommand.trimmed());
+                            }
+                            int neededMagicColumn = -1;
+
+                            int TableCutoffStart = -1;
+                            int TableCutoffEnd = -1;
+                            if(subCommandPatterns[i].startsWith("ExcelTo"))
+                            {
+                                neededMagicColumn=0;// autoselect column 1, if no column selected
+                                // cut autopaste part of path
+
+                                if(saveName != "unset_tmp_savename" && saveStart_X!=0)
+                                {
+                                    bool ok = false;
+                                    TableCutoffStart = QVariant(saveName).toInt(&ok);
+
+                                    if(!ok || TableCutoffStart <0)
+                                    {
+                                        TableCutoffStart =-1;
+                                        TableCutoffEnd =-1;
+                                    }
+                                    else
+                                    {
+                                        // all good
+                                        TableCutoffEnd = TableCutoffStart + saveStart_X;
+                                    }
+                                }
+                                if(subscriptDriver.startsWith("file:///"))
+                                {
+                                    for(int i=0;i < subscriptDriver.size();i++)
+                                    {
+                                        if(i+7 < subscriptDriver.size())
+                                            subscriptDriver[i]=subscriptDriver[i+8];
+                                    }
+                                    subscriptDriver.resize(subscriptDriver.size()-8);
+                                    qDebug() <<"subscriptDriver" <<subscriptDriver;
+                                }
+
+                                subscriptConnesction->data.ImportFromExcel(subscriptDriver,0,0,0,0,true);
+                                if(subscriptDBname != "NoDatabase")
+                                {// leave only one column
+                                    for(int it=0;it<subscriptConnesction->data.headers.size();it++)
+                                    {
+                                        if(subscriptConnesction->data.headers[it] == subscriptDBname)
+                                        {
+                                            neededMagicColumn = it;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+
                             // silent exporting
                             if(subCommandPatterns[i] == "SilentSubexecToSqliteTable")
                             {
@@ -752,7 +811,7 @@ bool DatabaseConnection::execSql(QString sql)
 
 
                             }
-                            else if(subCommandPatterns[i] == "SubexecToMagic")
+                            else if(subCommandPatterns[i] == "SubexecToMagic" || subCommandPatterns[i] == "ExcelToMagic")
                             {// exec into ('magic', 'element1') , ('magic', 'element2')
                                 //Probably oracle specific cuz oracle has 1k limit on 'in' arrays
                                 savefilecount++;
@@ -762,23 +821,27 @@ bool DatabaseConnection::execSql(QString sql)
                                 {
                                     for(int j=0;j<subscriptConnesction->data.tbldata[0].size();j++)
                                     {
+                                        if(TableCutoffEnd>=0  && TableCutoffStart>=0 && j < TableCutoffStart)
+                                            continue;
+                                        if(TableCutoffEnd>=0 && TableCutoffStart>=0  && j > TableCutoffEnd)
+                                            break;
                                         for(int t=0;t<subscriptConnesction->data.tbldata.size();t++)
                                         {
-                                            formatedSql += "('magic',";
-                                            formatedSql += "'";
-                                            formatedSql += subscriptConnesction->data.tbldata[t][j].toString();
-                                            formatedSql += "'";
-                                            formatedSql += ")";
-                                            if(j + 1 <subscriptConnesction->data.tbldata[0].size() || t + 1 <subscriptConnesction->data.tbldata.size()) // there will be next
-                                                formatedSql += ",";
+                                            if(t == neededMagicColumn || neededMagicColumn == -1)
+                                            {
+                                                formatedSql += "('magic',";
+                                                formatedSql += "'";
+                                                formatedSql += subscriptConnesction->data.tbldata[t][j].toString();
+                                                formatedSql += "'";
+                                                formatedSql += ")";
+                                                if(((TableCutoffEnd>=0 && TableCutoffStart>=0  && j+1 <= TableCutoffEnd && j + 1 <subscriptConnesction->data.tbldata[0].size()) || (TableCutoffEnd<0 && TableCutoffStart<0 && j + 1 <subscriptConnesction->data.tbldata[0].size())) || (t + 1 <subscriptConnesction->data.tbldata.size() && neededMagicColumn == -1)) // there will be next
+                                                    formatedSql += ",";
+                                            }
                                         }
                                     }
                                 }
-
-
-
                             }
-                            else if(subCommandPatterns[i] == "SubexecToArray")
+                            else if(subCommandPatterns[i] == "SubexecToArray"  || subCommandPatterns[i] == "ExcelToArray")
                             {// exec into 'element1','element2','element3'
                                 savefilecount++;
                                 qDebug() <<"Reached SubexecToArray implementation";
@@ -786,13 +849,20 @@ bool DatabaseConnection::execSql(QString sql)
                                 {
                                     for(int j=0;j<subscriptConnesction->data.tbldata[0].size();j++)
                                     {
+                                        if(TableCutoffEnd>=0  && TableCutoffStart>=0 && j < TableCutoffStart)
+                                            continue;
+                                        if(TableCutoffEnd>=0 && TableCutoffStart>=0  && j > TableCutoffEnd)
+                                            break;
                                         for(int t=0;t<subscriptConnesction->data.tbldata.size();t++)
                                         {
-                                            formatedSql += "'";
-                                            formatedSql += subscriptConnesction->data.tbldata[t][j].toString();
-                                            formatedSql += "' ";
-                                            if(j + 1 <subscriptConnesction->data.tbldata[0].size() || t + 1 <subscriptConnesction->data.tbldata.size()) // there will be next
-                                                formatedSql += ",";
+                                            if(t == neededMagicColumn || neededMagicColumn == -1)
+                                            {
+                                                formatedSql += "'";
+                                                formatedSql += subscriptConnesction->data.tbldata[t][j].toString();
+                                                formatedSql += "' ";
+                                                if(((TableCutoffEnd>=0 && TableCutoffStart>=0  && j+1 <= TableCutoffEnd && j + 1 <subscriptConnesction->data.tbldata[0].size()) || (TableCutoffEnd<0 && TableCutoffStart<0 && j + 1 <subscriptConnesction->data.tbldata[0].size())) || (t + 1 <subscriptConnesction->data.tbldata.size() && neededMagicColumn == -1)) // there will be next
+                                                    formatedSql += ",";
+                                            }
                                         }
                                     }
                                 }
@@ -813,6 +883,56 @@ bool DatabaseConnection::execSql(QString sql)
                                 return false;
                             }
                         }
+
+                        if(subCommandPatterns[i].startsWith("SendMail") )
+                        {
+                            QString host;
+                            QString Sender;
+                            QString SenderName;
+                            QStringList to;
+                            QStringList cc;
+                            QString Subject;
+                            QString messageText;
+                            QStringList attachments;
+
+
+                            int varcount = 0;
+                            for(auto s : funcVariables)
+                            {
+                                if(varcount ==0)
+                                    host = s;
+                                if(varcount ==1)
+                                    Sender = s;
+                                if(varcount ==2)
+                                    SenderName = s;
+                                if(varcount ==3)
+                                    to = s.split(',');
+                                if(varcount ==4)
+                                    cc = s.split(',');
+                                if(varcount ==5)
+                                    Subject = s;
+                                if(varcount ==6)
+                                    messageText = s;
+                                if(varcount ==7)
+                                    attachments = s.split(',');
+                                varcount ++;
+                            }
+
+                            qDebug() << "sending :";
+                            qDebug() << "host = " << host;
+                            qDebug() << "Sender = " << Sender;
+                            qDebug() << "SenderName = " << SenderName;
+                            qDebug() << "to = " << to;
+                            qDebug() << "cc = " << cc;
+                            qDebug() << "Subject = " << Subject;
+                            qDebug() << "messageText = " << messageText;
+                            qDebug() << "attachments = " << attachments;
+
+                            emit sendMail(host,Sender,SenderName,to,cc,Subject,messageText,attachments);
+
+
+                        }
+
                         // no recursion = manualy unroll though reset
                         if(subCommandPatterns[i].trimmed() == "ForLoop" || subCommandPatterns[i].trimmed() == "QueryForLoop")
                         {
@@ -905,6 +1025,45 @@ bool DatabaseConnection::execSql(QString sql)
 
                             formatedSql += " ";
                         }
+
+                        if(subCommandPatterns[i].trimmed() == "DBLPasteMonth")
+                        {
+                            QString str;
+                            QDateTime::currentDateTime().date().month();
+                            int monthnum = QDateTime::currentDateTime().date().month();
+                            if(funcVariables.size() > 0)
+                            {
+                                int offset = 0;
+                                bool ok = false;
+                                offset = QVariant(funcVariables[0]).toInt(&ok);
+                                if(ok)
+                                    monthnum +=offset;
+                            }
+                            str = QVariant(monthnum).toString();
+                            if(str.size() == 1)
+                                str = "0" + str;
+                            qDebug() << str;
+                            formatedSql += str;
+                        }
+
+                        if(subCommandPatterns[i].trimmed() == "DBLPasteNumMonth")
+                        {
+                            QString str;
+                            QDateTime::currentDateTime().date().month();
+                            int monthnum = QDateTime::currentDateTime().date().month();
+                            if(funcVariables.size() > 0)
+                            {
+                                int offset = 0;
+                                bool ok = false;
+                                offset = QVariant(funcVariables[0]).toInt(&ok);
+                                if(ok)
+                                    monthnum +=offset;
+                            }
+                            str = QVariant(monthnum).toString();
+                            qDebug() << str;
+                            formatedSql += str;
+                        }
+
                         keywordbuff = "";
                     }
                 }
@@ -937,7 +1096,7 @@ bool DatabaseConnection::execSql(QString sql)
     qDebug()<<"Exiting sql subcomand processing........";
     qDebug()<<"Resulting formatedSql is";
     QString str = formatedSql.trimmed();
-
+    executing = true;
     // run result
     while(str.endsWith('\n') || str.endsWith('}') ||str.endsWith('\t') || str.endsWith(' '))
         str.resize(str.size()-1);
@@ -945,27 +1104,31 @@ bool DatabaseConnection::execSql(QString sql)
     qDebug() << "creating query";
     emit queryBeginCreating();
 
+    queryExecutionState = 1;
     if(customOracle)
     {
 
         emit queryBeginExecuting();
         try{
-            lastenv = oracle::occi::Environment::createEnvironment ( "CL8MSWIN1251", "CL8MSWIN1251",oracle::occi::Environment::Mode::DEFAULT);//oracle::occi::Environment::DEFAULT);
+            if(OCI_lastenv == nullptr)
+                OCI_lastenv = oracle::occi::Environment::createEnvironment ( "CL8MSWIN1251", "CL8MSWIN1251",oracle::occi::Environment::Mode::DEFAULT);//oracle::occi::Environment::DEFAULT);
 
             QString connection_string ="(DESCRIPTION=(ADDRESS=(PROTOCOL=tcp) (HOST=" + ipAddres.trimmed() + ") (PORT=" + port.trimmed() + "))(CONNECT_DATA=(SERVICE_NAME=" + schemaName.trimmed() + ")))";
-            lastcon = lastenv->createConnection (usrname.trimmed().toStdString(),password.trimmed().toStdString(),connection_string.toStdString());
+            OCI_lastcon = ((oracle::occi::Environment*)OCI_lastenv)->createConnection (usrname.trimmed().toStdString(),password.trimmed().toStdString(),connection_string.toStdString());
 
             emit queryBeginExecuting();
+            queryExecutionState = 2;
 
             bool status = true;
             try {
-                laststmt = nullptr;
-                laststmt = lastcon->createStatement (str.toLocal8Bit().constData());
+                OCI_laststmt = nullptr;
+                OCI_laststmt = ((oracle::occi::Connection*)OCI_lastcon)->createStatement (str.toLocal8Bit().constData());
 
-                laststmt->setPrefetchRowCount(5000); // enable bulk collect
                 oracle::occi::ResultSet *rset = nullptr;
-                rset = laststmt->executeQuery ();
+                rset = ((oracle::occi::Statement*)OCI_laststmt)->executeQuery ();
+                ((oracle::occi::Statement*)OCI_laststmt)->setPrefetchRowCount(5000); // enable bulk collect
                 emit querySuccess();
+                queryExecutionState = 3;
                 dataDownloading = true;
 
                 mtl.push_back(rset->getColumnListMetaData());
@@ -985,6 +1148,7 @@ bool DatabaseConnection::execSql(QString sql)
 
 
                 int ccnt = 0;
+
 
 
                 while (rset->next () && mtl.back().size() > 0)
@@ -1019,8 +1183,8 @@ bool DatabaseConnection::execSql(QString sql)
                 dataDownloading = false;
                 if(rset!=nullptr)
                     rset->cancel();
-                if(laststmt!=nullptr)
-                    laststmt->closeResultSet (rset);
+                if(((oracle::occi::Statement*)OCI_laststmt)!=nullptr)
+                    ((oracle::occi::Statement*)OCI_laststmt)->closeResultSet (rset);
             }catch(oracle::occi::SQLException ex)
             {
                 lastLaunchIsError = true;
@@ -1029,18 +1193,18 @@ bool DatabaseConnection::execSql(QString sql)
                 int errorpos = 0; //
                 status = false;
                 lastOracleError = ex.getMessage().c_str();
-                if(laststmt!= nullptr && lastenv != nullptr)
+                if(((oracle::occi::Statement*)OCI_laststmt)!= nullptr && ((oracle::occi::Environment*)OCI_lastenv) != nullptr)
                 {
                     try
                     {
                         static OCIError *errhp = NULL;
                         qDebug() << "generating error";
-                        (void) OCIHandleAlloc( (dvoid *) lastenv->getOCIEnvironment(), (dvoid **) &errhp, OCI_HTYPE_ERROR, (size_t) 0, (dvoid **) 0);
+                        (void) OCIHandleAlloc( (dvoid *) ((oracle::occi::Environment*)OCI_lastenv)->getOCIEnvironment(), (dvoid **) &errhp, OCI_HTYPE_ERROR, (size_t) 0, (dvoid **) 0);
 
 
 
                         qDebug() << "retrieving error";
-                        OCIAttrGet((dvoid *)laststmt->getOCIStatement(), (ub4)OCI_HTYPE_STMT,
+                        OCIAttrGet((dvoid *)((oracle::occi::Statement*)OCI_laststmt)->getOCIStatement(), (ub4)OCI_HTYPE_STMT,
                                    (dvoid *)&errorpos, (ub4 *)NULL,
                                    (ub4)OCI_ATTR_PARSE_ERROR_OFFSET, errhp);
 
@@ -1059,15 +1223,15 @@ bool DatabaseConnection::execSql(QString sql)
                 {
 
                     try {
-                        if(laststmt!= nullptr)
-                            lastcon->terminateStatement (laststmt);
-                        laststmt = nullptr;
+                        if(((oracle::occi::Statement*)OCI_laststmt)!= nullptr)
+                            ((oracle::occi::Connection*)OCI_lastcon)->terminateStatement (((oracle::occi::Statement*)OCI_laststmt));
+                        OCI_laststmt = nullptr;
 
-                        if(lastenv!= nullptr && lastcon != nullptr)
-                            lastenv->terminateConnection (lastcon);
+                        if(((oracle::occi::Environment*)OCI_lastenv)!= nullptr && ((oracle::occi::Connection*)OCI_lastcon) != nullptr)
+                            ((oracle::occi::Environment*)OCI_lastenv)->terminateConnection (((oracle::occi::Connection*)OCI_lastcon));
 
-                        if(lastenv!= nullptr)
-                            oracle::occi::Environment::terminateEnvironment (lastenv);
+                        if(((oracle::occi::Environment*)OCI_lastenv)!= nullptr)
+                            oracle::occi::Environment::terminateEnvironment (((oracle::occi::Environment*)OCI_lastenv));
                     }
                     catch(oracle::occi::SQLException ex)
                     {
@@ -1079,25 +1243,29 @@ bool DatabaseConnection::execSql(QString sql)
                     data.tbldata.clear();
                     data.tbldata.emplace_back();
                     data.headers.push_back("Error");
+                    data.tbldata.back().emplace_back("user canceled query");
                     qDebug() << "stopped";
                     executing = false;
+                    executionEnd = QDateTime::currentDateTime();
+                    executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
                     emit execedSql();
+                    queryExecutionState = 4;
                     return false;
                 }
             }
 
             qDebug() << "closing statement";
-            if(laststmt!= nullptr)
-                lastcon->terminateStatement (laststmt);
-            laststmt = nullptr;
+            if(((oracle::occi::Statement*)OCI_laststmt)!= nullptr)
+                ((oracle::occi::Connection*)OCI_lastcon)->terminateStatement (((oracle::occi::Statement*)OCI_laststmt));
+            OCI_laststmt = nullptr;
 
             qDebug() << "closing connection";
-            if(lastenv!= nullptr && lastcon != nullptr)
-                lastenv->terminateConnection (lastcon);
+            if(((oracle::occi::Environment*)OCI_lastenv)!= nullptr && ((oracle::occi::Connection*)OCI_lastcon) != nullptr)
+                ((oracle::occi::Environment*)OCI_lastenv)->terminateConnection (((oracle::occi::Connection*)OCI_lastcon));
 
             qDebug() << "closing env";
-            if(lastenv!= nullptr)
-                oracle::occi::Environment::terminateEnvironment (lastenv);
+            if(((oracle::occi::Environment*)OCI_lastenv)!= nullptr)
+                oracle::occi::Environment::terminateEnvironment (((oracle::occi::Environment*)OCI_lastenv));
 
             //currentRunningOracleDriver = nullptr;
             if(!status)
@@ -1116,6 +1284,7 @@ bool DatabaseConnection::execSql(QString sql)
                     QString searchstr = " line ";
                     while(errStr.contains(searchstr))
                     {
+
                         QString replaceThe = "";
                         int match = 0;
                         int i =0;
@@ -1152,19 +1321,24 @@ bool DatabaseConnection::execSql(QString sql)
                 data.tbldata.back().push_back(QString("Error position ") + QVariant(lastErrorPos + _code_start_pos).toString());
 
 
-                executionTime = QDateTime::currentSecsSinceEpoch() - executionTime;
                 qDebug() << "Execd";
-                lastenv = nullptr;
-                lastcon = nullptr;
+                OCI_lastenv = nullptr;
+                OCI_lastcon = nullptr;
                 executing = false;
+                executionEnd = QDateTime::currentDateTime();
+                executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
                 emit execedSql();
+                queryExecutionState = 4;
                 return false;
             }
-            lastenv = nullptr;
-            lastcon = nullptr;
+            OCI_lastenv = nullptr;
+            OCI_lastcon = nullptr;
 
             executing = false;
+            executionEnd = QDateTime::currentDateTime();
+            executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
             emit execedSql();
+            queryExecutionState = 4;
             return true;
         }
         catch (oracle::occi::SQLException ex){
@@ -1218,28 +1392,34 @@ bool DatabaseConnection::execSql(QString sql)
             data.tbldata.back().push_back(ex.getMessage().c_str());
             data.tbldata.back().push_back(errStr);
 
-            executionTime = QDateTime::currentSecsSinceEpoch() - executionTime;
+            executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
             //currentRunningOracleDriver = nullptr;
 
             qDebug() << "Execd";
-            lastenv = nullptr;
-            lastcon = nullptr;
+            OCI_lastenv = nullptr;
+            OCI_lastcon = nullptr;
             executing = false;
+            executionEnd = QDateTime::currentDateTime();
+            executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
             emit execedSql();
+            queryExecutionState = 4;
             return false;
         }
 
         qDebug() << "oracledb execed";
 
-        lastenv = nullptr;
-        lastcon = nullptr;
+        OCI_lastenv = nullptr;
+        OCI_lastcon = nullptr;
         //currentRunningOracleDriver = nullptr;
+        executionEnd = QDateTime::currentDateTime();
+        executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
         emit execedSql();
         executing = false;
+        queryExecutionState = 4;
         return true;
     }
-    lastenv = nullptr;
-    lastcon = nullptr;
+    OCI_lastenv = nullptr;
+    OCI_lastcon = nullptr;
     //currentRunningOracleDriver = nullptr;
     QSqlQuery q(db);
     query = &q;
@@ -1249,10 +1429,12 @@ bool DatabaseConnection::execSql(QString sql)
     data.headers.clear();
     qDebug() << "executing query";
     emit queryBeginExecuting();
+    queryExecutionState = 2;
     if(q.exec(str) && q.isSelect())
     {
         qDebug() << "query sucess.  isSelect = " << q.isSelect();
         emit querySuccess();
+        queryExecutionState = 3;
         for(int a=0,total = q.record().count(); a<total;a++)
             data.headers << q.record().fieldName(a);
         int i=0;
@@ -1359,25 +1541,28 @@ bool DatabaseConnection::execSql(QString sql)
         q.finish();
         query = nullptr;
 
-        executionTime = QDateTime::currentSecsSinceEpoch() - executionTime;
+        executionEnd = QDateTime::currentDateTime();
+        executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
         qDebug() << "Execd";
         executing = false;
         emit execedSql();
+        queryExecutionState = 4;
         return false;
     }
 
-    lastenv = nullptr;
-    lastcon = nullptr;
+    OCI_lastenv = nullptr;
+    OCI_lastcon = nullptr;
     q.clear();
     q.finish();
     query = nullptr;
 
     for(int i=0;i<data.headers.size();i++)
         data.setHeaderData(i,Qt::Horizontal,data.headers[i]);
-    executionTime = QDateTime::currentSecsSinceEpoch() - executionTime;
+    executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
     executionEnd = QDateTime::currentDateTime();
     qDebug() << "Execd";
     executing = false;
+    queryExecutionState = 4;
     emit execedSql();
     return true;
 }
@@ -1388,27 +1573,32 @@ void DatabaseConnection::stopRunning()
 {
     qDebug()<<"attempting to stop query";
     stopNow = true;
-    if(subscriptConnesction != nullptr)
+    if(subscriptConnesction != nullptr && subscriptConnesction->executing)
     {
         subscriptConnesction->stopRunning();
         stopNow = true;
+        //return;
     }
 
-    if(!dataDownloading && customOracle && lastenv!=nullptr && lastcon!=nullptr)
+    if(!dataDownloading && customOracle && ((oracle::occi::Environment*)OCI_lastenv)!=nullptr && ((oracle::occi::Connection*)OCI_lastcon)!=nullptr)
     { // signal to stop running query
+
+
         qDebug()<<"sending OCIBreak";
         try{
-            if( lastcon!=nullptr  && lastenv!=nullptr )
+            if( ((oracle::occi::Connection*)OCI_lastcon)!=nullptr  && ((oracle::occi::Environment*)OCI_lastenv)!=nullptr )
             {
+
+
                 qDebug() << "realy sending OCIBreak(con->getOCIServer(),0);";
 
                 static OCIError *errhp = NULL;
-                (void) OCIHandleAlloc( (dvoid *) lastenv->getOCIEnvironment(), (dvoid **) &errhp, OCI_HTYPE_ERROR, (size_t) 0, (dvoid **) 0);
+                (void) OCIHandleAlloc( (dvoid *) ((oracle::occi::Environment*)OCI_lastenv)->getOCIEnvironment(), (dvoid **) &errhp, OCI_HTYPE_ERROR, (size_t) 0, (dvoid **) 0);
 
 
-                int intResult = OCIBreak(lastcon->getOCIServer(), errhp);
+                int intResult = OCIBreak(((oracle::occi::Connection*)OCI_lastcon)->getOCIServer(), errhp);
                 qDebug() << "intResult = OCI_SUCCESS " << intResult  << " = "<< OCI_SUCCESS << OCI_ERROR << OCI_SUCCESS_WITH_INFO << OCI_INVALID_HANDLE;
-                intResult = OCIBreak(lastcon->getOCIServer(), errhp);
+                intResult = OCIBreak(((oracle::occi::Connection*)OCI_lastcon)->getOCIServer(), errhp);
                 qDebug() << "serv intResult = OCI_SUCCESS " << intResult  << " = "<< OCI_SUCCESS << OCI_ERROR << OCI_SUCCESS_WITH_INFO << OCI_INVALID_HANDLE;
 
                 try

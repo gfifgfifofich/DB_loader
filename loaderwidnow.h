@@ -40,11 +40,40 @@ public:
     explicit LoaderWidnow(QWidget *parent = nullptr);
     ~LoaderWidnow();
 
+    bool autolaunchTimerWindowVisible = false;
+    QTimer autolaunchTimer;
 
     CodeEditor* cd = nullptr;
 
-    DatabaseConnection dc;
-    QThread* sqlexecThread = nullptr;
+    DatabaseConnection* dc = nullptr;
+    QThread** sqlexecThread = nullptr;
+
+    //Tabs
+    QStringList tabNames;
+    QStringList tabIds;
+    struct tabdata
+    {
+        QThread* sqlexecThread = nullptr;
+        DatabaseConnection dc;
+        CodeEditor* cd = nullptr;
+        QString Name = "tab";
+        QString Id = "0";
+        QString sql = "";
+        QString workspaceName = "tmp";
+        int lastQueryState = 0;
+        QString lastMessage = "";
+        QString lastTableMessage = "";
+        QString lastTableDBName = "";
+        int textposition = 0;
+        ~tabdata()
+        {
+            if(!dc.executing && sqlexecThread != nullptr)
+                delete sqlexecThread;
+            dc.stopRunning();
+        }
+    };
+    std::vector <tabdata*> tabDatas;
+    int currentTabId = 0;
 
     // Query states
     int queryExecutionState = 0;
@@ -263,6 +292,10 @@ public:
 
     NeuralNetwork nn;
 
+
+public slots:
+    void sendMail(QString host, QString Sender, QString SenderName, QStringList to,QStringList cc, QString Subject, QString messageText, QStringList attachments);
+
 private slots:
 
     // on DB switch
@@ -284,6 +317,8 @@ private slots:
     // update label/timer
     void executionTimerTimeout();
 
+    //Autolaunch timer
+    void autolaunchCheck();
 
     // ForceStop query dwonloading
     void on_stopLoadingQueryButton_pressed();
@@ -303,6 +338,9 @@ private slots:
     // open last saved exel file
     void OpenFile();
 
+    // open output directory
+    void OpenDirectory();
+
     // open new app instance
     void OpenNewWindow();
 
@@ -321,6 +359,7 @@ private slots:
     void ShowHistoryWindow();
     void ShowWorkspacesWindow();
     void ShowIterateWindow();
+    void ShowTimerWindow();
     void ShowGraph();
 
     // Graph stuff
@@ -355,6 +394,14 @@ private slots:
     //Depricated
     void IterButtonPressed();
 
+
+    void on_tabWidget_tabCloseRequested(int index);
+
+    void on_tabWidget_currentChanged(int index);
+
+    void on_tabWidget_tabBarDoubleClicked(int index);
+
+    void on_pushButton_4_clicked();
 
 private:
     Ui::LoaderWidnow *ui;

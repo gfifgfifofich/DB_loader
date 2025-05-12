@@ -40,7 +40,8 @@ void fillPaterns()
 "}\n"
 "UserTheme\n"
 "{\n"
-"	 CodePreview = false"
+"	 ShowTestButtons 0"
+"	 CodePreview 0"
 "    BracketHighlightColor 5,5,35,255 \n"
 "    ColumnBold true \n"
 "    ColumnColor 255,100,10,255 \n"
@@ -76,9 +77,15 @@ void fillPaterns()
     subCommandPatterns.push_back("SubexecAppendCSV");
     subCommandPatterns.push_back("SubexecToMagic");
     subCommandPatterns.push_back("SubexecToArray");
+    subCommandPatterns.push_back("DBLPasteMonth");
+    subCommandPatterns.push_back("DBLPasteNumMonth");
+    subCommandPatterns.push_back("ExcelToMagic");
+    subCommandPatterns.push_back("ExcelToArray");
     subCommandPatterns.push_back("SubexecToCSV");
     subCommandPatterns.push_back("QueryForLoop");
+    subCommandPatterns.push_back("SendMail");
     subCommandPatterns.push_back("ForLoop");
+
 
     PostgrePatterns.push_back("abort;");
     PostgrePatterns.push_back("abs");

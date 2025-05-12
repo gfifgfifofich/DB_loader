@@ -20,6 +20,9 @@ add_subdirectory(QXlsx-master/QXlsx)
 
 LINK_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/Oracle/lib)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/Oracle/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/SimpleMail)
+LINK_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/lib)
+
 
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -78,6 +81,7 @@ target_link_libraries(untitled PRIVATE Qt6::Graphs)
 target_link_libraries(untitled PRIVATE Qt6::Quick)
 target_link_libraries(untitled PRIVATE Qt6::QuickControls2)
 target_link_libraries(untitled PRIVATE oci oraocci12)
+target_link_libraries(untitled PRIVATE SimpleMail3Qt6)
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an

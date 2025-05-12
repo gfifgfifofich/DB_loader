@@ -15,6 +15,8 @@
 #include <QQmlApplicationEngine>
 #include <qtimer.h>
 #include "tokenprocessor.h"
+#include <QInputDialog>
+
 /*
 +                                          add togglable "add db name into file name" // feature added, not togglable
 +                                          add ability to stop downloading query at any point of downloading, mb togglable autopause at 500
@@ -71,6 +73,7 @@
 */
 
 
+inline QDateTime autolaunchLastLaunch;
 inline QString usrDir;
 inline QString documentsDir;
 inline DataStorage userDS;
@@ -82,6 +85,7 @@ inline QTime lastMultiRunPress = QTime::currentTime();
 QStringList allPosibbleTokens;
 QMap<QString,int> allPosibbleTokensMap;
 
+
 LoaderWidnow::LoaderWidnow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::LoaderWidnow)
@@ -90,11 +94,60 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     ui->stopLoadingQueryButton->hide();
 
 
-    cd = new CodeEditor();
-    ui->CodeEditorLayout->addWidget(cd);
+
+
+    //ui->tabWidget->setTabWhatsThis(ui->tabWidget->tabBar()->count()-1,QVariant(_addtabcounter).toString());
+    while (ui->tabWidget->tabBar()->count()>0)
+    {
+        ui->tabWidget->removeTab(0);
+    }
+    QWidget* wg = new QWidget();
+    wg->setWhatsThis(QVariant(0).toString());
+
+    ui->tabWidget->addTab(wg,"New tab" + QVariant(0).toString());
+    ui->tabWidget->setTabWhatsThis(ui->tabWidget->tabBar()->count()-1,QVariant(0).toString());
+    //tab_dcs.emplace_back();
+    //tab_ids.emplace_back(0);
+    //dc = new DatabaseConnection();
+    // = tab_data.back().dc;
+    //dc = tab_dcs.back();
+
+    ui->timerdayMonthly->hide();
+    ui->timerDayWeekly->hide();
+    ui->timerHourWeekly->hide();
+    ui->timerHourDaily->hide();
+    ui->timerHourMonthly->hide();
+    ui->timerMinuteDaily->hide();
+    ui->timerMinuteWeekly->hide();
+    ui->timerMinuteMonthly->hide();
+    ui->timer_checkBox->hide();
+    ui->timer_checkBox_2->hide();
+    ui->timer_checkBox_3->hide();
+    ui->timerMainLabel->hide();
+    ui->timerRemainingTime->hide();
+    ui->timerLastLaunchTime->hide();
+    autolaunchLastLaunch = QDateTime::currentDateTime();
+
+
+    tabDatas.push_back(new tabdata());
+    tabDatas.back()->Name = "New tab0";
+    tabDatas.back()->Id = "0";
+
+    tabDatas.back()->cd = new CodeEditor();
+
+    cd = tabDatas.back()->cd;
+    ui->CodeEditorLayout->layout()->addWidget(cd);
+
+    dc = &tabDatas.back()->dc;
+    sqlexecThread = &tabDatas.back()->sqlexecThread;
 
     //open new app instance
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_N), this, SLOT(OpenNewWindow()));
+    new QShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_N), this, SLOT(OpenNewWindow()));
+
+    //open new Tab
+    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_N), this, SLOT(on_pushButton_4_clicked()));
+
+
 
     // run query
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_R), this, SLOT(runSqlAsync()));
@@ -102,8 +155,11 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 
     //.xlsx export
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_E), this, SLOT(on_SaveXLSXButton_pressed())); // save to file
+
     // open .xlsx file
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_O), this, SLOT(OpenFile()));
+    // open .xlsx file
+    new QShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_O), this, SLOT(OpenDirectory()));
 
     // save workspace
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_S), this, SLOT(SaveWorkspace()));
@@ -121,6 +177,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_G), this, SLOT(ShowGraph()));
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_H), this, SLOT(ShowHistoryWindow()));
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_W), this, SLOT(ShowWorkspacesWindow()));
+    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_T), this, SLOT(ShowTimerWindow()));
 
     // graph window init
     gw.Init();
@@ -129,14 +186,17 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     ui->listWidget->hide();
 
 
-
     //signal binding
     //query states
-    connect( &dc, SIGNAL(queryBeginCreating()), this, SLOT(onQueryBeginCreating()), Qt::QueuedConnection );
-    connect( &dc, SIGNAL(queryBeginExecuting()), this, SLOT(onQueryBegin()), Qt::QueuedConnection );
-    connect( &dc, SIGNAL(querySuccess()), this, SLOT(onQuerySuccess()), Qt::QueuedConnection );
-    connect( &dc, SIGNAL(execedSql()), this, SLOT(UpdateTable()), Qt::QueuedConnection );
+    connect( dc, SIGNAL(queryBeginCreating()), this, SLOT(onQueryBeginCreating()), Qt::QueuedConnection );
+    connect( dc, SIGNAL(queryBeginExecuting()), this, SLOT(onQueryBegin()), Qt::QueuedConnection );
+    connect( dc, SIGNAL(querySuccess()), this, SLOT(onQuerySuccess()), Qt::QueuedConnection );
+    connect( dc, SIGNAL(execedSql()), this, SLOT(UpdateTable()), Qt::QueuedConnection );
+    connect( dc, SIGNAL(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList)), this, SLOT(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList)), Qt::QueuedConnection );
+
+
     connect(&executionTimer, SIGNAL(timeout()), this, SLOT(executionTimerTimeout()));
+     connect(&autolaunchTimer, SIGNAL(timeout()), this, SLOT(autolaunchCheck()));
     //codeeditor
     connect( cd, SIGNAL(s_suggestedName()), this, SLOT(updatesuggestion()), Qt::QueuedConnection );
     //graph
@@ -146,8 +206,17 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     connect( &gw.separateBysb, SIGNAL(valueChanged(int)), this, SLOT(on_graph_separator_change(int)), Qt::QueuedConnection );
     connect( &gw.dataColumnsb, SIGNAL(valueChanged(int)), this, SLOT(on_graph_data_change(int)), Qt::QueuedConnection );
 
+
+
+
     //maximize code editor
     ui->splitter->setSizes({1,2000,1});
+
+
+    autolaunchTimer.setInterval(1000);
+    autolaunchTimer.setSingleShot(false);
+    autolaunchTimer.start();
+
 
     // load last database/driver
     if(userDS.Load((documentsDir + "/userdata.txt").toStdString()))
@@ -171,6 +240,13 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
         userDS.Save("userdata.txt");
     }
 
+    if(!userDS.GetPropertyAsBool("UserTheme","ShowTestButtons"))
+    {
+        ui->pushButton->hide();
+        ui->pushButton_2->hide();
+        ui->nnTestLearn->hide();
+        ui->nnTestRun->hide();
+    }
     // if program was opened from command line with filename to open
     if(launchOpenFile)
     {
@@ -293,28 +369,28 @@ void LoaderWidnow::Init()
 LoaderWidnow::~LoaderWidnow()
 {
     qDebug()<<"closing window";
-    dc.stopRunning();
-    dc.db.close();
-    if(sqlexecThread != nullptr)
+    dc->stopRunning();
+    dc->db.close();
+    if((*sqlexecThread) != nullptr)
     {
         // a mess to have more chances of clearing db connection
         try
         {
-            dc.stopNow = true;
+            dc->stopNow = true;
             // stop query if loading.
             // if query is executing, thead will be left alive untill executed
             // still cant cancel query propperly
-            dc.db.driver()->cancelQuery(); // in case it will be possible some day...
-            dc.db.close();
-            dc.db.driver()->close();
-            if(dc.query != nullptr)
-                dc.query->finish();
-            sqlexecThread->terminate();
+            dc->db.driver()->cancelQuery(); // in case it will be possible some day...
+            dc->db.close();
+            dc->db.driver()->close();
+            if(dc->query != nullptr)
+                dc->query->finish();
+            (*sqlexecThread)->terminate();
 
         } catch (...)
         {
 
-            sqlexecThread->terminate();
+            (*sqlexecThread)->terminate();
         }
     }
     delete ui;
@@ -334,32 +410,32 @@ void LoaderWidnow::on_ConnectButton_pressed()
     QString dbname = ui->DBNameComboBox->currentText();
     QString usrname = ui->userNameLineEdit->text();
     QString password = ui->passwordLineEdit->text();
-    dc.connectionName = conname;
+    dc->connectionName = conname;
     bool differentDB = false;
-    if(dc.LastDBName != dbname || (driver == "LOCAL_SQLITE_DB"))
+    if(dc->LastDBName != dbname || (driver == "LOCAL_SQLITE_DB"))
         differentDB = true;
 
 
-    if(dc.Create(driver, dbname, usrname, password))
+    if(dc->Create(driver, dbname, usrname, password))
     {
 
-        ui->driverComboBox->setCurrentText(dc.driver);
-        ui->DBNameComboBox->setCurrentText(dc.dbname);
-        ui->userNameLineEdit->setText(dc.usrname);
-        ui->passwordLineEdit->setText(dc.password);
-        ui->connectionStatusLabel_2->setText(QString("connected to ") + dc.dbname);
+        ui->driverComboBox->setCurrentText(dc->driver);
+        ui->DBNameComboBox->setCurrentText(dc->dbname);
+        ui->userNameLineEdit->setText(dc->usrname);
+        ui->passwordLineEdit->setText(dc->password);
+        ui->connectionStatusLabel_2->setText(QString("connected to ") + dc->dbname);
 
         if(userDS.Load("userdata.txt"))
         {
             QString LastTmpDriverName =  ui->driverComboBox->currentText();
             QString LastTmpDbName = ui->DBNameComboBox->currentText();
 
-            userDS.data[ui->DBNameComboBox->currentText().toStdString()]["name"] = dc.usrname.toStdString();
-            userDS.data[ui->DBNameComboBox->currentText().toStdString()]["password"] = dc.password.toStdString();
-            userDS.data["User"]["lastDriver"] = dc.driver.toStdString();
-            userDS.data["User"]["lastDBName"] = dc.dbname.toStdString();
-            userDS.data["User"]["name"] = dc.usrname.toStdString();
-            userDS.data["User"]["password"] = dc.password.toStdString();
+            userDS.data[ui->DBNameComboBox->currentText().toStdString()]["name"] = dc->usrname.toStdString();
+            userDS.data[ui->DBNameComboBox->currentText().toStdString()]["password"] = dc->password.toStdString();
+            userDS.data["User"]["lastDriver"] = dc->driver.toStdString();
+            userDS.data["User"]["lastDBName"] = dc->dbname.toStdString();
+            userDS.data["User"]["name"] = dc->usrname.toStdString();
+            userDS.data["User"]["password"] = dc->password.toStdString();
 
             QStringList strl;
             userDS.data["UserDBs"][ui->DBNameComboBox->currentText().toStdString()];
@@ -388,12 +464,12 @@ void LoaderWidnow::on_ConnectButton_pressed()
             ui->driverComboBox->setCurrentText( LastTmpDriverName);
 
 
-            userDS.data[ui->DBNameComboBox->currentText().toStdString()]["name"] = dc.usrname.toStdString();
-            userDS.data[ui->DBNameComboBox->currentText().toStdString()]["password"] = dc.password.toStdString();
-            userDS.data["User"]["lastDriver"] = dc.driver.toStdString();
-            userDS.data["User"]["lastDBName"] = dc.dbname.toStdString();
-            userDS.data["User"]["name"] = dc.usrname.toStdString();
-            userDS.data["User"]["password"] = dc.password.toStdString();
+            userDS.data[ui->DBNameComboBox->currentText().toStdString()]["name"] = dc->usrname.toStdString();
+            userDS.data[ui->DBNameComboBox->currentText().toStdString()]["password"] = dc->password.toStdString();
+            userDS.data["User"]["lastDriver"] = dc->driver.toStdString();
+            userDS.data["User"]["lastDBName"] = dc->dbname.toStdString();
+            userDS.data["User"]["name"] = dc->usrname.toStdString();
+            userDS.data["User"]["password"] = dc->password.toStdString();
 
             userDS.Save("userdata.txt");
             qDebug()<<"Saved usedata.txt";
@@ -407,18 +483,18 @@ void LoaderWidnow::on_ConnectButton_pressed()
                 str = dbname.split('/')[1];
             else str =dbname.split('/')[0];
 
-            cd->highlighter->QSLiteStyle = dc.sqlite;//(driver == "QSQLite") || (driver == "LOCAL_SQLITE_DB");
-            cd->highlighter->PostgresStyle = dc.postgre;//(driver == "QPSQL");
-            cd->highlighter->UpdateTableColumns(&dc.db,str);
+            cd->highlighter->QSLiteStyle = dc->sqlite;//(driver == "QSQLite") || (driver == "LOCAL_SQLITE_DB");
+            cd->highlighter->PostgresStyle = dc->postgre;//(driver == "QPSQL");
+            cd->highlighter->UpdateTableColumns(&dc->db,str);
 
             cd->highlighter->rehighlight();
             cd->highlighter->rehighlight();
 
         }
-        ui->driverComboBox->setCurrentText(dc.driver);
-        ui->DBNameComboBox->setCurrentText(dc.dbname);
-        ui->userNameLineEdit->setText(dc.usrname);
-        ui->passwordLineEdit->setText(dc.password);
+        ui->driverComboBox->setCurrentText(dc->driver);
+        ui->DBNameComboBox->setCurrentText(dc->dbname);
+        ui->userNameLineEdit->setText(dc->usrname);
+        ui->passwordLineEdit->setText(dc->password);
     }
     else
         ui->connectionStatusLabel_2->setText("Not connected");
@@ -428,7 +504,7 @@ void LoaderWidnow::on_ConnectButton_pressed()
 // function to give to thread to process query async
 void _AsyncFunc(LoaderWidnow* loader)
 {
-    loader->dc.execSql();
+    loader->dc->execSql();
 }
 
 void LoaderWidnow::runSqlAsync()
@@ -451,14 +527,15 @@ void LoaderWidnow::runSqlAsync()
         userDS.Save("userdata.txt");
     }
 
-    if(dc.executing)
+    if(dc->executing)
     {
 
-        qDebug() << dc.db.driver()->cancelQuery();
+        qDebug() << dc->db.driver()->cancelQuery();
         return;
     }
     ui->pushButton_3->hide();
     queryExecutionState = 0;
+    dc->queryExecutionState = 0;
     QRandomGenerator64 gen; // random 64 bit connection name, to not close previous connections with 99.9% chance.
     QString conname = QVariant(gen.generate()).toString();
     QString driver = ui->driverComboBox->currentText();
@@ -466,14 +543,14 @@ void LoaderWidnow::runSqlAsync()
     QString usrname = ui->userNameLineEdit->text();
     QString password = ui->passwordLineEdit->text();
 
-    dc.executing = true;
+    dc->executing = true;
 
     // cut part of code to execute
     int sqlstart = 0;
     int sqlend = cd->toPlainText().size();
     if(cd->textCursor().selectedText().size() <= 5)
     {
-        dc.sqlCode = "";
+        dc->sqlCode = "";
         QString text = cd->toPlainText();
         int start = cd->textCursor().position()-1;
         if(start<0)
@@ -484,50 +561,51 @@ void LoaderWidnow::runSqlAsync()
             start++;
         QTextCursor tc = cd->textCursor();
         tc.setPosition(start,QTextCursor::MoveAnchor);
-        dc._code_start_line = tc.blockNumber();
-        dc._code_start_pos = tc.position();
+        dc->_code_start_line = tc.blockNumber();
+        dc->_code_start_pos = tc.position();
         int iter = start;
         sqlstart = start;
-        dc.sqlCode.push_back(text[iter]);
+        dc->sqlCode.push_back(text[iter]);
         iter++;
         while(iter<text.size())
         {
-            dc.sqlCode.push_back(text[iter]);
+            dc->sqlCode.push_back(text[iter]);
             sqlend = start;
             if((text[iter]==';'))
                 break;
             iter++;
         }
+        dc->_code_end_pos = iter;
         tc.setPosition(iter,QTextCursor::MoveAnchor);
         qDebug()<<"sql start "<<start;
         qDebug()<<"sql start "<<iter-1;
-        while(dc.sqlCode.endsWith(';'))
-            dc.sqlCode.resize(dc.sqlCode.size()-1);
+        while(dc->sqlCode.endsWith(';'))
+            dc->sqlCode.resize(dc->sqlCode.size()-1);
     }
     else
     {
-        dc.sqlCode = cd->textCursor().selectedText().toStdString().c_str();
-        dc.sqlCode = dc.sqlCode.replace('\r','\n');
-        dc.sqlCode = dc.sqlCode.replace(QChar(0x2029), QChar('\n'));
+        dc->sqlCode = cd->textCursor().selectedText().toStdString().c_str();
+        dc->sqlCode = dc->sqlCode.replace('\r','\n');
+        dc->sqlCode = dc->sqlCode.replace(QChar(0x2029), QChar('\n'));
 
         QTextCursor tc = cd->textCursor();
         tc.setPosition(cd->textCursor().selectionStart(),QTextCursor::MoveAnchor);
-        dc._code_start_line = tc.blockNumber();
-        dc._code_start_pos = tc.position();
+        dc->_code_start_line = tc.blockNumber();
+        dc->_code_start_pos = tc.position();
     }
     if(runall)
     {
-        dc._code_start_line = 0;
-        dc._code_start_pos = 0;
-        dc.sqlCode = cd->toPlainText();
-        while(dc.sqlCode.endsWith(';'))
-            dc.sqlCode.resize(dc.sqlCode.size()-1);
+        dc->_code_start_line = 0;
+        dc->_code_start_pos = 0;
+        dc->sqlCode = cd->toPlainText();
+        while(dc->sqlCode.endsWith(';'))
+            dc->sqlCode.resize(dc->sqlCode.size()-1);
     }
 
 
     qDebug()<<"Executing sql:";
-    ui->miscStatusLabel->setText(QString("running sql subqueries... start: ") + dc.executionStart.toString());
-    qDebug()<<dc.sqlCode;
+    ui->miscStatusLabel->setText(QString("running sql subqueries... start: ") + dc->executionStart.toString());
+    qDebug()<<dc->sqlCode;
     qDebug()<<"";
 
     // save sqlBacup
@@ -556,15 +634,15 @@ void LoaderWidnow::runSqlAsync()
     QTextCursor cursor = cd->textCursor();
     cursor.setPosition(sqlstart, QTextCursor::MoveAnchor);
     cursor.setPosition(sqlend+1, QTextCursor::KeepAnchor);
-    if(sqlexecThread!=nullptr)
-        sqlexecThread->terminate();
-    if(createconnection || !dc.db.isOpen() || dc.driver != ui->driverComboBox->currentText() ||dc.dbname != ui->DBNameComboBox->currentText())
+    if((*sqlexecThread)!=nullptr)
+        (*sqlexecThread)->terminate();
+    if(createconnection || !dc->db.isOpen() || dc->driver != ui->driverComboBox->currentText() ||dc->dbname != ui->DBNameComboBox->currentText())
     {
-        dc.connectionName = conname;
-        dc.driver = driver;
-        dc.dbname = dbname;
-        dc.usrname = usrname;
-        dc.password = password;
+        dc->connectionName = conname;
+        dc->driver = driver;
+        dc->dbname = dbname;
+        dc->usrname = usrname;
+        dc->password = password;
         qDebug() << "creating connection";
         on_ConnectButton_pressed();
         qDebug() << "created connection";
@@ -572,8 +650,8 @@ void LoaderWidnow::runSqlAsync()
 
 
     ui->miscStatusLabel->setText("running sql...");
-    sqlexecThread = QThread::create(_AsyncFunc,this);
-    sqlexecThread->start();
+    (*sqlexecThread) = QThread::create(_AsyncFunc,this);
+    (*sqlexecThread)->start();
     ui->miscStatusLabel->setText("running sql...");
 
     executionTimer.setSingleShot(false);
@@ -591,21 +669,21 @@ void LoaderWidnow::executionTimerTimeout()
 {// update label
 
     QString msg = "";
-    if(queryExecutionState >=3)
+    if(dc->queryExecutionState >=3)
     {
-        msg += QVariant(dc.data.tbldata.size()).toString();
+        msg += QVariant(dc->data.tbldata.size()).toString();
         msg += " : ";
-        if(dc.data.tbldata.size()>0)
-            msg += QVariant(dc.data.tbldata[0].size()).toString();
+        if(dc->data.tbldata.size()>0)
+            msg += QVariant(dc->data.tbldata[0].size()).toString();
         else
             msg += "0";
     }
-    dc.executionTime = QDateTime::currentSecsSinceEpoch() - dc.executionStart.toSecsSinceEpoch();
-    dc.executionEnd = QDateTime::currentDateTime();
-    QString hours =  QVariant((dc.executionTime / 3600)).toString();
-    QString minuts = QVariant(dc.executionTime % 3600 / 60).toString();
-    QString secs = QVariant(dc.executionTime % 60).toString();
-    QString msecs = QVariant((QDateTime::currentMSecsSinceEpoch() - dc.executionStart.toMSecsSinceEpoch())%1000).toString();
+    dc->executionTime = QDateTime::currentSecsSinceEpoch() - dc->executionStart.toSecsSinceEpoch();
+    dc->executionEnd = QDateTime::currentDateTime();
+    QString hours =  QVariant((dc->executionTime / 3600)).toString();
+    QString minuts = QVariant(dc->executionTime % 3600 / 60).toString();
+    QString secs = QVariant(dc->executionTime % 60).toString();
+    QString msecs = QVariant((QDateTime::currentMSecsSinceEpoch() - dc->executionStart.toMSecsSinceEpoch())%1000).toString();
 
     while(hours.size() <2)
         hours = QString("0") + hours;
@@ -615,13 +693,13 @@ void LoaderWidnow::executionTimerTimeout()
         secs = QString("0") + secs;
     while(msecs.size() <3)
         msecs = QString("0") + msecs;
-    if(queryExecutionState == 0)
+    if(dc->queryExecutionState == 0)
         msg += " running subqueries: ";
-    else if(queryExecutionState == 1)
+    else if(dc->queryExecutionState == 1)
         msg += " creating sql query: ";
-    else if(queryExecutionState == 2)
+    else if(dc->queryExecutionState == 2)
         msg += " executing sql query: ";
-    else if(queryExecutionState == 3)
+    else if(dc->queryExecutionState == 3)
         msg += " query success, downloading result: ";
     msg += hours;
     msg += ":";
@@ -632,13 +710,13 @@ void LoaderWidnow::executionTimerTimeout()
     msg += msecs;
 
     msg += "   Successfull queries: ";
-    msg += QVariant(dc.savefilecount).toString();
+    msg += QVariant(dc->savefilecount).toString();
     ui->miscStatusLabel->setText(msg);
 }
 void LoaderWidnow::onQueryBeginCreating()
 {
     qDebug()<<"onQueryBeginCreating()";
-    ui->miscStatusLabel->setText(QString("creating sql query...start: ") + dc.executionStart.toString());
+    ui->miscStatusLabel->setText(QString("creating sql query...start: ") + dc->executionStart.toString());
     queryExecutionState = 1;
     ui->pushButton_3->hide();
     //ui->stopLoadingQueryButton->hide();
@@ -646,7 +724,7 @@ void LoaderWidnow::onQueryBeginCreating()
 void LoaderWidnow::onQueryBegin()
 {
     qDebug()<<"onQueryBegin()";
-    ui->miscStatusLabel->setText(QString("executing sql query...start: ") + dc.executionStart.toString());
+    ui->miscStatusLabel->setText(QString("executing sql query...start: ") + dc->executionStart.toString());
     queryExecutionState = 2;
     ui->pushButton_3->hide();
     //ui->stopLoadingQueryButton->hide();
@@ -654,7 +732,7 @@ void LoaderWidnow::onQueryBegin()
 void LoaderWidnow::onQuerySuccess()
 {
     qDebug()<<"onQuerySuccess()";
-    ui->miscStatusLabel->setText(QString("query success, downloading...start: ") + dc.executionStart.toString());
+    ui->miscStatusLabel->setText(QString("query success, downloading...start: ") + dc->executionStart.toString());
     queryExecutionState = 3;
     ui->stopLoadingQueryButton->show();
     ui->pushButton_3->hide();
@@ -663,57 +741,74 @@ void LoaderWidnow::UpdateTable()
 {
     // clear tableData, fill tableView with new data up to  25k rows, update info label
 
+    if(dc->executing || dc->dataDownloading || dc->data.tbldata.size() <1 || dc->data.headers.size() <1)
+    {
+        ui->tableWidget->clear();
+        ui->tableWidget->setColumnCount(0);
+        ui->tableWidget->setRowCount(0);
+        return;
+
+    }
+    dc->queryExecutionState = 4;
     queryExecutionState = 4;
     executionTimer.stop();
 
-    if(dc.lastLaunchIsError)
+    if(dc->lastLaunchIsError)
     {
-        qDebug() << "errpos = " << dc._code_start_pos + dc.lastErrorPos;
+        int errpos = dc->_code_start_pos + dc->lastErrorPos;
+        if(dc->_code_end_pos-1  < errpos)
+        {
+            errpos = dc->_code_end_pos-1;
+        }
+        qDebug() << "errpos = " << dc->_code_start_pos + dc->lastErrorPos << " clamped to"<<errpos ;
         QTextCursor tc = cd->textCursor();
-        tc.setPosition(dc._code_start_pos + dc.lastErrorPos);
+        tc.setPosition(errpos);
         tc.select(QTextCursor::WordUnderCursor);
         cd->setTextCursor(tc);
+
     }
 
 
-    dc.executionEnd = QDateTime::currentDateTime();
-    dc.executionTime = dc.executionEnd.toSecsSinceEpoch() - dc.executionStart.toSecsSinceEpoch();
+    //dc->executionEnd = QDateTime::currentDateTime();
+    //dc->executionTime = dc->executionEnd.toSecsSinceEpoch() - dc->executionStart.toSecsSinceEpoch();
     ui->stopLoadingQueryButton->hide();
     ui->pushButton_3->show();
-    dc.tableDataMutex.lock();
+    dc->tableDataMutex.lock();
     ui->miscStatusLabel->setText("updating table data...");
     ui->tableWidget->clear();
-    ui->tableWidget->setColumnCount(dc.data.headers.size());
+    ui->tableWidget->setColumnCount(dc->data.headers.size());
     int tabl_size = 25000;
-    if(dc.data.tbldata.size()>0)
-        tabl_size  = dc.data.tbldata[0].size();
+    if(dc->data.tbldata.size()>0)
+        tabl_size  = dc->data.tbldata[0].size();
 
     if(tabl_size  > 25000)
         ui->tableWidget->setRowCount(25000);
     else
         ui->tableWidget->setRowCount(tabl_size );
 
-    ui->tableWidget->setHorizontalHeaderLabels(dc.data.headers);
-    for(int i=0;i<dc.data.tbldata.size();i++)
+    ui->tableWidget->setHorizontalHeaderLabels(dc->data.headers);
+    for(int i=0;i<dc->data.tbldata.size();i++)
     {
-        for (int a=0; (a<dc.data.tbldata[i].size() && a < 25000);a++)
+        for (int a=0; (a<dc->data.tbldata[i].size() && a < 25000);a++)
         {
-            QTableWidgetItem *item = new QTableWidgetItem(dc.data.tbldata[i][a].toString(),dc.data.tbldata[i][a].typeId());
+            QTableWidgetItem *item = new QTableWidgetItem(dc->data.tbldata[i][a].toString(),dc->data.tbldata[i][a].typeId());
             ui->tableWidget->setItem(a, i, item);
         }
     }
+
+
     QString msg = "";
-    msg += QVariant(dc.data.tbldata.size()).toString();
+    msg += QVariant(dc->data.tbldata.size()).toString();
     msg += " : ";
-    if(dc.data.tbldata.size()>0)
-        msg += QVariant(dc.data.tbldata[0].size()).toString();
+    if(dc->data.tbldata.size()>0)
+        msg += QVariant(dc->data.tbldata[0].size()).toString();
     else
         msg += "0";
 
-    QString hours =  QVariant((dc.executionTime / 3600)).toString();
-    QString minuts = QVariant(dc.executionTime % 3600 / 60).toString();
-    QString secs = QVariant(dc.executionTime % 60).toString();
-    QString msecs = QVariant((dc.executionEnd.toMSecsSinceEpoch() - dc.executionStart.toMSecsSinceEpoch())%1000).toString();
+    QString hours =  QVariant((dc->executionTime / 3600)).toString();
+    QString minuts = QVariant(dc->executionTime % 3600 / 60).toString();
+    QString secs = QVariant(dc->executionTime % 60).toString();
+    QString msecs = QVariant((dc->executionEnd.toMSecsSinceEpoch() - dc->executionStart.toMSecsSinceEpoch())%1000).toString();
 
     while(hours.size() <2)
         hours = QString("0") + hours;
@@ -733,11 +828,11 @@ void LoaderWidnow::UpdateTable()
     msg += ".";
     msg += msecs;
     msg += "   Successfull queries: ";
-    msg += QVariant(dc.savefilecount).toString();
+    msg += QVariant(dc->savefilecount).toString();
     ui->miscStatusLabel->setText(QString("data downloaded ") + msg);
     ui->dataSizeLabel_2->setText(msg);
-    ui->tableDBNameLabel->setText(dc.dbname);
-    dc.tableDataMutex.unlock();
+    ui->tableDBNameLabel->setText(dc->dbname);
+    dc->tableDataMutex.unlock();
     if(autosaveXLSX)
     {
         ui->saveLineEdit->setText(autofilename);
@@ -759,6 +854,16 @@ void LoaderWidnow::UpdateTable()
     emit TableUpdated();
 }
 
+void LoaderWidnow::OpenDirectory()
+{
+    qDebug()<<"OpenDirectory()";
+    QString str= documentsDir + "/" +"excel/";
+    qDebug()<<"opening directory: " << str;
+    if(QDesktopServices::openUrl(QUrl::fromLocalFile(str)))
+        ui->miscStatusLabel->setText("Opening directory.");
+    else
+        ui->miscStatusLabel->setText("error opening directory");
+}
 void LoaderWidnow::OpenFile()
 {
     qDebug()<<"OpenFile()";
@@ -780,7 +885,6 @@ void LoaderWidnow::OpenNewWindow()
     qDebug()<<"opening:" << str;
     QDesktopServices::openUrl(QUrl::fromLocalFile(str));
 }
-
 void LoaderWidnow::ShowIterateWindow()
 {
     qDebug()<<"ShowIterateWindow() depracated";
@@ -908,25 +1012,64 @@ void LoaderWidnow::ShowWorkspacesWindow()
         cd->setFocus();
     }
 }
+void LoaderWidnow::ShowTimerWindow()
+{
+    autolaunchTimerWindowVisible= !autolaunchTimerWindowVisible;
+    if(!autolaunchTimerWindowVisible)
+    {
+        ui->timerdayMonthly->hide();
+        ui->timerDayWeekly->hide();
+        ui->timerHourWeekly->hide();
+        ui->timerHourDaily->hide();
+        ui->timerHourMonthly->hide();
+        ui->timerMinuteDaily->hide();
+        ui->timerMinuteWeekly->hide();
+        ui->timerMinuteMonthly->hide();
+        ui->timer_checkBox->hide();
+        ui->timer_checkBox_2->hide();
+        ui->timer_checkBox_3->hide();
+        ui->timerMainLabel->hide();
+        ui->timerRemainingTime->hide();
+        ui->timerLastLaunchTime->hide();
+    }
+    else
+    {
+        ui->timerdayMonthly->show();
+        ui->timerDayWeekly->show();
+        ui->timerHourWeekly->show();
+        ui->timerHourDaily->show();
+        ui->timerHourMonthly->show();
+        ui->timerMinuteDaily->show();
+        ui->timerMinuteWeekly->show();
+        ui->timerMinuteMonthly->show();
+        ui->timer_checkBox->show();
+        ui->timer_checkBox_2->show();
+        ui->timer_checkBox_3->show();
+        ui->timerMainLabel->show();
+        ui->timerRemainingTime->show();
+        ui->timerLastLaunchTime->show();
+
+    }
+}
 
 void LoaderWidnow::on_graph_group_change(int val)
 {
-    if(val>=0 && val <  dc.data.headers.size())
-        gw.groupByLabel.setText("group by " +  dc.data.headers[val]);
+    if(val>=0 && val <  dc->data.headers.size())
+        gw.groupByLabel.setText("group by " +  dc->data.headers[val]);
     else
         gw.groupByLabel.setText("group by nothing!");
 }
 void LoaderWidnow::on_graph_separator_change(int val)
 {
-    if(val>=0 && val <  dc.data.headers.size())
-        gw.separateByLabel.setText("separate by " +  dc.data.headers[val]);
+    if(val>=0 && val <  dc->data.headers.size())
+        gw.separateByLabel.setText("separate by " +  dc->data.headers[val]);
     else
         gw.separateByLabel.setText("separate by nothing");
 }
 void LoaderWidnow::on_graph_data_change(int val)
 {
-    if(val>=0 && val <  dc.data.headers.size())
-        gw.dataColumnLabel.setText("data column: " +  dc.data.headers[val]);
+    if(val>=0 && val <  dc->data.headers.size())
+        gw.dataColumnLabel.setText("data column: " +  dc->data.headers[val]);
     else
         gw.dataColumnLabel.setText("no data!");
 }
@@ -949,12 +1092,12 @@ void LoaderWidnow::UpdateGraph()
     int separateColumn = gw.separateBysb.value();
 
     bool separate = true;
-    if(separateColumn <= -1 || dataColumn == separateColumn || groupColumn == separateColumn || separateColumn >= dc.data.tbldata.size())
+    if(separateColumn <= -1 || dataColumn == separateColumn || groupColumn == separateColumn || separateColumn >= dc->data.tbldata.size())
         separate = false;
 
-    if(dataColumn  >= dc.data.tbldata.size())
+    if(dataColumn  >= dc->data.tbldata.size())
         return;
-    if(groupColumn  >= dc.data.tbldata.size())
+    if(groupColumn  >= dc->data.tbldata.size())
         return;
 
     std::map<QString,std::map<QString,float>> ColumnData; // ColumnData[separator][grouper] == value
@@ -968,31 +1111,31 @@ void LoaderWidnow::UpdateGraph()
     bool bottomAxisIsDate = false;
     QStringList names;
 
-    if(dc.data.tbldata.size() <=0)
+    if(dc->data.tbldata.size() <=0)
         return;
-    if(dc.data.tbldata[groupColumn].size() <1)
+    if(dc->data.tbldata[groupColumn].size() <1)
         return;
 
     // use dateAxis or valueAxis
-    if(dc.data.tbldata[groupColumn].size() >=2)
+    if(dc->data.tbldata[groupColumn].size() >=2)
     {
-        bottomAxisIsDate = dc.data.tbldata[groupColumn][0].toDateTime().isValid() && !dc.data.tbldata[groupColumn][0].toDateTime().isNull();
+        bottomAxisIsDate = dc->data.tbldata[groupColumn][0].toDateTime().isValid() && !dc->data.tbldata[groupColumn][0].toDateTime().isNull();
     }
     else
         bottomAxisIsDate = false;
 
 
     // fill ColumnData
-    for(int i=0;i < dc.data.tbldata[groupColumn].size();i++)
+    for(int i=0;i < dc->data.tbldata[groupColumn].size();i++)
     {
         bool isReal = false;
-        float a = dc.data.tbldata[dataColumn][i].toReal(&isReal);
+        float a = dc->data.tbldata[dataColumn][i].toReal(&isReal);
         if(!isReal)
             a=1; // count
         if(separate)
-            ColumnData[dc.data.tbldata[separateColumn][i].toString()][dc.data.tbldata[groupColumn][i].toString()] += a;
+            ColumnData[dc->data.tbldata[separateColumn][i].toString()][dc->data.tbldata[groupColumn][i].toString()] += a;
         else
-            ColumnData["Value1"][dc.data.tbldata[groupColumn][i].toString()] += a;
+            ColumnData["Value1"][dc->data.tbldata[groupColumn][i].toString()] += a;
     }
 
 
@@ -1001,7 +1144,7 @@ void LoaderWidnow::UpdateGraph()
     {
         for(auto i : a.second) // group
         {
-            if(dc.data.tbldata.size() > 1)
+            if(dc->data.tbldata.size() > 1)
             {
 
                 if(i.second > maxf)
@@ -1033,34 +1176,34 @@ void LoaderWidnow::UpdateGraph()
         }
     }
     /*
-    for(int i=0;i<dc.data.tbldata[dataColumn].size();i++)
+    for(int i=0;i<dc->data.tbldata[dataColumn].size();i++)
     {
-        if(dc.data.tbldata.size() > 1)
+        if(dc->data.tbldata.size() > 1)
         {
 
-            if(dc.data.tbldata[dataColumn][i].toFloat() > maxf)
-                maxf = dc.data.tbldata[dataColumn][i].toFloat();
-            if(dc.data.tbldata[dataColumn][i].toFloat() < minf)
-                minf = dc.data.tbldata[dataColumn][i].toFloat();
+            if(dc->data.tbldata[dataColumn][i].toFloat() > maxf)
+                maxf = dc->data.tbldata[dataColumn][i].toFloat();
+            if(dc->data.tbldata[dataColumn][i].toFloat() < minf)
+                minf = dc->data.tbldata[dataColumn][i].toFloat();
 
             if(!bottomAxisIsDate)
             {
-                if(mini > dc.data.tbldata[groupColumn][i].toInt())
-                    mini = dc.data.tbldata[groupColumn][i].toInt();
-                if(maxi < dc.data.tbldata[groupColumn][i].toInt())
-                    maxi = dc.data.tbldata[groupColumn][i].toInt();
+                if(mini > dc->data.tbldata[groupColumn][i].toInt())
+                    mini = dc->data.tbldata[groupColumn][i].toInt();
+                if(maxi < dc->data.tbldata[groupColumn][i].toInt())
+                    maxi = dc->data.tbldata[groupColumn][i].toInt();
             }
             else
             {
-                if(dc.data.tbldata[groupColumn][i].toDateTime().toSecsSinceEpoch() > maxi)
+                if(dc->data.tbldata[groupColumn][i].toDateTime().toSecsSinceEpoch() > maxi)
                 {
-                    maxi = dc.data.tbldata[groupColumn][i].toDateTime().toSecsSinceEpoch();
-                    maxdt = dc.data.tbldata[groupColumn][i].toDateTime();
+                    maxi = dc->data.tbldata[groupColumn][i].toDateTime().toSecsSinceEpoch();
+                    maxdt = dc->data.tbldata[groupColumn][i].toDateTime();
                 }
-                if(dc.data.tbldata[groupColumn][i].toDateTime().toSecsSinceEpoch() < mini)
+                if(dc->data.tbldata[groupColumn][i].toDateTime().toSecsSinceEpoch() < mini)
                 {
-                    mini = dc.data.tbldata[groupColumn][i].toDateTime().toSecsSinceEpoch();
-                    mindt = dc.data.tbldata[groupColumn][i].toDateTime();
+                    mini = dc->data.tbldata[groupColumn][i].toDateTime().toSecsSinceEpoch();
+                    mindt = dc->data.tbldata[groupColumn][i].toDateTime();
                 }
             }
         }
@@ -1478,10 +1621,10 @@ void LoaderWidnow::on_SaveXLSXButton_pressed()
         str.resize(200);
     if(!str.endsWith(".xlsx"))
         str += ".xlsx";
-    dc.data.sqlCode = dc.sqlCode;
-    dc.data.allSqlCode = cd->toPlainText();
+    dc->data.sqlCode = dc->sqlCode;
+    dc->data.allSqlCode = cd->toPlainText();
 
-    if(dc.data.ExportToExcel(str,0,0,0,0,true))
+    if(dc->data.ExportToExcel(str,0,0,0,0,true))
         ui->miscStatusLabel->setText(QString("Saved as XLSX ") + str);
     else
         ui->miscStatusLabel->setText(QString("Failed to save xlsx, file probably opened") + str);
@@ -1498,7 +1641,7 @@ void LoaderWidnow::on_SaveCSVButton_pressed()
         str.resize(200);
     if(!str.endsWith(".csv"))
         str += ".csv";
-    if(dc.data.ExportToCSV(str,';',true))
+    if(dc->data.ExportToCSV(str,';',true))
         ui->miscStatusLabel->setText(QString("Saved as CSV ") + str);
     else
         ui->miscStatusLabel->setText(QString("failed to save to CSV, file probably opened") + str);
@@ -1507,7 +1650,7 @@ void LoaderWidnow::on_SaveCSVButton_pressed()
 void LoaderWidnow::on_SaveSQLiteButton_pressed()
 {
     qDebug()<<"on_SaveSQLiteButton_pressed()";
-    if(dc.data.ExportToSQLiteTable(ui->saveLineEdit->text()))
+    if(dc->data.ExportToSQLiteTable(ui->saveLineEdit->text()))
         ui->miscStatusLabel->setText(QString("Saved to SQLite table") + ui->saveLineEdit->text());
     else
         ui->miscStatusLabel->setText(QString("Failed to save to SQLite, check colomn names / repetitions") + ui->saveLineEdit->text());
@@ -1515,13 +1658,13 @@ void LoaderWidnow::on_SaveSQLiteButton_pressed()
 
 void LoaderWidnow::on_ImportFromCSVButton_pressed()
 {
-    dc.data.ImportFromCSV(QFileDialog::getOpenFileName(this, tr("Select csv file")),';',true);
+    dc->data.ImportFromCSV(QFileDialog::getOpenFileName(this, tr("Select csv file")),';',true);
     UpdateTable();
     ui->tableDBNameLabel->setText("Imported from csv");
 }
 void LoaderWidnow::on_importFromExcelButton_pressed()
 {
-    dc.data.ImportFromExcel(QFileDialog::getOpenFileName(),0,0,0,0,true);
+    dc->data.ImportFromExcel(QFileDialog::getOpenFileName(),0,0,0,0,true);
     UpdateTable();
     ui->tableDBNameLabel->setText("Imported from Excel");
 }
@@ -1595,26 +1738,26 @@ void LoaderWidnow::on_listWidget_currentTextChanged(const QString &currentText)
                     ui->DBNameComboBox->setCurrentText(tokens[1].trimmed());
 
 
-                    dc.driver = tokens[0].trimmed();
-                    dc.dbname = tokens[1].trimmed();
+                    dc->driver = tokens[0].trimmed();
+                    dc->dbname = tokens[1].trimmed();
 
                     if(userDS.Load((documentsDir + "/userdata.txt").toStdString()))
                     {
 
-                        dc.usrname = userDS.data[ui->DBNameComboBox->currentText().toStdString()]["name"].c_str();
-                        dc.password = userDS.data[ui->DBNameComboBox->currentText().toStdString()]["password"].c_str();
+                        dc->usrname = userDS.data[ui->DBNameComboBox->currentText().toStdString()]["name"].c_str();
+                        dc->password = userDS.data[ui->DBNameComboBox->currentText().toStdString()]["password"].c_str();
 
-                        ui->userNameLineEdit->setText(dc.usrname.trimmed());
-                        ui->passwordLineEdit->setText(dc.password.trimmed());
-                        dc.usrname = dc.usrname.trimmed();
-                        dc.password = dc.password.trimmed();
+                        ui->userNameLineEdit->setText(dc->usrname.trimmed());
+                        ui->passwordLineEdit->setText(dc->password.trimmed());
+                        dc->usrname = dc->usrname.trimmed();
+                        dc->password = dc->password.trimmed();
                     }
                     else
                     {
                         ui->userNameLineEdit->setText("");
                         ui->passwordLineEdit->setText("");
-                        dc.usrname =  "";
-                        dc.password = "";
+                        dc->usrname =  "";
+                        dc->password = "";
 
                     }
                 }
@@ -1634,16 +1777,17 @@ void LoaderWidnow::on_DBNameComboBox_currentTextChanged(const QString &arg1)
 
 void LoaderWidnow::on_stopLoadingQueryButton_pressed()
 {
-    dc.stopRunning();
+    //if(dc!= nullptr)
+        dc->stopRunning();
 }
 void LoaderWidnow::on_the500LinesCheckBox_checkStateChanged(const Qt::CheckState &arg1)
 {
     if(arg1 == Qt::Checked)
     {
-        dc.stopAt500Lines = true;
+        dc->stopAt500Lines = true;
     }
     else
-        dc.stopAt500Lines = false;
+        dc->stopAt500Lines = false;
 }
 
 // token processor test
@@ -1694,13 +1838,480 @@ void LoaderWidnow::on_pushButton_pressed()
     TestqmlEngine->load("DBLoadScript.qml");
 }
 
+#include "include/SimpleMail/SimpleMail"
+
+void LoaderWidnow::sendMail(QString host, QString Sender, QString SenderName, QStringList to,QStringList cc, QString Subject, QString messageText, QStringList attachments)
+{
+    qDebug() << "sending mail" <<host << Sender <<SenderName << to << cc << Subject << messageText << attachments;
+    auto server = new SimpleMail::Server;
 
 
- void LoaderWidnow::on_nnTestRun_pressed()
- {
-     qDebug() << "nntestrun undefined";
- }
+    server->setHost(host);
+    server->setConnectionType(SimpleMail::Server::TcpConnection);
+
+
+
+    server->setAuthMethod(SimpleMail::Server::AuthNone);
+
+    SimpleMail::MimeMessage message;
+    message.setSender(SimpleMail::EmailAddress(Sender, SenderName));
+    for(auto x : to)
+    {
+        qDebug() << "send to " <<  x;
+        message.addTo(SimpleMail::EmailAddress(x));
+    }
+    if(!(cc.size()==1 && cc[0].trimmed() == ""))
+        for(auto x : cc)
+        {
+            qDebug() << "copy to " <<  x;
+            message.addCc(SimpleMail::EmailAddress(x));
+        }
+
+    message.setSubject(Subject);
+
+
+    auto text = std::make_shared<SimpleMail::MimeText>();
+    qDebug() << "setting text";
+
+    text->setText(messageText);
+
+
+    message.addPart(text);
+
+
+    if(!(attachments.size()==1 && attachments[0].trimmed() == ""))
+        for(auto x : attachments)
+        {
+            qDebug() << "adding attachment " << documentsDir + x;
+            message.addPart(std::make_shared<SimpleMail::MimeAttachment>( std::make_shared<QFile>(documentsDir + x)));
+        }
+    // Now we can send the mail
+    SimpleMail::ServerReply *reply = server->sendMail(message);
+    QObject::connect(reply, &SimpleMail::ServerReply::finished, [reply] {
+        qDebug() << "ServerReply finished" << reply->error() << reply->responseText();
+        reply->deleteLater();// Don't forget to delete it
+
+    });
+
+}
+void LoaderWidnow::on_nnTestRun_pressed()
+{
+    qDebug() << "nntestrun undefined";
+
+}
 void LoaderWidnow::on_nnTestLearn_pressed()
- {
-     qDebug() << "on_nnTestLearn_pressed undefined";
- }
+{
+    qDebug() << "on_nnTestLearn_pressed undefined";
+
+    qDebug() << "QDateTime::currentDateTime().date().dayOfWeek()" << QDateTime::currentDateTime().date().dayOfWeek();
+    qDebug() << "QDateTime::currentDateTime().date().dayOfYear()" << QDateTime::currentDateTime().date().dayOfYear();
+    qDebug() << "QDateTime::currentDateTime().date().day()" << QDateTime::currentDateTime().date().day();
+    qDebug() << "QDateTime::currentDateTime().date().weekNumber()" << QDateTime::currentDateTime().date().weekNumber();
+    qDebug() << "QDateTime::currentDateTime().time()" << QDateTime::currentDateTime().time();
+    qDebug() << "QDateTime::currentDateTime().time().minute()" << QDateTime::currentDateTime().time().minute();
+    qDebug() << "QDateTime::currentDateTime().time().hour()" << QDateTime::currentDateTime().time().hour();
+}
+
+void LoaderWidnow::autolaunchCheck()
+{
+
+
+    ui->timerLastLaunchTime->setText( "Last launch was " + autolaunchLastLaunch.toString());
+
+    if(ui->timer_checkBox->isChecked())
+    {// daily
+
+        QDateTime nextdt = QDateTime::currentDateTime();
+        nextdt.setTime(QTime(ui->timerHourDaily->value(), ui->timerMinuteDaily->value()));
+
+        if(QDateTime::currentDateTime().time().minute() > ui->timerMinuteDaily->value() && QDateTime::currentDateTime().time().hour() >= ui->timerHourDaily->value())
+        {
+            nextdt = nextdt.addDays(1);
+        }
+
+
+
+        QString dtStr = QVariant(QDateTime::currentDateTime().secsTo(nextdt)%60).toString();
+        if(dtStr.size() == 1)
+            dtStr = "0" + dtStr;
+        dtStr = ":" + dtStr;
+        dtStr = QVariant(QDateTime::currentDateTime().secsTo(nextdt)/60%60).toString() + dtStr;
+        if(dtStr.size() == 4)
+            dtStr = "0" + dtStr;
+        dtStr = ":" + dtStr;
+        dtStr = QVariant(QDateTime::currentDateTime().secsTo(nextdt)/3600%24).toString() + dtStr;
+        if(dtStr.size() == 6)
+            dtStr = "0" + dtStr;
+
+        ui->timerRemainingTime->setText("Next launch at:  " + dtStr);
+
+        if( QDateTime::currentDateTime().time().minute() == ui->timerMinuteDaily->value() && QDateTime::currentDateTime().time().hour()== ui->timerHourDaily->value())
+        {
+            if(abs(QDateTime::currentDateTime().toSecsSinceEpoch() - autolaunchLastLaunch.toSecsSinceEpoch()) >= 60)
+            {
+                qDebug() << "Launching automaticly due to daily timer";
+                autolaunchLastLaunch = QDateTime::currentDateTime();
+                runSqlAsync();
+            }
+
+        }
+    }
+    else if(ui->timer_checkBox_3->isChecked())
+    {// weekly
+
+
+
+        QDateTime nextdt = QDateTime::currentDateTime();
+        nextdt.setTime(QTime(ui->timerHourWeekly->value(), ui->timerMinuteWeekly->value()));
+
+
+        if(QDateTime::currentDateTime().date().dayOfWeek() > ui->timerDayWeekly->value() || QDateTime::currentDateTime().date().dayOfWeek() == ui->timerDayWeekly->value() && QDateTime::currentDateTime().time().minute() > ui->timerMinuteWeekly->value() && QDateTime::currentDateTime().time().hour() >= ui->timerHourWeekly->value())
+        {
+            nextdt = nextdt.addDays(7 - QDateTime::currentDateTime().date().dayOfWeek() + ui->timerDayWeekly->value() - 1);
+        }
+        else if(QDateTime::currentDateTime().date().dayOfWeek() < ui->timerDayWeekly->value() && QDateTime::currentDateTime().time().minute() > ui->timerMinuteWeekly->value() && QDateTime::currentDateTime().time().hour() >= ui->timerHourWeekly->value())
+        {
+            while(nextdt.date().dayOfWeek() > 1)
+                nextdt = nextdt.addDays(-1);
+            nextdt = nextdt.addDays(ui->timerDayWeekly->value() -2 );
+        }
+
+        qint64 tm= QDateTime::currentDateTime().secsTo(nextdt);
+        if(tm < 0 && !(tm >-60 && abs(QDateTime::currentDateTime().toSecsSinceEpoch() - autolaunchLastLaunch.toSecsSinceEpoch()) >= 60))
+            tm = 86400 + tm;
+
+        QString dtStr = QVariant(tm%60).toString();
+        if(dtStr.size() == 1)
+            dtStr = "0" + dtStr;
+        dtStr = ":" + dtStr;
+        dtStr = QVariant(tm/60%60).toString() + dtStr;
+        if(dtStr.size() == 4)
+            dtStr = "0" + dtStr;
+        dtStr = ":" + dtStr;
+        dtStr = QVariant(tm/3600%24).toString() + dtStr;
+        if(dtStr.size() == 6)
+            dtStr = "0" + dtStr;
+
+
+
+        ui->timerRemainingTime->setText("Next launch at:  " + QVariant(QDateTime::currentDateTime().daysTo(nextdt)).toString() + ":" + dtStr);
+
+        if( QDateTime::currentDateTime().time().minute() == ui->timerMinuteWeekly->value() && QDateTime::currentDateTime().time().hour()== ui->timerHourWeekly->value() && QDateTime::currentDateTime().date().dayOfWeek() == ui->timerDayWeekly->value())
+        {
+            if(QDateTime::currentDateTime().toSecsSinceEpoch() - autolaunchLastLaunch.toSecsSinceEpoch() >= 60)
+            {
+                qDebug() << "Launching automaticly due to weekly timer";
+                autolaunchLastLaunch = QDateTime::currentDateTime();
+                runSqlAsync();
+            }
+        }
+    }
+    else if(ui->timer_checkBox_2->isChecked())
+    {// monthly
+        QDateTime nextdt = QDateTime::currentDateTime();
+        nextdt.setTime(QTime(ui->timerHourMonthly->value(), ui->timerMinuteMonthly->value()));
+
+        if(QDateTime::currentDateTime().date().day() > ui->timerdayMonthly->value() || QDateTime::currentDateTime().date().day() == ui->timerdayMonthly->value() && QDateTime::currentDateTime().time().minute() > ui->timerMinuteMonthly->value() && QDateTime::currentDateTime().time().hour() >= ui->timerHourMonthly->value())
+        {
+            nextdt = nextdt.addMonths(1);
+            while(nextdt.date().day() > 1)
+                nextdt = nextdt.addDays(-1);
+
+            nextdt = nextdt.addDays(ui->timerdayMonthly->value()-1);
+
+        }
+        else if (QDateTime::currentDateTime().date().day() < ui->timerdayMonthly->value())
+        {
+
+            while(nextdt.date().day() > 1)
+                nextdt = nextdt.addDays(-1);
+
+            nextdt = nextdt.addDays(ui->timerdayMonthly->value()-2);
+        }
+
+
+        qint64 tm= QDateTime::currentDateTime().secsTo(nextdt);
+        if(tm < 0 && !(tm >-60 && abs(QDateTime::currentDateTime().toSecsSinceEpoch() - autolaunchLastLaunch.toSecsSinceEpoch()) >= 60))
+            tm = 86400 + tm;
+
+        QString dtStr = QVariant(tm%60).toString();
+        if(dtStr.size() == 1)
+            dtStr = "0" + dtStr;
+        dtStr = ":" + dtStr;
+        dtStr = QVariant(tm/60%60).toString() + dtStr;
+        if(dtStr.size() == 4)
+            dtStr = "0" + dtStr;
+        dtStr = ":" + dtStr;
+        dtStr = QVariant(tm/3600%24).toString() + dtStr;
+        if(dtStr.size() == 6)
+            dtStr = "0" + dtStr;
+
+
+        ui->timerRemainingTime->setText("Next launch at:  " + QVariant(QDateTime::currentDateTime().daysTo(nextdt)).toString() + ":" + dtStr);
+
+        if( QDateTime::currentDateTime().time().minute() == ui->timerMinuteMonthly->value() && QDateTime::currentDateTime().time().hour()== ui->timerHourMonthly->value() && QDateTime::currentDateTime().date().day() == ui->timerdayMonthly->value())
+        {
+            qDebug() << "Launching automaticly due to monthly timer";
+            if(QDateTime::currentDateTime().toSecsSinceEpoch() - autolaunchLastLaunch.toSecsSinceEpoch() >= 60)
+            {
+                autolaunchLastLaunch = QDateTime::currentDateTime();
+                runSqlAsync();
+            }
+        }
+    }
+}
+
+void LoaderWidnow::on_tabWidget_tabCloseRequested(int index)
+{
+    //ui->tabWidget->removeTab(index);
+    if(currentTabId == QVariant(ui->tabWidget->tabWhatsThis(index)).toInt())// its current tab, dont want to do stuff
+    {
+        if(ui->tabWidget->tabBar()->count() > 1)
+        {
+            if(index != 0)
+            {
+                ui->tabWidget->setCurrentIndex(0);
+                //on_tabWidget_currentChanged(0);
+            }
+            else
+            {
+                ui->tabWidget->setCurrentIndex(1);
+                //on_tabWidget_currentChanged(1);
+            }
+        }
+        else return;
+    }
+
+    int delTabId = QVariant(ui->tabWidget->tabWhatsThis(index)).toInt();
+
+    bool found = false;
+    int i=0;
+    for(i=0;i<tabDatas.size();i++)
+    {
+        if(tabDatas[i]->Id == QVariant(delTabId).toString())
+        {
+            found = true;
+            break;
+        }
+    }
+    if(!found)
+        return;
+
+    if(tabDatas[i]->dc.executing || tabDatas[i]->dc.dataDownloading)
+    {
+        tabDatas[i]->dc.stopRunning();
+        ui->tabWidget->setCurrentIndex(index);
+        //on_tabWidget_currentChanged(1);
+    }
+    else
+    {
+
+        // save sqlBacup
+        QString str = "sqlBackup/";
+        QDate dt = QDate::currentDate();
+        str += QVariant(dt.year()).toString();
+        str += "_";
+        if(QVariant(dt.month() ).toString().size() <=1)
+            str+="0";
+        str += QVariant(dt.month()).toString();
+        str += "_";
+        if(QVariant(dt.day() ).toString().size() <=1)
+            str+="0";
+        str += QVariant(dt.day() ).toString();
+        str += "_";
+        str += QTime::currentTime().toString();
+        str += " closed tab " + ui->tabWidget->tabText(index);
+        str +=".sql";
+        str.replace(":","_");
+        qDebug()<<documentsDir + "/" +str;
+        std::ofstream stream ((documentsDir + "/" +str).toStdString());
+        stream << tabDatas[i]->cd->toPlainText().toStdString();
+        stream.close();
+
+        // just in case
+        tabDatas[i]->dc.stopRunning();
+
+        ui->CodeEditorLayout->layout()->removeWidget(tabDatas[i]->cd);
+        delete tabDatas[i]->cd;
+        delete tabDatas[i];
+        tabDatas[i] = tabDatas.back();
+        tabDatas.pop_back();
+
+        ui->tabWidget->removeTab(index);
+    }
+}
+
+void LoaderWidnow::on_tabWidget_currentChanged(int index)
+{
+    bool found = false;
+    int i=0;
+    for(i=0;i<tabDatas.size();i++)
+    {
+        if(tabDatas[i]->Id == QVariant(currentTabId).toString())
+        {
+            found = true;
+            break;
+        }
+    }
+    if(found)
+    {
+        tabDatas[i]->sql = cd->toPlainText();
+        tabDatas[i]->workspaceName = LastWorkspaceName;
+
+        tabDatas[i]->lastQueryState = queryExecutionState;
+        tabDatas[i]->lastMessage = ui->miscStatusLabel->text();
+        tabDatas[i]->lastTableMessage = ui->dataSizeLabel_2->text();
+        tabDatas[i]->lastTableDBName = ui->tableDBNameLabel->text();
+        tabDatas[i]->textposition = cd->textCursor().position();
+        tabDatas[i]->cd->hide();
+
+    }
+
+
+    currentTabId = QVariant(ui->tabWidget->tabWhatsThis(index)).toInt();
+
+    found = false;
+    i=0;
+    for(i=0;i<tabDatas.size();i++)
+    {
+        if(tabDatas[i]->Id == QVariant(currentTabId).toString())
+        {
+            found = true;
+            break;
+        }
+    }
+    if(!found)
+        return;
+    disconnect( dc, SIGNAL(queryBeginCreating()), this, SLOT(onQueryBeginCreating()));
+    disconnect( dc, SIGNAL(queryBeginExecuting()), this, SLOT(onQueryBegin()));
+    disconnect( dc, SIGNAL(querySuccess()), this, SLOT(onQuerySuccess()));
+    disconnect( dc, SIGNAL(execedSql()), this, SLOT(UpdateTable()));
+
+
+
+    dc = &tabDatas[i]->dc;
+
+
+
+    connect( dc, SIGNAL(queryBeginCreating()), this, SLOT(onQueryBeginCreating()), Qt::QueuedConnection );
+    connect( dc, SIGNAL(queryBeginExecuting()), this, SLOT(onQueryBegin()), Qt::QueuedConnection );
+    connect( dc, SIGNAL(querySuccess()), this, SLOT(onQuerySuccess()), Qt::QueuedConnection );
+    connect( dc, SIGNAL(execedSql()), this, SLOT(UpdateTable()), Qt::QueuedConnection );
+
+    sqlexecThread = &tabDatas[i]->sqlexecThread;
+
+    // QString str = "";
+    // if(dc->dbname.split('/').size()>1)
+    //     str = dc->dbname.split('/')[1];
+    // else str =dc->dbname.split('/')[0];
+    // cd->highlighter->UpdateTableColumns(&dc->db,str);
+
+    // cd->setPlainText(tabDatas[i]->sql);
+
+    // QTextCursor _curs = cd->textCursor();
+    // _curs.setPosition(tabDatas[i]->textposition);
+    // cd->setTextCursor(_curs);
+    tabDatas[i]->cd->show();
+    cd = tabDatas[i]->cd;
+    cd->setFocus();
+    LastWorkspaceName = tabDatas[i]->workspaceName;
+
+    ui->workspaceLineEdit->setText(tabDatas[i]->workspaceName);
+
+    ui->driverComboBox->setCurrentText(dc->driver);
+    ui->DBNameComboBox->setCurrentText(dc->dbname);
+    ui->userNameLineEdit->setText(dc->usrname);
+    ui->passwordLineEdit->setText(dc->password);
+    ui->connectionStatusLabel_2->setText(QString("connected to ") + dc->dbname);
+
+    queryExecutionState = tabDatas[i]->lastQueryState;
+    ui->miscStatusLabel->setText(tabDatas[i]->lastMessage);
+    ui->dataSizeLabel_2->setText(tabDatas[i]->lastTableMessage);
+    ui->tableDBNameLabel->setText(tabDatas[i]->lastTableDBName);
+
+    executionTimer.stop();
+    if(!dc->executing)
+    {
+        ui->pushButton_3->show();
+        ui->stopLoadingQueryButton->hide();
+        UpdateTable();
+
+        queryExecutionState = tabDatas[i]->lastQueryState;
+        // ui->miscStatusLabel->setText(tabDatas[i]->lastMessage);
+        // ui->dataSizeLabel_2->setText(tabDatas[i]->lastTableMessage);
+        // ui->tableDBNameLabel->setText(tabDatas[i]->lastTableDBName);
+        // ui->pushButton_3->show();
+        // ui->tableWidget->clear();
+        // ui->tableWidget->setColumnCount(dc->data.headers.size());
+        // int tabl_size = 25000;
+        // if(dc->data.tbldata.size()>0)
+        //     tabl_size  = dc->data.tbldata[0].size();
+
+        // if(tabl_size  > 25000)
+        //     ui->tableWidget->setRowCount(25000);
+        // else
+        //     ui->tableWidget->setRowCount(tabl_size );
+
+        // ui->tableWidget->setHorizontalHeaderLabels(dc->data.headers);
+        // for(int i=0;i<dc->data.tbldata.size();i++)
+        // {
+        //     for (int a=0; (a<dc->data.tbldata[i].size() && a < 25000);a++)
+        //     {
+        //         QTableWidgetItem *item = new QTableWidgetItem(dc->data.tbldata[i][a].toString(),dc->data.tbldata[i][a].typeId());
+        //         ui->tableWidget->setItem(a, i, item);
+        //     }
+        // }
+
+    }
+    else
+    {
+        ui->tableWidget->clear();
+        ui->pushButton_3->hide();
+        ui->stopLoadingQueryButton->show();
+
+        executionTimer.setSingleShot(false);
+        executionTimer.setTimerType(Qt::CoarseTimer);
+        executionTimer.setInterval(15);
+        executionTimer.start();
+    }
+
+
+
+}
+
+void LoaderWidnow::on_tabWidget_tabBarDoubleClicked(int index)
+{
+    bool ok = true;
+    QString newName = QInputDialog::getText (
+        this, tr ("Change Name"),
+        tr ("Insert New Tab Name"),
+        QLineEdit::Normal,
+        ui->tabWidget->tabText(index),
+        &ok);
+
+    if (ok) {
+        ui->tabWidget->setTabText(index, newName);
+    }
+}
+
+inline int _addtabcounter = 1;
+void LoaderWidnow::on_pushButton_4_clicked()
+{// add tab
+    QWidget* wg = new QWidget();
+    wg->setWhatsThis(QVariant(_addtabcounter).toString());
+
+    ui->tabWidget->addTab(wg,"New tab" + QVariant(_addtabcounter).toString());
+    ui->tabWidget->setTabWhatsThis(ui->tabWidget->tabBar()->count()-1,QVariant(_addtabcounter).toString());
+
+
+    tabDatas.push_back(new tabdata());
+    tabDatas.back()->Name = "New tab" + QVariant(_addtabcounter).toString();
+    tabDatas.back()->Id = QVariant(_addtabcounter).toString();
+
+    tabDatas.back()->cd = new CodeEditor();
+
+    ui->CodeEditorLayout->layout()->addWidget(tabDatas.back()->cd);
+    tabDatas.back()->cd->hide();
+    _addtabcounter++;
+}
+

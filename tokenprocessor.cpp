@@ -64,7 +64,7 @@ void TokenProcessor::addFrequencies()
         if(prevtokens.size() > 0)
         {
             QString str = s.replace('\n',' ').replace('\t',' ').replace('\u0000',' ').toLower().trimmed();
-            if((!isNumber(str) || (!isWord(str) && !isNumber(str))) && !str.contains('{') && !str.contains('}')&& !str.contains(','))
+            if((!isNumber(str) || str == "."|| (!isWord(str) && !isNumber(str))) && !str.contains('{') && !str.contains('}')&& !str.contains(','))
             {
                 QString tokenkey = "";
 
