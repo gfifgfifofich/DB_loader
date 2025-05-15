@@ -370,6 +370,9 @@ private slots:
     void on_graph_separator_change(int val);
     void on_graph_data_change(int val);
 
+    //Tabs
+    //Cycle to next/first tab
+    void cycleTabs();
 
     //Workspace name change
     void on_workspaceLineEdit_textChanged(const QString &arg1);
@@ -378,7 +381,8 @@ private slots:
 
     void SaveWorkspace();
 
-
+    // pass to right code editor
+    void CommentSelected();
 
     // QML test
     void on_pushButton_pressed();

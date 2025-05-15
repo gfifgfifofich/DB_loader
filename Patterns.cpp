@@ -77,10 +77,19 @@ void fillPaterns()
     subCommandPatterns.push_back("SubexecAppendCSV");
     subCommandPatterns.push_back("SubexecToMagic");
     subCommandPatterns.push_back("SubexecToArray");
+
     subCommandPatterns.push_back("DBLPasteMonth");
     subCommandPatterns.push_back("DBLPasteNumMonth");
+
     subCommandPatterns.push_back("ExcelToMagic");
     subCommandPatterns.push_back("ExcelToArray");
+    subCommandPatterns.push_back("ExcelToSqliteTable");
+
+    subCommandPatterns.push_back("CSVToMagic");
+    subCommandPatterns.push_back("CSVToArray");
+    subCommandPatterns.push_back("CSVToSqliteTable");
+
+
     subCommandPatterns.push_back("SubexecToCSV");
     subCommandPatterns.push_back("QueryForLoop");
     subCommandPatterns.push_back("SendMail");

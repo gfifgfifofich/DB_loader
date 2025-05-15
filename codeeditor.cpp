@@ -181,12 +181,17 @@ void CodeEditor::keyPressEvent(QKeyEvent *e)
     {
         ctrl_pressed = true;
     }
-    if(e->key() == 16777217)
+    if(e->key() == 16777248)
+    {
+        shift_pressed = true;
+    }
+
+    if(e->key() == 16777217 && !shift_pressed)
     {
         FillsuggestName();
         return;
     }
-    if(e->key() == 16777220)
+    if(e->key() == 16777220) // enter
     {//
         QTextCursor c = this->textCursor();
         QString str =  c.block().text();
@@ -217,6 +222,10 @@ void CodeEditor::keyReleaseEvent(QKeyEvent *e)
     {
         ctrl_pressed = false;
     }
+    if(e->key() == 16777248)
+    {
+        shift_pressed = false;
+    }
     QPlainTextEdit::keyReleaseEvent(e);
 }
 CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent)
@@ -246,11 +255,19 @@ CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent)
 
 
 
+
     qDebug() << "Opening code editors DS";
     // user theme
     if(userDS.Load((documentsDir + "/userdata.txt").toStdString()))
     {
-        QStringList strl = QString(userDS.data["UserTheme"]["BracketHighlightColor"].c_str()).split(',');
+
+        QFont fnt = this->font();
+
+        //qDebug() << fnt.PointSize();
+        fnt.setPointSize(userDS.GetPropertyAsInt("UserTheme","FontSize"));
+        this->setFont(fnt);
+
+        QStringList strl = QString(userDS.data["UserTheme"]["Color_BracketHighlight"].c_str()).split(',');
         QColor col = QColor(Qt::GlobalColor::darkRed).lighter(35);
         for(int i=0;i<strl.size();i++)
         {
@@ -377,21 +394,43 @@ void CodeEditor::highlightCurrentLine()
 
         int bracketEnd = cursor_position;
         int bracketCount = 0;
+
+        int commentcoumter = 0;
+        bool inComment = false;
+
         for (int i = bracketStart; i < text.size(); i++)
         {
-            if(text[i]=='(')
-                bracketCount ++;
-            if(text[i]==')')
-                bracketCount --;
-            if(bracketCount <=0)
+            if(!inComment)
             {
-                bracketEnd=i;
-                break;
+                if(text[i]=='-')
+                    commentcoumter++;
+                else
+                    commentcoumter = 0;
+                if(commentcoumter >= 2 )
+                {
+                    commentcoumter = 0;
+                    inComment = true;
+                }
+
+                if(text[i]=='(')
+                    bracketCount ++;
+                if(text[i]==')')
+                    bracketCount --;
+                if(bracketCount <=0)
+                {
+                    bracketEnd=i;
+                    break;
+                }
+                if (i ==  text.size()-1)
+                {
+                    bracketEnd=i;
+                    break;
+                }
             }
-            if (i ==  text.size()-1)
+            else
             {
-                bracketEnd=i;
-                break;
+                if(text[i]=='\n')
+                    inComment =false;
             }
         }
 
@@ -415,16 +454,45 @@ void CodeEditor::highlightCurrentLine()
 
         int bracketEnd = cursor_position;
         int bracketCount = 0;
+
+        int commentcoumter = 0;
+        bool inComment = false;
+        int bracketamtlastline = 0;
+        bool waitnextline = false;
         for (int i = bracketStart; i >= 0; i--)
         {
-            if(text[i]=='(')
-                bracketCount ++;
-            if(text[i]==')')
-                bracketCount --;
-            if(bracketCount >=0)
+            if(text[i]=='-')
+                commentcoumter++;
+            else
+                commentcoumter = 0;
+            if(commentcoumter >= 2 )
             {
-                bracketEnd=i;
+                commentcoumter = 0;
+                bracketCount -= bracketamtlastline;
+                bracketamtlastline = 0;
+                waitnextline = false;
+            }
+            if(text[i]=='\n')
+                bracketamtlastline = 0;
+            if(waitnextline && bracketamtlastline == 0)
                 break;
+
+            if(text[i]=='(')
+            {
+                bracketCount ++;
+                bracketamtlastline++;
+
+                if(bracketCount >=0)
+                {
+                    bracketEnd=i;
+                    waitnextline = true;
+                }
+            }
+
+            if(text[i]==')')
+            {
+                bracketCount --;
+                bracketamtlastline--;
             }
             if (i == 0)
             {
@@ -432,7 +500,6 @@ void CodeEditor::highlightCurrentLine()
                 break;
             }
         }
-
         QColor lineColor = braccketHighlightColor ;
         bracketSelection.format.setBackground(lineColor.lighter());
         bracketSelection.cursor = textCursor();

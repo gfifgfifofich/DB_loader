@@ -16,6 +16,7 @@
 #include <qtimer.h>
 #include "tokenprocessor.h"
 #include <QInputDialog>
+#include "settingswindow.h"
 
 /*
 +                                          add togglable "add db name into file name" // feature added, not togglable
@@ -95,8 +96,6 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 
 
 
-
-    //ui->tabWidget->setTabWhatsThis(ui->tabWidget->tabBar()->count()-1,QVariant(_addtabcounter).toString());
     while (ui->tabWidget->tabBar()->count()>0)
     {
         ui->tabWidget->removeTab(0);
@@ -106,11 +105,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 
     ui->tabWidget->addTab(wg,"New tab" + QVariant(0).toString());
     ui->tabWidget->setTabWhatsThis(ui->tabWidget->tabBar()->count()-1,QVariant(0).toString());
-    //tab_dcs.emplace_back();
-    //tab_ids.emplace_back(0);
-    //dc = new DatabaseConnection();
-    // = tab_data.back().dc;
-    //dc = tab_dcs.back();
+
 
     ui->timerdayMonthly->hide();
     ui->timerDayWeekly->hide();
@@ -142,46 +137,72 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     sqlexecThread = &tabDatas.back()->sqlexecThread;
 
     //open new app instance
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_N), this, SLOT(OpenNewWindow()));
+    connect(ui->actionNew_window,  &QAction::triggered, this, [this]() {
+        OpenNewWindow();
+    });
 
     //open new Tab
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_N), this, SLOT(on_pushButton_4_clicked()));
 
-
-
     // run query
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_R), this, SLOT(runSqlAsync()));
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Return), this, SLOT(runSqlAsync()));
+    connect(ui->actionRun,  &QAction::triggered, this, [this]() {
+        runSqlAsync();
+    });
+
 
     //.xlsx export
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_E), this, SLOT(on_SaveXLSXButton_pressed())); // save to file
+    connect(ui->actionSave_as_excel,  &QAction::triggered, this, [this]() {
+        on_SaveXLSXButton_pressed();
+    });
 
     // open .xlsx file
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_O), this, SLOT(OpenFile()));
-    // open .xlsx file
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_O), this, SLOT(OpenDirectory()));
+    connect(ui->actionOpen_last_excel_export,  &QAction::triggered, this, [this]() {
+        OpenFile();
+    });
+    // open .xlsx dir
+    connect(ui->actionOpen_export_directory,  &QAction::triggered, this, [this]() {
+        OpenDirectory();
+    });
 
     // save workspace
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_S), this, SLOT(SaveWorkspace()));
+    connect(ui->actionSave_workspace,  &QAction::triggered, this, [this]() {
+        SaveWorkspace();
+    });
 
     // replace code
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_F), this, SLOT(replaceTool()));
+    connect(ui->actionReplace,  &QAction::triggered, this, [this]() {
+        replaceTool();
+    });
     // comment code
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_B), cd, SLOT(CommentSelected()));
+    connect(ui->actionCommentSelected,  &QAction::triggered, this, [this]() {
+        CommentSelected();
+    });
 
     // copy from tableview
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_C), this, SLOT(CopySelectionFormTable()));
     new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_C), this, SLOT(CopySelectionFormTableSql()));
 
     // switching different windows
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_G), this, SLOT(ShowGraph()));
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_H), this, SLOT(ShowHistoryWindow()));
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_W), this, SLOT(ShowWorkspacesWindow()));
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_T), this, SLOT(ShowTimerWindow()));
+    connect(ui->actionGraph,  &QAction::triggered, this, [this]() {
+        ShowGraph();
+    });
+    connect(ui->actionHistory,  &QAction::triggered, this, [this]() {
+        ShowHistoryWindow();
+    });
+    connect(ui->actionWorkspaces,  &QAction::triggered, this, [this]() {
+        ShowWorkspacesWindow();
+    });
+    connect(ui->actionAutorun,  &QAction::triggered, this, [this]() {
+        ShowTimerWindow();
+    });
+
+    new QShortcut(QKeySequence(Qt::CTRL | 96), this, SLOT(cycleTabs())); // ctrl + ` || ctrl + ~ || ctrl + Ё
+
+
 
     // graph window init
     gw.Init();
-    //ui->CodeEditorLayout->addLayout(&iw.iter_layout);
     ui->CodeEditorLayout->addLayout(&gw.graph_layout);
     ui->listWidget->hide();
 
@@ -208,6 +229,24 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 
 
 
+    connect(ui->actionRun_token_processor,  &QAction::triggered, this, [this]() {
+        on_pushButton_2_pressed();
+    });
+    connect(ui->actionOpen_QML_form,  &QAction::triggered, this, [this]() {
+        on_pushButton_pressed();
+    });
+    connect(ui->actionNN_Run,  &QAction::triggered, this, [this]() {
+        on_nnTestRun_pressed();
+    });
+    connect(ui->actionNN_Learn_first_column,  &QAction::triggered, this, [this]() {
+        on_nnTestLearn_pressed();
+    });
+
+
+    connect(ui->actionUserTheme, &QAction::triggered, this, [this]() {
+        SettingsWindow* st = new SettingsWindow();
+        st->show();
+    });
 
     //maximize code editor
     ui->splitter->setSizes({1,2000,1});
@@ -336,26 +375,11 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     }
     qDebug()<<"loaded " << allPosibbleTokens.size() << " distinct tokens";
 
-    int arch[4] = {1,70,70,1};
-    allPosibbleTokens.size();
-    arch[0] = allPosibbleTokens.size();
-    arch[3] = allPosibbleTokens.size();
+    int arch[4] = {1,50,50,1};
     nn.Create(arch,4);
-    qDebug()<<"created nn {" << arch[0] << ", " << arch[1] ;//<< ", " << arch[2] << ", " << arch[3] << ", " << arch[4] << "}";
-    nn.Randomize();
     nn.Randomize();
     qDebug()<<"Randomized";
     nn.lastCost = 10000000;
-
-    //int arch[7] = {1,10,10,10,10,10,1};
-
-    //nn.Create(arch,7);
-    //qDebug()<<"created nn {" << arch[0] << ", " << arch[1] << ", " << arch[2] << ", " << arch[3] ;//<< ", " << arch[4] << "}";
-    //nn.Randomize();
-    //nn.Randomize();
-    //qDebug()<<"Randomized";
-    //nn.lastCost = 1000000000;
-
 
 
 
@@ -636,16 +660,12 @@ void LoaderWidnow::runSqlAsync()
     cursor.setPosition(sqlend+1, QTextCursor::KeepAnchor);
     if((*sqlexecThread)!=nullptr)
         (*sqlexecThread)->terminate();
-    if(createconnection || !dc->db.isOpen() || dc->driver != ui->driverComboBox->currentText() ||dc->dbname != ui->DBNameComboBox->currentText())
+
+    if(createconnection || (!dc->db.isOpen() && !dc->customOracle) || dc->driver != ui->driverComboBox->currentText() ||dc->dbname != ui->DBNameComboBox->currentText())
     {
-        dc->connectionName = conname;
-        dc->driver = driver;
-        dc->dbname = dbname;
-        dc->usrname = usrname;
-        dc->password = password;
-        qDebug() << "creating connection";
+        qDebug() << "autocreating connection";
         on_ConnectButton_pressed();
-        qDebug() << "created connection";
+        qDebug() << "autocreated connection";
     }
 
 
@@ -753,6 +773,8 @@ void LoaderWidnow::UpdateTable()
     queryExecutionState = 4;
     executionTimer.stop();
 
+
+
     if(dc->lastLaunchIsError)
     {
         int errpos = dc->_code_start_pos + dc->lastErrorPos;
@@ -769,14 +791,14 @@ void LoaderWidnow::UpdateTable()
     }
 
 
-    //dc->executionEnd = QDateTime::currentDateTime();
-    //dc->executionTime = dc->executionEnd.toSecsSinceEpoch() - dc->executionStart.toSecsSinceEpoch();
     ui->stopLoadingQueryButton->hide();
     ui->pushButton_3->show();
     dc->tableDataMutex.lock();
     ui->miscStatusLabel->setText("updating table data...");
     ui->tableWidget->clear();
     ui->tableWidget->setColumnCount(dc->data.headers.size());
+
+
     int tabl_size = 25000;
     if(dc->data.tbldata.size()>0)
         tabl_size  = dc->data.tbldata[0].size();
@@ -796,6 +818,7 @@ void LoaderWidnow::UpdateTable()
         }
     }
 
+    ui->tableWidget->resizeColumnsToContents();
 
     QString msg = "";
     msg += QVariant(dc->data.tbldata.size()).toString();
@@ -1802,7 +1825,7 @@ void LoaderWidnow::on_pushButton_2_pressed()
         qDebug() << "failed to load FrequencyMap: " <<  (documentsDir + "/" +"FrequencyMaps/test2.txt").toStdString();
     for(auto x : strl)
     {
-        QFile f("sqlBackup/" + x);
+        QFile f(documentsDir +"/sqlBackup/" + x);
         f.open(QFile::OpenModeFlag::ReadOnly);
         text = f.readAll().toStdString().c_str();
 
@@ -1829,6 +1852,12 @@ void LoaderWidnow::on_pushButton_3_pressed()
 {
     runSqlAsync();
 }
+
+void LoaderWidnow::CommentSelected()
+{
+    cd->CommentSelected();
+}
+
 
 // qml test button
 inline QQmlApplicationEngine* TestqmlEngine = nullptr;
@@ -1893,23 +1922,6 @@ void LoaderWidnow::sendMail(QString host, QString Sender, QString SenderName, QS
 
     });
 
-}
-void LoaderWidnow::on_nnTestRun_pressed()
-{
-    qDebug() << "nntestrun undefined";
-
-}
-void LoaderWidnow::on_nnTestLearn_pressed()
-{
-    qDebug() << "on_nnTestLearn_pressed undefined";
-
-    qDebug() << "QDateTime::currentDateTime().date().dayOfWeek()" << QDateTime::currentDateTime().date().dayOfWeek();
-    qDebug() << "QDateTime::currentDateTime().date().dayOfYear()" << QDateTime::currentDateTime().date().dayOfYear();
-    qDebug() << "QDateTime::currentDateTime().date().day()" << QDateTime::currentDateTime().date().day();
-    qDebug() << "QDateTime::currentDateTime().date().weekNumber()" << QDateTime::currentDateTime().date().weekNumber();
-    qDebug() << "QDateTime::currentDateTime().time()" << QDateTime::currentDateTime().time();
-    qDebug() << "QDateTime::currentDateTime().time().minute()" << QDateTime::currentDateTime().time().minute();
-    qDebug() << "QDateTime::currentDateTime().time().hour()" << QDateTime::currentDateTime().time().hour();
 }
 
 void LoaderWidnow::autolaunchCheck()
@@ -2061,6 +2073,16 @@ void LoaderWidnow::autolaunchCheck()
     }
 }
 
+void LoaderWidnow::cycleTabs()
+{
+    int indx = ui->tabWidget->currentIndex()+1;
+
+    if(indx >= ui->tabWidget->tabBar()->count())
+        indx = 0;
+
+    ui->tabWidget->setCurrentIndex(indx);
+}
+
 void LoaderWidnow::on_tabWidget_tabCloseRequested(int index)
 {
     //ui->tabWidget->removeTab(index);
@@ -2164,6 +2186,8 @@ void LoaderWidnow::on_tabWidget_currentChanged(int index)
         tabDatas[i]->lastTableDBName = ui->tableDBNameLabel->text();
         tabDatas[i]->textposition = cd->textCursor().position();
         tabDatas[i]->cd->hide();
+        //codeeditor
+        disconnect( cd, SIGNAL(s_suggestedName()), this, SLOT(updatesuggestion()));
 
     }
 
@@ -2200,20 +2224,11 @@ void LoaderWidnow::on_tabWidget_currentChanged(int index)
 
     sqlexecThread = &tabDatas[i]->sqlexecThread;
 
-    // QString str = "";
-    // if(dc->dbname.split('/').size()>1)
-    //     str = dc->dbname.split('/')[1];
-    // else str =dc->dbname.split('/')[0];
-    // cd->highlighter->UpdateTableColumns(&dc->db,str);
-
-    // cd->setPlainText(tabDatas[i]->sql);
-
-    // QTextCursor _curs = cd->textCursor();
-    // _curs.setPosition(tabDatas[i]->textposition);
-    // cd->setTextCursor(_curs);
     tabDatas[i]->cd->show();
     cd = tabDatas[i]->cd;
     cd->setFocus();
+    //codeeditor
+    connect( cd, SIGNAL(s_suggestedName()), this, SLOT(updatesuggestion()), Qt::QueuedConnection );
     LastWorkspaceName = tabDatas[i]->workspaceName;
 
     ui->workspaceLineEdit->setText(tabDatas[i]->workspaceName);
@@ -2237,30 +2252,6 @@ void LoaderWidnow::on_tabWidget_currentChanged(int index)
         UpdateTable();
 
         queryExecutionState = tabDatas[i]->lastQueryState;
-        // ui->miscStatusLabel->setText(tabDatas[i]->lastMessage);
-        // ui->dataSizeLabel_2->setText(tabDatas[i]->lastTableMessage);
-        // ui->tableDBNameLabel->setText(tabDatas[i]->lastTableDBName);
-        // ui->pushButton_3->show();
-        // ui->tableWidget->clear();
-        // ui->tableWidget->setColumnCount(dc->data.headers.size());
-        // int tabl_size = 25000;
-        // if(dc->data.tbldata.size()>0)
-        //     tabl_size  = dc->data.tbldata[0].size();
-
-        // if(tabl_size  > 25000)
-        //     ui->tableWidget->setRowCount(25000);
-        // else
-        //     ui->tableWidget->setRowCount(tabl_size );
-
-        // ui->tableWidget->setHorizontalHeaderLabels(dc->data.headers);
-        // for(int i=0;i<dc->data.tbldata.size();i++)
-        // {
-        //     for (int a=0; (a<dc->data.tbldata[i].size() && a < 25000);a++)
-        //     {
-        //         QTableWidgetItem *item = new QTableWidgetItem(dc->data.tbldata[i][a].toString(),dc->data.tbldata[i][a].typeId());
-        //         ui->tableWidget->setItem(a, i, item);
-        //     }
-        // }
 
     }
     else
@@ -2315,3 +2306,129 @@ void LoaderWidnow::on_pushButton_4_clicked()
     _addtabcounter++;
 }
 
+inline float NN_min = 100000;
+
+void LoaderWidnow::on_nnTestRun_pressed()
+{
+    qDebug() << "nntestrun undefined";
+    int datasize = dc->data.tbldata[0].size();
+
+    datasize *= 2;// double to extrapolate
+
+    dc->data.tbldata.clear();
+    dc->data.headers.clear();
+    dc->data.headers.resize(2);
+    dc->data.headers[0] = "iteration";
+    dc->data.headers[1] = "value";
+    dc->data.tbldata.resize(2);
+    dc->data.tbldata[0].resize(datasize);
+    dc->data.tbldata[1].resize(datasize);
+
+    for(int i=0;i < datasize;i++)
+    {
+        float input = (((float)i)/(float)datasize )  *2.0f +0.5f;
+        nn.Run(&input);
+
+        QString str = QVariant(i).toString();
+        while(str.size()<10)
+            str = "0" + str;
+        dc->data.tbldata[0][i] = str;
+        dc->data.tbldata[1][i] = nn.outputs[0] + NN_min;
+    }
+
+    UpdateTable();
+}
+
+void LoaderWidnow::on_nnTestLearn_pressed()
+{
+    qDebug() << "on_nnTestLearn_pressed undefined";
+
+    if(dc->data.tbldata.size() <=0)
+        return;
+
+    std::vector<float> input;
+    std::vector<float> output;
+    input.resize(dc->data.tbldata[0].size());
+    output.resize(dc->data.tbldata[0].size());
+
+
+    for(int i=0;i < dc->data.tbldata[0].size();i++)
+    {
+        input[i] = ((float)i)/(float) dc->data.tbldata[0].size() ;
+        bool ok = false;
+        output[i] = dc->data.tbldata[0][i].toFloat(&ok);
+        qDebug() << output[i] << " = " << dc->data.tbldata[0][i].toFloat(&ok);
+        if (NN_min > output[i])
+            NN_min = output[i];
+    }
+    for(int i=0;i <output.size();i++)
+    {
+        output[i] = output[i] - NN_min;//(output[i] - NN_min) / (NN_max - NN_min);// put into range(0,1)
+        qDebug() << output[i];
+    }
+
+    int datasizeBuff = dc->data.tbldata[0].size();
+
+    for(int i=0;i<=50000;i++)
+    {
+        float cst = nn.lastCost;
+        if(cst > 1.0f)
+            nn.h = 0.0001f;
+        else
+            nn.h = 0.0001f * cst;
+
+        nn.SetupLearing();
+        float cst2 = nn.Cost(input.data(),output.data(),input.size());
+        while(cst2 <cst)
+        {
+            qDebug() << "cost " <<  cst2;
+            cst=cst2;
+            nn.ApplyGrad();
+            cst2 = nn.Cost(input.data(),output.data(),input.size());
+
+        }
+        if(cst2>=cst)
+            nn.DeApplyGrad();
+        nn.lastCost = cst;
+        if(i%500 == 0)
+        {
+            if(cst > 1.0f)
+                nn.learn(0.00001f,input.data(),output.data(),input.size());
+            else
+                nn.learn(0.0001f * cst,input.data(),output.data(),input.size());
+
+        }
+        if(i%5000 == 0)
+        {
+            int datasize = datasizeBuff * 2.0f;
+
+
+            TableData data;
+            data.headers.clear();
+            data.headers.resize(3);
+            data.headers[0] = "Source";
+            data.headers[1] = "iteration";
+            data.headers[2] = "value";
+            data.tbldata.resize(3);
+            data.tbldata[0].resize(datasize);
+            data.tbldata[1].resize(datasize);
+            data.tbldata[2].resize(datasize);
+
+            for(int a=0;a < datasize;a++)
+            {
+                float input = (((float)a)/(float)datasize) * 2.0f ;
+                nn.Run(&input);
+
+                QString str = QVariant(a).toString();
+                while(str.size()<10)
+                    str = "0" + str;
+                data.tbldata[0][a] = "iteration"  + QVariant(i).toString();
+                data.tbldata[1][a] = str;
+                data.tbldata[2][a] = nn.outputs[0]+ NN_min;//(nn.outputs[0] * (NN_max - NN_min)) + NN_min;
+            }
+            data.ExportToSQLiteTable("NN_Learn_Iteration"  + QVariant(i).toString());
+        }
+        qDebug() << "end cost " <<  cst;
+    }
+
+}

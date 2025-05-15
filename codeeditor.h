@@ -9,6 +9,7 @@ class CodeEditor : public QPlainTextEdit
 
     Q_OBJECT
     bool ctrl_pressed = false;
+    bool shift_pressed = false;
 
 public:
     CodeEditor(QWidget *parent = nullptr);
@@ -33,12 +34,13 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
     void keyPressEvent(QKeyEvent *e) override;
     void keyReleaseEvent(QKeyEvent *e) override;
+public slots:
+    void CommentSelected();
 
 private slots:
     void updateLineNumberAreaWidth(int newBlockCount);
     void updateLineNumberArea(const QRect &rect, int dy);
 
-    void CommentSelected();
     void highlightCurrentLine();
     void suggestName();
     void fillName();

@@ -8,7 +8,8 @@
 #include "Patterns.h"
 #include "sqlSubfunctions.h"
 
-
+// crash on query begin. after import? sqlitesave?
+// query success?
 
 inline QString usrDir;
 inline QString documentsDir;
@@ -267,19 +268,13 @@ bool DatabaseConnection::execSql(QString sql)
     dataDownloading = false;
     lastErrorPos = -1;
     savefilecount = 0;
-
     queryExecutionState = 0;
-
-
-
-    if(sql.size() <=0)
-        sql = sqlCode;
     tableDataMutex.lock();
     tableDataMutex.unlock();
     executionTime = QDateTime::currentSecsSinceEpoch();
     executionStart = QDateTime::currentDateTime();
     executionEnd = QDateTime::currentDateTime();
-    if(!db.isOpen())
+    if(!db.isOpen() && !customOracle)
     {
         bool ok = db.open();
         if(ok)
@@ -288,6 +283,8 @@ bool DatabaseConnection::execSql(QString sql)
             qDebug() << "nope: "<< db.lastError().text().toStdString();
     }
 
+    if(sql.size() <=0)
+        sql = sqlCode;
 
     // Prepeare sql to be run, detect any special keywords
     QString formatedSql;
@@ -401,9 +398,9 @@ bool DatabaseConnection::execSql(QString sql)
                         a = buff_a;
                         qDebug()<< "subexec variables " << funcVariables;
                         // recursion does its thing, recursive subexec's are possible and infinite^tm
-                        if(subCommandPatterns[i].startsWith("Subexec") ||subCommandPatterns[i].startsWith("SilentSubexec") || subCommandPatterns[i].startsWith("ExcelTo"))
+                        if(subCommandPatterns[i].startsWith("Subexec") ||subCommandPatterns[i].startsWith("SilentSubexec") || subCommandPatterns[i].startsWith("ExcelTo")|| subCommandPatterns[i].startsWith("CSVTo"))
                         {// its a subexec, crop part from next { to }, exec it in subscriptConnection
-                            qDebug()<<"Its SubExec or ExcelTo";
+                            qDebug()<<"Its SubExec or ExcelTo or CSVTo";
 
 
 
@@ -519,6 +516,51 @@ bool DatabaseConnection::execSql(QString sql)
                                 }
 
                                 subscriptConnesction->data.ImportFromExcel(subscriptDriver,0,0,0,0,true);
+                                if(subscriptDBname != "NoDatabase")
+                                {// leave only one column
+                                    for(int it=0;it<subscriptConnesction->data.headers.size();it++)
+                                    {
+                                        if(subscriptConnesction->data.headers[it] == subscriptDBname)
+                                        {
+                                            neededMagicColumn = it;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            if(subCommandPatterns[i].startsWith("CSVTo"))
+                            {
+                                neededMagicColumn=0;// autoselect column 1, if no column selected
+                                // cut autopaste part of path
+
+                                if(saveName != "unset_tmp_savename" && saveStart_X!=0)
+                                {
+                                    bool ok = false;
+                                    TableCutoffStart = QVariant(saveName).toInt(&ok);
+
+                                    if(!ok || TableCutoffStart <0)
+                                    {
+                                        TableCutoffStart =-1;
+                                        TableCutoffEnd =-1;
+                                    }
+                                    else
+                                    {
+                                        // all good
+                                        TableCutoffEnd = TableCutoffStart + saveStart_X;
+                                    }
+                                }
+                                if(subscriptDriver.startsWith("file:///"))
+                                {
+                                    for(int i=0;i < subscriptDriver.size();i++)
+                                    {
+                                        if(i+7 < subscriptDriver.size())
+                                            subscriptDriver[i]=subscriptDriver[i+8];
+                                    }
+                                    subscriptDriver.resize(subscriptDriver.size()-8);
+                                    qDebug() <<"subscriptDriver" <<subscriptDriver;
+                                }
+
+                                subscriptConnesction->data.ImportFromCSV(subscriptDriver,';',true);
                                 if(subscriptDBname != "NoDatabase")
                                 {// leave only one column
                                     for(int it=0;it<subscriptConnesction->data.headers.size();it++)
@@ -811,7 +853,7 @@ bool DatabaseConnection::execSql(QString sql)
 
 
                             }
-                            else if(subCommandPatterns[i] == "SubexecToMagic" || subCommandPatterns[i] == "ExcelToMagic")
+                            else if(subCommandPatterns[i] == "SubexecToMagic" || subCommandPatterns[i] == "ExcelToMagic" || subCommandPatterns[i] == "CSVToMagic")
                             {// exec into ('magic', 'element1') , ('magic', 'element2')
                                 //Probably oracle specific cuz oracle has 1k limit on 'in' arrays
                                 savefilecount++;
@@ -841,7 +883,7 @@ bool DatabaseConnection::execSql(QString sql)
                                     }
                                 }
                             }
-                            else if(subCommandPatterns[i] == "SubexecToArray"  || subCommandPatterns[i] == "ExcelToArray")
+                            else if(subCommandPatterns[i] == "SubexecToArray" || subCommandPatterns[i] == "ExcelToArray" || subCommandPatterns[i] == "CSVToArray")
                             {// exec into 'element1','element2','element3'
                                 savefilecount++;
                                 qDebug() <<"Reached SubexecToArray implementation";
@@ -871,7 +913,13 @@ bool DatabaseConnection::execSql(QString sql)
 
 
                             }
+                            else if(subCommandPatterns[i] == "ExcelToSqliteTable"|| subCommandPatterns[i] == "CSVToSqliteTable")
+                            {
 
+                                if(subscriptConnesction->data.headers.size() > 0)
+                                    if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
+                                        subscriptConnesction->data.ExportToSQLiteTable(subscriptDBname);
+                            }
                             subscriptConnesction->db.close();
                             delete subscriptConnesction;
                             subscriptConnesction = nullptr;
@@ -1110,8 +1158,8 @@ bool DatabaseConnection::execSql(QString sql)
 
         emit queryBeginExecuting();
         try{
-            if(OCI_lastenv == nullptr)
-                OCI_lastenv = oracle::occi::Environment::createEnvironment ( "CL8MSWIN1251", "CL8MSWIN1251",oracle::occi::Environment::Mode::DEFAULT);//oracle::occi::Environment::DEFAULT);
+
+            OCI_lastenv = oracle::occi::Environment::createEnvironment ( "CL8MSWIN1251", "CL8MSWIN1251",oracle::occi::Environment::Mode::DEFAULT);//oracle::occi::Environment::DEFAULT);
 
             QString connection_string ="(DESCRIPTION=(ADDRESS=(PROTOCOL=tcp) (HOST=" + ipAddres.trimmed() + ") (PORT=" + port.trimmed() + "))(CONNECT_DATA=(SERVICE_NAME=" + schemaName.trimmed() + ")))";
             OCI_lastcon = ((oracle::occi::Environment*)OCI_lastenv)->createConnection (usrname.trimmed().toStdString(),password.trimmed().toStdString(),connection_string.toStdString());
@@ -1161,14 +1209,14 @@ bool DatabaseConnection::execSql(QString sql)
                              data.tbldata[i].push_back(fixQVariantTypeFormat(QString().fromLocal8Bit(QByteArray::fromStdString(rset->getString(i+1)))));
                          }
                          else
-                             if(!rset->isNull(i + 1))
-                             {
-                                 data.tbldata[i].push_back(fixQVariantTypeFormat(fromOCIDateTime(rset->getDate(i+1))));
-                             }
-                             else
-                             {
-                                 data.tbldata[i].push_back(fixQVariantTypeFormat(QDateTime()));
-                             }
+                            if(!rset->isNull(i + 1))
+                            {
+                               data.tbldata[i].push_back(fixQVariantTypeFormat(fromOCIDateTime(rset->getDate(i+1))));
+                            }
+                            else
+                            {
+                               data.tbldata[i].push_back(QVariant());
+                            }
                      }
 
                     if(stopAt500Lines && ccnt > 500)
@@ -1245,6 +1293,8 @@ bool DatabaseConnection::execSql(QString sql)
                     data.headers.push_back("Error");
                     data.tbldata.back().emplace_back("user canceled query");
                     qDebug() << "stopped";
+                    OCI_lastenv = nullptr;
+                    OCI_lastcon = nullptr;
                     executing = false;
                     executionEnd = QDateTime::currentDateTime();
                     executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
@@ -1382,7 +1432,7 @@ bool DatabaseConnection::execSql(QString sql)
                         linenum+= errStr[i++];
                     if(linenum.size()>0)
                     {
-                        errStr =        errStr.replace(searchstr + linenum," code_pos: "+QVariant(QVariant(linenum).toInt() + _code_start_line).toString());
+                        errStr = errStr.replace(searchstr + linenum," code_pos: "+QVariant(QVariant(linenum).toInt() + _code_start_line).toString());
 
                         qDebug()<<"line num is "<< linenum ;
                     }

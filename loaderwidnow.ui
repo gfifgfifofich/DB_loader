@@ -747,7 +747,7 @@
              </size>
             </property>
             <property name="currentIndex">
-             <number>1</number>
+             <number>0</number>
             </property>
             <property name="documentMode">
              <bool>true</bool>
@@ -761,7 +761,7 @@
             <property name="tabBarAutoHide">
              <bool>false</bool>
             </property>
-            <widget class="QWidget" name="">
+            <widget class="QWidget" name="widget">
              <attribute name="title">
               <string/>
              </attribute>
@@ -1128,8 +1128,247 @@
      <height>21</height>
     </rect>
    </property>
+   <widget class="QMenu" name="menufile">
+    <property name="title">
+     <string>File</string>
+    </property>
+    <addaction name="actionNew_window"/>
+    <addaction name="separator"/>
+    <addaction name="actionSave_workspace"/>
+   </widget>
+   <widget class="QMenu" name="menuSettings">
+    <property name="title">
+     <string>Settings</string>
+    </property>
+    <addaction name="actionUserTheme"/>
+   </widget>
+   <widget class="QMenu" name="menuAbout">
+    <property name="title">
+     <string>Info</string>
+    </property>
+    <addaction name="actionKey_bindings"/>
+    <addaction name="actionsubfunction_docs"/>
+   </widget>
+   <widget class="QMenu" name="menuHelp">
+    <property name="title">
+     <string>Help</string>
+    </property>
+    <addaction name="actionno"/>
+   </widget>
+   <widget class="QMenu" name="menuMisc">
+    <property name="title">
+     <string>Misc</string>
+    </property>
+    <addaction name="actionRun_token_processor"/>
+    <addaction name="actionNN_Learn_first_column"/>
+    <addaction name="actionNN_Run"/>
+    <addaction name="actionOpen_QML_form"/>
+   </widget>
+   <widget class="QMenu" name="menuCode">
+    <property name="title">
+     <string>Code</string>
+    </property>
+    <addaction name="actionRun"/>
+    <addaction name="actionCommentSelected"/>
+    <addaction name="actionReplace"/>
+   </widget>
+   <widget class="QMenu" name="menuWindows">
+    <property name="title">
+     <string>Windows</string>
+    </property>
+    <addaction name="actionGraph"/>
+    <addaction name="actionHistory"/>
+    <addaction name="actionWorkspaces"/>
+    <addaction name="actionAutorun"/>
+   </widget>
+   <widget class="QMenu" name="menuData">
+    <property name="title">
+     <string>Data</string>
+    </property>
+    <addaction name="actionSave_as_excel"/>
+    <addaction name="actionSave_as_csv"/>
+    <addaction name="actionSave_as_SQLite_table"/>
+    <addaction name="actionImport_from_xlsx_file"/>
+    <addaction name="actionImport_from_csv_file"/>
+    <addaction name="actionOpen_export_directory"/>
+    <addaction name="actionOpen_last_excel_export"/>
+   </widget>
+   <addaction name="menufile"/>
+   <addaction name="menuSettings"/>
+   <addaction name="menuAbout"/>
+   <addaction name="menuHelp"/>
+   <addaction name="menuMisc"/>
+   <addaction name="menuCode"/>
+   <addaction name="menuWindows"/>
+   <addaction name="menuData"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionUserTheme">
+   <property name="text">
+    <string>UserTheme</string>
+   </property>
+  </action>
+  <action name="actionKey_bindings">
+   <property name="text">
+    <string>Key bindings</string>
+   </property>
+  </action>
+  <action name="actionsubfunction_docs">
+   <property name="text">
+    <string>subfunction docs</string>
+   </property>
+  </action>
+  <action name="actionno">
+   <property name="text">
+    <string>no.</string>
+   </property>
+  </action>
+  <action name="actionRun_token_processor">
+   <property name="text">
+    <string>Run token processor</string>
+   </property>
+  </action>
+  <action name="actionNN_Learn_first_column">
+   <property name="text">
+    <string>NN Learn first column</string>
+   </property>
+  </action>
+  <action name="actionNN_Run">
+   <property name="text">
+    <string>NN Run</string>
+   </property>
+  </action>
+  <action name="actionOpen_QML_form">
+   <property name="text">
+    <string>Open QML form</string>
+   </property>
+  </action>
+  <action name="actionRun">
+   <property name="text">
+    <string>Run</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Return</string>
+   </property>
+  </action>
+  <action name="actionNew_window">
+   <property name="text">
+    <string>New window</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Alt+N</string>
+   </property>
+  </action>
+  <action name="actionGraph">
+   <property name="text">
+    <string>Graph</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+G</string>
+   </property>
+  </action>
+  <action name="actionHistory">
+   <property name="text">
+    <string>History</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+H</string>
+   </property>
+  </action>
+  <action name="actionWorkspaces">
+   <property name="text">
+    <string>Workspaces</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+W</string>
+   </property>
+  </action>
+  <action name="actionAutorun">
+   <property name="text">
+    <string>Autorun</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+T</string>
+   </property>
+  </action>
+  <action name="actionCommentSelected">
+   <property name="text">
+    <string>CommentSelected</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+B</string>
+   </property>
+  </action>
+  <action name="actionMove_right">
+   <property name="text">
+    <string>Move right</string>
+   </property>
+  </action>
+  <action name="actionMove_left">
+   <property name="text">
+    <string>Move left</string>
+   </property>
+  </action>
+  <action name="actionOpen_export_directory">
+   <property name="text">
+    <string>Open export directory</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Alt+O</string>
+   </property>
+  </action>
+  <action name="actionOpen_last_excel_export">
+   <property name="text">
+    <string>Open last excel export</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+O</string>
+   </property>
+  </action>
+  <action name="actionReplace">
+   <property name="text">
+    <string>Replace</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+F</string>
+   </property>
+  </action>
+  <action name="actionSave_workspace">
+   <property name="text">
+    <string>Save workspace</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+S</string>
+   </property>
+  </action>
+  <action name="actionSave_as_excel">
+   <property name="text">
+    <string>Save as xlsx</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+E</string>
+   </property>
+  </action>
+  <action name="actionSave_as_csv">
+   <property name="text">
+    <string>Save as csv</string>
+   </property>
+  </action>
+  <action name="actionSave_as_SQLite_table">
+   <property name="text">
+    <string>Save as SQLite table</string>
+   </property>
+  </action>
+  <action name="actionImport_from_xlsx_file">
+   <property name="text">
+    <string>Import from xlsx file</string>
+   </property>
+  </action>
+  <action name="actionImport_from_csv_file">
+   <property name="text">
+    <string>Import from csv file</string>
+   </property>
+  </action>
  </widget>
  <resources/>
  <connections/>

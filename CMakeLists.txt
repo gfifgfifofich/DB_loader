@@ -53,6 +53,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
 
         ${app_icon_resource_windows}
         oracledriver.h oracledriver.cpp
+        settingswindow.h settingswindow.cpp settingswindow.ui
+        colorbutton.h colorbutton.cpp
 
     )
 # Define target properties for Android with Qt 6 as:

@@ -39,13 +39,14 @@ Highlighter::Highlighter(QTextDocument *parent)
     HighlightingRule rule;
 
     // load user theme
-    if(userDS.Load("userdata.txt"))
+    if(userDS.Load((documentsDir +"/userdata.txt").toStdString()))
     {
-        if(QString(userDS.data["UserTheme"]["KeyWordItalic"].c_str()).trimmed().toLower() == "true")
+        int fnt_size = userDS.GetPropertyAsInt("UserTheme","FontSize");
+        if(QString(userDS.data["UserTheme"]["Italic_KeyWord"].c_str()).trimmed().toLower() == "true")
             keywordFormat.setFontItalic(true);
-        if(QString(userDS.data["UserTheme"]["KeyWordBold"].c_str()).trimmed().toLower() == "true")
+        if(QString(userDS.data["UserTheme"]["Bold_KeyWord"].c_str()).trimmed().toLower() == "true")
             keywordFormat.setFontWeight(QFont::Bold);
-        QStringList strl = QString(userDS.data["UserTheme"]["KeyWordColor"].c_str()).split(',');
+        QStringList strl = QString(userDS.data["UserTheme"]["Color_KeyWord"].c_str()).split(',');
         QColor col = QColor::fromRgbF(0.25f,0.55f,0.95f,1.0f);
         for(int i=0;i<strl.size();i++)
         {
@@ -55,15 +56,15 @@ Highlighter::Highlighter(QTextDocument *parent)
             if(i==3) col.setAlpha(QVariant(strl[i]).toInt());
         }
         keywordFormat.setForeground( col);
-        keywordFormat.setFontPointSize(QVariant(userDS.data["UserTheme"]["KeyWordSize"].c_str()).toInt());
+        keywordFormat.setFontPointSize(fnt_size);
 
 
 
-        if(QString(userDS.data["UserTheme"]["ColumnItalic"].c_str()).trimmed().toLower() == "true") // columns
+        if(QString(userDS.data["UserTheme"]["Italic_column_name"].c_str()).trimmed().toLower() == "true") // columns
         NameFormat.setFontItalic(true);
-        if(QString(userDS.data["UserTheme"]["ColumnBold"].c_str()).trimmed().toLower() == "true")
+        if(QString(userDS.data["UserTheme"]["Bold_column_name"].c_str()).trimmed().toLower() == "true")
             NameFormat.setFontWeight(QFont::Bold);
-        strl = QString(userDS.data["UserTheme"]["ColumnColor"].c_str()).split(',');
+        strl = QString(userDS.data["UserTheme"]["Color_column_name"].c_str()).split(',');
         col = QColor::fromRgbF(0.85f,0.45f,0.15f,1.0f);
         for(int i=0;i<strl.size();i++)
         {
@@ -73,15 +74,15 @@ Highlighter::Highlighter(QTextDocument *parent)
             if(i==3) col.setAlpha(QVariant(strl[i]).toInt());
         }
         NameFormat.setForeground( col );
-        NameFormat.setFontPointSize(QVariant(userDS.data["UserTheme"]["ColumnSize"].c_str()).toInt());
+        NameFormat.setFontPointSize(fnt_size);
 
 
 
-        if(QString(userDS.data["UserTheme"]["NameItalic"].c_str()).trimmed().toLower() == "true") // tables
+        if(QString(userDS.data["UserTheme"]["Italic_table_name"].c_str()).trimmed().toLower() == "true") // tables
         classFormat.setFontItalic(true);
-        if(QString(userDS.data["UserTheme"]["NameBold"].c_str()).trimmed().toLower() == "true")
+        if(QString(userDS.data["UserTheme"]["Bold_table_name"].c_str()).trimmed().toLower() == "true")
             classFormat.setFontWeight(QFont::Bold);
-        strl = QString(userDS.data["UserTheme"]["NameColor"].c_str()).split(',');
+        strl = QString(userDS.data["UserTheme"]["Color_table_name"].c_str()).split(',');
         col = QColor::fromRgbF(0.65f,0.25f,0.65f,1.0f);
         for(int i=0;i<strl.size();i++)
         {
@@ -91,15 +92,15 @@ Highlighter::Highlighter(QTextDocument *parent)
             if(i==3) col.setAlpha(QVariant(strl[i]).toInt());
         }
         classFormat.setForeground( col );
-        classFormat.setFontPointSize(QVariant(userDS.data["UserTheme"]["NameSize"].c_str()).toInt());
+        classFormat.setFontPointSize(fnt_size);
 
 
 
-        if(QString(userDS.data["UserTheme"]["quotationItalic"].c_str()).trimmed().toLower() == "true")
+        if(QString(userDS.data["UserTheme"]["Italic_quotation"].c_str()).trimmed().toLower() == "true")
         quotationFormat.setFontItalic(true);
-        if(QString(userDS.data["UserTheme"]["quotationBold"].c_str()).trimmed().toLower() == "true")
+        if(QString(userDS.data["UserTheme"]["Bold_quotation"].c_str()).trimmed().toLower() == "true")
             quotationFormat.setFontWeight(QFont::Bold);
-        strl = QString(userDS.data["UserTheme"]["quotationColor"].c_str()).split(',');
+        strl = QString(userDS.data["UserTheme"]["Color_quotation"].c_str()).split(',');
         col = QColor::fromRgbF(0.6f,0.5f,0.25f,1.0f);
         for(int i=0;i<strl.size();i++)
         {
@@ -109,15 +110,15 @@ Highlighter::Highlighter(QTextDocument *parent)
             if(i==3) col.setAlpha(QVariant(strl[i]).toInt());
         }
         quotationFormat.setForeground(col);
-        quotationFormat.setFontPointSize(QVariant(userDS.data["UserTheme"]["quotationSize"].c_str()).toInt());
+        quotationFormat.setFontPointSize(fnt_size);
 
 
 
-        if(QString(userDS.data["UserTheme"]["CommentItalic"].c_str()).trimmed().toLower() == "true")
+        if(QString(userDS.data["UserTheme"]["Italic_comment"].c_str()).trimmed().toLower() == "true")
         multiLineCommentFormat.setFontItalic(true);
-        if(QString(userDS.data["UserTheme"]["CommentBold"].c_str()).trimmed().toLower() == "true")
+        if(QString(userDS.data["UserTheme"]["Bold_comment"].c_str()).trimmed().toLower() == "true")
             multiLineCommentFormat.setFontWeight(QFont::Bold);
-        strl = QString(userDS.data["UserTheme"]["CommentColor"].c_str()).split(',');
+        strl = QString(userDS.data["UserTheme"]["Color_comment"].c_str()).split(',');
         col = QColor::fromRgbF(0.15f,0.75f,0.15f,1.0f);
         for(int i=0;i<strl.size();i++)
         {
@@ -127,15 +128,11 @@ Highlighter::Highlighter(QTextDocument *parent)
             if(i==3) col.setAlpha(QVariant(strl[i]).toInt());
         }
         multiLineCommentFormat.setForeground(col);
-        multiLineCommentFormat.setFontPointSize(QVariant(userDS.data["UserTheme"]["CommentSize"].c_str()).toInt());
+        multiLineCommentFormat.setFontPointSize(fnt_size);
 
 
 
 
-        if(userDS.data["UserTheme"]["ColumnItalic"] == "true")//?
-            functionFormat.setFontItalic(true);
-        if(false)
-            functionFormat.setFontWeight(QFont::Bold);
         functionFormat.setForeground(Qt::blue);
 
     }

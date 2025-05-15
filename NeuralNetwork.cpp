@@ -130,9 +130,19 @@ void NeuralNetwork::Run(float* inputData)
 
 				PrevLayerNode++;
 			}
+            if(n <= size * 0.5f +1)
+                Nodes[n] = sigmoidApprox(sum) + biases[n];
+            else if(n > size * 0.5f +1 && n < size * 0.65f )
+                Nodes[n] = sigmoidApprox(sum) + biases[n];
+            else
+                Nodes[n] = sigmoidApprox(sum) + biases[n];
 
-            Nodes[n] = sigmoidApprox(sum);// + biases[n];
-			node++;
+            if(i == LayersAmount-1)
+            {
+                Nodes[n] = sum + biases[n];
+            }
+
+            node++;
 		}
 		PrevNodeStart = NodesStep[i];
 	}
@@ -188,7 +198,7 @@ float NeuralNetwork::Cost(float* input, float* output, int amount)
     // take random from amount
     float* arr = new float[sizein];
 
-    for (auto i : rand_ids)
+    for (int i=0;i < amount;i++)
     {
 
 		for (int iter = 0; iter < sizein; iter++)
@@ -228,9 +238,9 @@ void NeuralNetwork::DeApplyGrad()
 void NeuralNetwork::SetupLearing()
 {
 	for (int i = 0; i < WeightsAmount; i++)
-        weightGradients[i] = weights[i] * h * ((rand() % 100000) / 100000.0f - 0.5f) * 2.0f + h * ((rand() % 100000) / 100000.0f - 0.5f) * 2.0f;
+        weightGradients[i] = weights[i] * h * ((rand() % 100000) / 100000.0f - 0.5f) * 2.0f + h * ((rand() % 100000) / 10000000.0f - 0.5f) * 2.0f;
 	for (int i = 0; i < NodesAmount; i++)
-        biasGradients[i] = biases[i] * h * ((rand() % 100000) / 100000.0f - 0.5f) * 2.0f +  h * ((rand() % 100000) / 100000.0f - 0.5f) * 2.0f;
+        biasGradients[i] = biases[i] * h * ((rand() % 100000) / 100000.0f - 0.5f) * 2.0f +  h * ((rand() % 100000) / 10000000.0f - 0.5f) * 2.0f;
 	ApplyGrad();
 }
 void NeuralNetwork::ApplyLearing(float cost)
@@ -273,8 +283,8 @@ void NeuralNetwork::CopyIntoWithGradient(NeuralNetwork* target)
 // Uses Cost() to minimize the diviation. Method - finite difirences
 void NeuralNetwork::learn(float rate, float* input, float* output, int amount)
 {
-	float h = 0.0001f;
-	float c1 = Cost(input, output, amount);
+    float h = 0.00001f;
+    float c1 = Cost(input, output, amount);
 
     // reshuffle training data;
     rand_ids.clear();
@@ -291,7 +301,7 @@ void NeuralNetwork::learn(float rate, float* input, float* output, int amount)
 		float slope = (c2 - c1) / h;
 
 		weightGradients[i] = slope * rate;
-        qDebug() <<  "weight["<<i << "]" <<weightGradients[i];
+        //qDebug() <<  "weight["<<i << "]" <<weightGradients[i] << weights[i];
 	}
 	for (int i = 0; i < NodesAmount; i++)
 	{
@@ -304,9 +314,11 @@ void NeuralNetwork::learn(float rate, float* input, float* output, int amount)
 		biasGradients[i] = slope * rate;
     }
 
+    qDebug() <<"Cost "<<c1;
 	ApplyGrad();
 	float cst = Cost(input, output, amount);
 
+    qDebug() <<"Cost "<<cst;
 	float cst2 = cst;
 	bool run = true;
 	while (run)
@@ -314,10 +326,12 @@ void NeuralNetwork::learn(float rate, float* input, float* output, int amount)
 		run = false;
 		ApplyGrad();
 		cst2 = Cost(input, output, amount);
+        qDebug() <<"End Cost "<<cst2;
 		if (cst2 < cst)
 		{
 			run = true;
-			cst = cst2;
+            cst = cst2;
+            qDebug() <<"End Cost "<<cst;
             lastCost = cst;
 		}
 		else
