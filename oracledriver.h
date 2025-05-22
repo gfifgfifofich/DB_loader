@@ -81,18 +81,24 @@ inline int detectType(int oracle_type)
         qDebug() << "QString" << type;
         break;
     case SQLT_INT:
-        type = QMetaType::Int;
+        type = QMetaType::Double;
         qDebug() << "Int" << type;
         break;
     case SQLT_FLT:
-        type = QMetaType::Float;
+        type = QMetaType::Double;
         qDebug() << "Float" << type;
         break;
     case SQLT_NUM:
+        type = QMetaType::Double;
+        qDebug() << "QString 1" << type;
+
+        break;
     case SQLT_VNU:
+        type = QMetaType::Double;
+        qDebug() << "QString 2" << type;
     case SQLT_UIN:
-        type = QMetaType::QString;
-        qDebug() << "QString" << type;
+        type = QMetaType::Double;
+        qDebug() << "QString 3" << type;
         break;
     case SQLT_VBI:
     case SQLT_BIN:

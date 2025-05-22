@@ -8,8 +8,7 @@
 #include "Patterns.h"
 #include "sqlSubfunctions.h"
 
-// crash on query begin. after import? sqlitesave?
-// query success?
+// crash on parralel sqlite in multiple tabs, sqlite save
 
 inline QString usrDir;
 inline QString documentsDir;
@@ -927,7 +926,12 @@ bool DatabaseConnection::execSql(QString sql)
                             if(stopNow)
                             {
                                 stopNow=false;
-
+                                executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
+                                executionEnd = QDateTime::currentDateTime();
+                                qDebug() << "Execd";
+                                executing = false;
+                                queryExecutionState = 4;
+                                emit execedSql();
                                 return false;
                             }
                         }
@@ -1152,6 +1156,8 @@ bool DatabaseConnection::execSql(QString sql)
     qDebug() << "creating query";
     emit queryBeginCreating();
 
+    data.typecount.clear();
+
     queryExecutionState = 1;
     if(customOracle)
     {
@@ -1188,6 +1194,9 @@ bool DatabaseConnection::execSql(QString sql)
                 data.headers.resize(mtl.back().size());
                 data.tbldata.clear();
                 data.tbldata.resize(mtl.back().size());
+                data.typecount.clear();
+                data.typecount.resize(mtl.back().size());
+
                 for(int i=0;i < mtl.back().size(); i++)
                 {
                     types[i] = detectType(mtl.back()[i].getInt(oracle::occi::MetaData::ATTR_DATA_TYPE));
@@ -1204,19 +1213,35 @@ bool DatabaseConnection::execSql(QString sql)
                     ccnt ++;
                      for(int i=0;i < mtl.back().size(); i ++)
                      {
-                         if(types[i]!=16)
-                         {
-                             data.tbldata[i].push_back(fixQVariantTypeFormat(QString().fromLocal8Bit(QByteArray::fromStdString(rset->getString(i+1)))));
-                         }
-                         else
-                            if(!rset->isNull(i + 1))
-                            {
-                               data.tbldata[i].push_back(fixQVariantTypeFormat(fromOCIDateTime(rset->getDate(i+1))));
-                            }
+
+                        if(types[i]!=16)
+                        {
+
+                            if(types[i]!=6)
+                                data.tbldata[i].push_back(fixQVariantTypeFormat(QString().fromLocal8Bit(QByteArray::fromStdString(rset->getString(i+1)))));
                             else
                             {
-                               data.tbldata[i].push_back(QVariant());
+                                QString tmpstr = QString().fromLocal8Bit(QByteArray::fromStdString(rset->getString(i+1))).replace(',','.');
+                                data.tbldata[i].push_back(QVariant(tmpstr).toDouble());
+
                             }
+                        }
+                        else if(!rset->isNull(i + 1))
+                        {
+                           data.tbldata[i].push_back(fixQVariantTypeFormat(fromOCIDateTime(rset->getDate(i+1))));
+                        }
+                        else
+                        {
+                           data.tbldata[i].push_back(QVariant());
+                        }
+
+                        if(data.tbldata[i].back().toString().size()>0)
+                        {
+                            while(data.typecount[i].size() <= types[i])
+                                data.typecount[i].emplace_back();
+                            data.typecount[i][types[i]]++;
+                        }
+
                      }
 
                     if(stopAt500Lines && ccnt > 500)
@@ -1225,6 +1250,23 @@ bool DatabaseConnection::execSql(QString sql)
                     {
                         stopNow=false;
                         break;
+                    }
+                }
+
+                data.maxVarTypes.clear();
+                data.maxVarTypes.resize( data.typecount.size());
+
+                for(int i=0;i < data.typecount.size();i++)
+                {
+                    int maxvt = 0;
+                    for(int a  = 0; a < data.typecount[i].size();a++)
+                    {
+                        if(a == 0 || maxvt <= data.typecount[i][a])
+                        {
+                            data.maxVarTypes[i] = a;
+                            maxvt = data.typecount[i][a];
+                        }
+
                     }
                 }
 
@@ -1287,11 +1329,15 @@ bool DatabaseConnection::execSql(QString sql)
                         qDebug()<<"oracle::occi::SQLException at runSelect" << " Error number: "<<  ex.getErrorCode()  << "    "<<ex.getMessage() ;
                     }
 
-                    data.headers.clear();
-                    data.tbldata.clear();
-                    data.tbldata.emplace_back();
-                    data.headers.push_back("Error");
-                    data.tbldata.back().emplace_back("user canceled query");
+                    if(!dataDownloading)
+                    {
+                        data.headers.clear();
+                        data.tbldata.clear();
+                        data.tbldata.emplace_back();
+                        data.headers.push_back("Error");
+                        data.tbldata.back().emplace_back("user canceled query");
+                    }
+                    dataDownloading = false;
                     qDebug() << "stopped";
                     OCI_lastenv = nullptr;
                     OCI_lastcon = nullptr;
@@ -1468,6 +1514,7 @@ bool DatabaseConnection::execSql(QString sql)
         queryExecutionState = 4;
         return true;
     }
+
     OCI_lastenv = nullptr;
     OCI_lastcon = nullptr;
     //currentRunningOracleDriver = nullptr;
@@ -1490,13 +1537,19 @@ bool DatabaseConnection::execSql(QString sql)
         int i=0;
         data.tbldata.clear();
         data.tbldata.resize(data.headers.size());
+        data.typecount.clear();
+        data.typecount.resize(data.tbldata.size());
         while(q.next())
         {
             for(int a=0,total = q.record().count(); a<total;a++)
             {
 
                 QVariant var = fixQVariantTypeFormat(q.value(a));
+                //qDebug() << q.value(a) << " -> " << var;
 
+                while(data.typecount[a].size() <= var.typeId())
+                    data.typecount[a].emplace_back();
+                data.typecount[a][var.typeId()]++;
 
                 data.tbldata[a].push_back(var);
             }
@@ -1510,6 +1563,21 @@ bool DatabaseConnection::execSql(QString sql)
             }
         }
 
+        data.maxVarTypes.clear();
+        data.maxVarTypes.resize( data.typecount.size());
+
+        for(int i=0;i < data.typecount.size();i++)
+        {
+            int maxvt = 0;
+            for(int a  = 0; a < data.typecount[i].size();a++)
+            {
+                if(a == 0 || maxvt <= data.typecount[i][a])
+                {
+                    data.maxVarTypes[i] = a;
+                    maxvt = data.typecount[i][a];
+                }
+            }
+        }
     }
     else
     {
@@ -1608,11 +1676,13 @@ bool DatabaseConnection::execSql(QString sql)
 
     for(int i=0;i<data.headers.size();i++)
         data.setHeaderData(i,Qt::Horizontal,data.headers[i]);
+
     executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
     executionEnd = QDateTime::currentDateTime();
     qDebug() << "Execd";
     executing = false;
     queryExecutionState = 4;
+
     emit execedSql();
     return true;
 }
@@ -1627,10 +1697,15 @@ void DatabaseConnection::stopRunning()
     {
         subscriptConnesction->stopRunning();
         stopNow = true;
-        //return;
+        return;
     }
-
-    if(!dataDownloading && customOracle && ((oracle::occi::Environment*)OCI_lastenv)!=nullptr && ((oracle::occi::Connection*)OCI_lastcon)!=nullptr)
+    if(dataDownloading)
+    {
+        stopNow = true;
+        dataDownloading = false;
+        return;
+    }
+    else if(customOracle && ((oracle::occi::Environment*)OCI_lastenv)!=nullptr && ((oracle::occi::Connection*)OCI_lastcon)!=nullptr)
     { // signal to stop running query
 
 
@@ -1671,6 +1746,7 @@ void DatabaseConnection::stopRunning()
         }
         //currentRunningOracleDriver = nullptr;
     }
+
 }
 
 
@@ -1709,11 +1785,3 @@ QString DatabaseConnection::getYear()
 {
     return QVariant(QDate::currentDate().year()).toString();
 }
-
-
-
-
-
-
-
-

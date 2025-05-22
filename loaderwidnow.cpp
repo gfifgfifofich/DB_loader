@@ -436,7 +436,7 @@ void LoaderWidnow::on_ConnectButton_pressed()
     QString password = ui->passwordLineEdit->text();
     dc->connectionName = conname;
     bool differentDB = false;
-    if(dc->LastDBName != dbname || (driver == "LOCAL_SQLITE_DB"))
+    if(dc->dbname != dbname ||dc->LastDBName != dbname || (driver == "LOCAL_SQLITE_DB"))
         differentDB = true;
 
 
@@ -484,8 +484,8 @@ void LoaderWidnow::on_ConnectButton_pressed()
             ui->driverComboBox->clear();
             ui->driverComboBox->addItems(strl);
 
-            ui->DBNameComboBox->setCurrentText(LastTmpDbName );
-            ui->driverComboBox->setCurrentText( LastTmpDriverName);
+            ui->DBNameComboBox->setCurrentText( LastTmpDbName );
+            ui->driverComboBox->setCurrentText( LastTmpDriverName );
 
 
             userDS.data[ui->DBNameComboBox->currentText().toStdString()]["name"] = dc->usrname.toStdString();
@@ -1630,6 +1630,8 @@ void LoaderWidnow::SaveWorkspace()
     stream2 << " {" <<   ui->DBNameComboBox->currentText().toStdString() << "}\n";
     stream2 << text.toStdString();
     stream2.close();
+
+    this->setWindowTitle(LastWorkspaceName);
 }
 
 // export
@@ -1695,6 +1697,7 @@ void LoaderWidnow::on_importFromExcelButton_pressed()
 void LoaderWidnow::on_workspaceLineEdit_textChanged(const QString &arg1)
 {
     LastWorkspaceName = arg1;
+    this->setWindowTitle(LastWorkspaceName);
 }
 void LoaderWidnow::on_listWidget_currentTextChanged(const QString &currentText)
 {

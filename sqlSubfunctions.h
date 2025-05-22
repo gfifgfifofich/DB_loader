@@ -139,6 +139,10 @@ inline QVariant fixQVariantTypeFormat(QVariant var)
     {
         QString str = var.toString();
         QDateTime dt = var.toDateTime();
+        if(dt.isValid() && !dt.isNull())
+        {// datetime
+            return QVariant(dt);
+        }
         var = str;
         bool hascomas = false;
         bool isdouble = false;
@@ -151,7 +155,12 @@ inline QVariant fixQVariantTypeFormat(QVariant var)
         var = str;
         // passes through values like 12312.123123213123123123
         // fix implemented, currently testing
-        if(str.count('.') + str.count(',') == 1)
+        if((!str.startsWith("0.") || !str.startsWith("0,")) && str.startsWith("0") || str.startsWith("+"))
+        {
+            doub = false;
+            isint = false;
+        }
+        if(str.count('.') + str.count(',') == 1 && !((!str.startsWith("0.") || !str.startsWith("0,")) && str.startsWith("0")))
         {// one coma/dot
 
             QStringList strl = str.replace('.',',').split(',');
@@ -163,7 +172,7 @@ inline QVariant fixQVariantTypeFormat(QVariant var)
             {
                 force_double = true;
             }
-            strl = str.split('.');
+            strl = str.replace(',','.').split('.');
 
             if(strl.size()==2)
             {
@@ -196,13 +205,13 @@ inline QVariant fixQVariantTypeFormat(QVariant var)
                 {// datetime
                     return QVariant(dt);
                 }
-                else if(isdouble)
+                else if(isdouble && str.count('.') + str.count(',') > 0)
                 {
                     return QVariant(var.toDouble());
                 }
                 else if(isint)
                 {
-                    return QVariant(var.toInt());
+                    return QVariant(var.toLongLong());
                 }
             }
             else

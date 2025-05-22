@@ -58,6 +58,8 @@ public:
     QMap<QString,QMap<QString,bool>> tmpTableColumnMap;
     QMap<int,QMap<QString,QMap<QString,bool>>> tmpTableColumnMapPerRow;
 
+    std::vector<std::vector<std::pair<int,int>>> lineInterval;// start/end per line
+    std::vector<std::vector<QColor>> lineIntervalColor;
 
     // database specific highlighting
     bool PostgresStyle = false;

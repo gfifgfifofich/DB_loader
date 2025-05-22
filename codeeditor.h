@@ -29,6 +29,7 @@ public:
 
     QPixmap zoomOutView;
     bool updateZoomOutViewOnScroll = true;
+    bool b_codePreview = false;
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
@@ -51,6 +52,7 @@ signals:
 
 private:
     QWidget *lineNumberArea;
+    QWidget *codePreview;
 };
 
 #endif // CODEEDITOR_H

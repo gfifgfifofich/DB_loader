@@ -20,6 +20,8 @@
 #include <qstyleoption.h>
 
 
+
+
 class VProxyStyle : public QProxyStyle
 {
 public:
@@ -124,11 +126,24 @@ void CodeEditor::getScreenshot(QPixmap &map)
     if(step <= 0)
         step = 1;
 
+
+    QTextBlock fblock = firstVisibleBlock();
+    int top = fblock.blockNumber();
+    int bottom = top;
+    while (fblock.isValid() && fblock.isVisible()) {
+        bottom = fblock.blockNumber();
+        fblock = fblock.next();
+
+    }
+
+
+
     QTextBlock block;
     if(this->firstVisibleBlock().blockNumber()-end_at*0.5f >=0)
         block = document()->findBlockByNumber( this->firstVisibleBlock().blockNumber()-end_at*0.5f);
     else
         block = document()->findBlockByNumber( 0);
+
 
     if(document()->blockCount()-end_at<=0)
         end_at =document()->blockCount();
@@ -138,29 +153,38 @@ void CodeEditor::getScreenshot(QPixmap &map)
         block = document()->findBlockByNumber( document()->blockCount()-end_at);
     }
 
-    while (block.isValid() && end_at >0)
+
+
+    int i = block.blockNumber();
+    float topvisibleoffset = offset;
+    float bottomvisibleoffset = offset;
+    while (end_at >0 && i < highlighter->lineInterval.size())
     {
         end_at--;
-        QRectF r = blockBoundingRect(block);
-        QTextLayout *layout = block.layout();
+        int xoffset = 0;
 
-        if (!block.isVisible())
+
+        // if(i>=top)
+        //     topvisibleoffset = offset;
+
+        // if(i<=bottom)
+        //     bottomvisibleoffset = offset;
+
+        for(int a = 0; a < highlighter->lineInterval[i].size();a++)
         {
-            offset +=  step  ;
-            block = block.next();
-            continue;
+            //rects[highlighter->lineIntervalColor[i][a]].emplace_back(xoffset*10,offset*1,highlighter->lineInterval[i][a]*10,step*1);
+            painter.setBrush(highlighter->lineIntervalColor[i][a]);
+            painter.drawRect(highlighter->lineInterval[i][a].first*10,offset*1,highlighter->lineInterval[i][a].second*10,step*1);
         }
-        else
+
+        if(i>=top && i<=bottom)
         {
-            layout->draw(&painter, QPoint(0,offset),{},QRect(0,0,size().width(),size().height()));
+            painter.setBrush(QColor(255,255,255,20));
+            painter.drawRect(0,offset*1,1500,step*1);
         }
-
-        offset +=  step  ;
-
-        block = block.next();
+        offset += step;
+        i++;
     }
-
-
 }
 
 
@@ -231,6 +255,8 @@ void CodeEditor::keyReleaseEvent(QKeyEvent *e)
 CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent)
 {
     lineNumberArea = new LineNumberArea(this);
+    codePreview = new LineNumberArea(this);
+
     highlighter = new Highlighter(document());
 
     updateLineNumberAreaWidth(0);
@@ -261,6 +287,11 @@ CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent)
     if(userDS.Load((documentsDir + "/userdata.txt").toStdString()))
     {
 
+
+        userDS.data["UserTheme"]["CodePreviewLineCount"];
+        userDS.data["UserTheme"]["CodePreviewAntialiasing"];
+        userDS.data["UserTheme"]["CodePreviewSnapCount"];
+        userDS.data["UserTheme"]["CodePreview"];
         QFont fnt = this->font();
 
         //qDebug() << fnt.PointSize();
@@ -281,12 +312,15 @@ CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent)
 
         qDebug() << userDS.data["UserTheme"].count("CodePreview")<< userDS.data["UserTheme"]["CodePreview"];
         if(userDS.GetPropertyAsBool("UserTheme","CodePreview"))
-        {
+        {/*
             VScrollBar* vsb = new VScrollBar(Qt::Vertical,this);
             vsb->cd = this;
             setVerticalScrollBar(vsb);
-            verticalScrollBar()->setStyleSheet("QScrollBar:vertical { width: 150px; }");
+            verticalScrollBar()->setStyleSheet("QScrollBar:vertical { width: 150px; }");*/
+            b_codePreview = true;
         }
+        else
+            b_codePreview = false;
     }
     else
     {
@@ -314,7 +348,11 @@ int CodeEditor::lineNumberAreaWidth()
 }
 void CodeEditor::updateLineNumberAreaWidth(int  /*newBlockCount */)
 {
-    setViewportMargins(lineNumberAreaWidth(), 0, 0, 0);
+    if(b_codePreview)
+        setViewportMargins(lineNumberAreaWidth(), 0, 190, 0);
+    else
+        setViewportMargins(lineNumberAreaWidth(), 0, 0, 0);
+
 }
 void CodeEditor::updateLineNumberArea(const QRect &rect, int dy)
 {
@@ -325,6 +363,16 @@ void CodeEditor::updateLineNumberArea(const QRect &rect, int dy)
 
     if (rect.contains(viewport()->rect()))
         updateLineNumberAreaWidth(0);
+
+    if(b_codePreview)
+    {
+        if (dy)
+            codePreview->scroll(viewport()->rect().left() - 200, dy);
+        else
+            codePreview->update(viewport()->rect().left() - 200, rect.y(), 200, rect.height());
+    }
+
+
 }
 void CodeEditor::resizeEvent(QResizeEvent *e)
 {
@@ -332,13 +380,20 @@ void CodeEditor::resizeEvent(QResizeEvent *e)
 
     QRect cr = contentsRect();
     lineNumberArea->setGeometry(QRect(cr.left(), cr.top(), lineNumberAreaWidth(), cr.height()));
+    if(b_codePreview)
+        codePreview->setGeometry(QRect(cr.right()-200, cr.top(), 200, cr.height()));
 }
 void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
 {
     QPainter painter(lineNumberArea);
     painter.fillRect(event->rect(), Qt::black);
     QTextBlock block = firstVisibleBlock();
+
     int blockNumber = block.blockNumber();
+
+    int topblock = block.blockNumber();
+    int bottomblock = topblock;
+
     int top = qRound(blockBoundingGeometry(block).translated(contentOffset()).top());
     int bottom = top + qRound(blockBoundingRect(block).height());
     while (block.isValid() && top <= event->rect().bottom()) {
@@ -350,9 +405,145 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
         }
 
         block = block.next();
+        bottomblock = block.blockNumber();
         top = bottom;
         bottom = top + qRound(blockBoundingRect(block).height());
         ++blockNumber;
+    }
+    if(bottomblock - topblock <= 0)
+    {
+        bottomblock = this->blockCount();
+        //topblock = bottomblock - 20;
+    }
+
+    int end_at_mult = bottomblock - topblock;
+
+    int snapcount = userDS.GetPropertyAsInt("UserTheme", "CodePreviewSnapCount");
+    if(snapcount <=0)
+        snapcount = 1;
+    end_at_mult = (end_at_mult / snapcount) * snapcount;
+
+    int end_at = userDS.GetPropertyAsInt("UserTheme", "CodePreviewLineCount");
+
+    if(end_at_mult <= end_at)
+        end_at_mult = end_at;
+    end_at = end_at_mult * end_at;
+
+    if(b_codePreview && (bottomblock - topblock < 0.0f || end_at_mult >= 11 || end_at >= this->blockCount()))
+    {
+
+
+        QPixmap px;
+
+        QSize sizebuff = size();
+        int x_mult = 1;
+        if(end_at_mult >40)
+        {
+            px = QPixmap(size().width() * 0.3f,size().height());
+            x_mult = 3;
+        }
+        else if(end_at_mult >20)
+        {
+            px = QPixmap(size().width() * 0.5f,size().height());
+            x_mult = 4;
+        }
+        else
+        {
+            px = QPixmap(size().width(),size().height());
+            x_mult = 8;
+        }
+
+        QPainter painter(&px);
+
+        if(userDS.GetProperty("UserTheme", "CodePreviewAntialiasing") == "true")
+        {
+            painter.setRenderHint(painter.Antialiasing);
+        }
+        float offset = 0;
+
+        float step = float(size().height()) /end_at;
+        if(step <= 0)
+            step = 1;
+
+
+
+        QTextBlock block;
+        if(this->firstVisibleBlock().blockNumber()-end_at*0.5f >=0)
+            block = document()->findBlockByNumber( this->firstVisibleBlock().blockNumber()-end_at*0.5f);
+        else
+            block = document()->findBlockByNumber( 0);
+
+
+        if(document()->blockCount()-end_at<=0)
+            end_at =document()->blockCount();
+
+        if(block.blockNumber() + end_at > document()->blockCount())
+        {
+            block = document()->findBlockByNumber( document()->blockCount()-end_at);
+        }
+
+        std::vector<QColor> cols;
+        std::vector<std::vector<QRect>> rects;
+
+        int i = block.blockNumber();
+        float topvisibleoffset = offset;
+        float bottomvisibleoffset = offset;
+        while (end_at >0 && i < highlighter->lineInterval.size())
+        {
+            end_at--;
+            int xoffset = 0;
+
+
+            if(i<=topblock)
+                topvisibleoffset = offset;
+
+            if(i<=bottomblock)
+                bottomvisibleoffset = offset;
+
+            for(int a = 0; a < highlighter->lineInterval[i].size();a++)
+            {
+
+                int colID = -1;
+                for(int cl =0; cl< cols.size();cl++)
+                    if(cols[cl] == highlighter->lineIntervalColor[i][a])
+                    {
+                        colID = cl;
+                        break;
+                    }
+                if(colID==-1)
+                {
+                    cols.push_back(highlighter->lineIntervalColor[i][a]);
+                    colID = cols.size()-1;
+                }
+                while (colID >= rects.size())
+                    rects.emplace_back();
+
+                rects[colID].emplace_back(highlighter->lineInterval[i][a].first*x_mult,offset*1,highlighter->lineInterval[i][a].second*x_mult,step*1);
+            }
+            offset += step;
+            i++;
+        }
+
+
+        for(i =0; i< rects.size();i++)
+        {
+            painter.setBrush(cols[i]);
+            painter.drawRects(rects[i].data(),rects[i].size());
+        }
+
+        if(end_at <= this->blockCount())
+        {
+            painter.setBrush(QColor(255,255,255,20));
+            if(bottomvisibleoffset - topvisibleoffset > 0.0f)
+                painter.drawRect(0,topvisibleoffset,1800,bottomvisibleoffset - topvisibleoffset);
+            else
+                painter.drawRect(0,topvisibleoffset,1800,500);
+        }
+
+
+        QPainter cpainter(codePreview);
+        cpainter.fillRect(codePreview->rect(), Qt::black);
+        cpainter.drawPixmap(codePreview->rect(),px);
     }
 }
 

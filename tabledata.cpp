@@ -46,6 +46,7 @@ void TableData::ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHe
 
     tbldata.clear();
     headers.clear();
+    maxVarTypes.clear();
     QFile file(fileName);
     bool first = true;
     if(file.open(QFile::OpenModeFlag::ReadOnly))
@@ -108,6 +109,7 @@ void TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_st
 
     tbldata.clear();
     headers.clear();
+    maxVarTypes.clear();
     QXlsx::Document xlsxR3(fileName);
     qDebug() << "importing excel table from " << fileName;
     if(!xlsxR3.load())
@@ -275,8 +277,27 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                 int row = a + 2 - rowoffset - (!firstRowHeader);
                 int column = i + 1 + column_offset;
 
+                //6 = double, 10 = QString, 16 = DateTime
+                if(maxVarTypes.size() == tbldata.size()+1)
+                {
+                    if(maxVarTypes[i] == 16)
+                        xlsxR3.write(row,column,tbldata[i][a].toDateTime());
+                    else if(maxVarTypes[i] == 10)
+                        xlsxR3.write(row,column,tbldata[i][a].toString());
+                    else if(maxVarTypes[i] == 6)
+                    {
+                        bool ok = false;
+                        QVariant vardoubl = tbldata[i][a].toDouble(&ok);
+                        if(!ok)
+                            vardoubl = 0.0;
+                        xlsxR3.write(row,column,vardoubl);
 
-                xlsxR3.write(row,column,tbldata[i][a]);
+                    }
+                    else
+                        xlsxR3.write(row,column,tbldata[i][a].toString());
+                }
+                else
+                    xlsxR3.write(row,column,tbldata[i][a]);
 
             }
         }
@@ -295,7 +316,28 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                 {
                     int row = a + 2 - start - (!firstRowHeader);
                     int column = i + 1;
-                    xlsxR3.write(row,column,tbldata[i][a]);
+
+                    //6 = double, 10 = QString, 16 = DateTime
+                    if(maxVarTypes.size() == tbldata.size()+1)
+                    {
+                        if(maxVarTypes[i] == 16)
+                            xlsxR3.write(row,column,tbldata[i][a].toDateTime());
+                        else if(maxVarTypes[i] == 10)
+                            xlsxR3.write(row,column,tbldata[i][a].toString());
+                        else if(maxVarTypes[i] == 6)
+                        {
+                            bool ok = false;
+                            QVariant vardoubl = tbldata[i][a].toDouble(&ok);
+                            if(!ok)
+                                vardoubl = 0.0;
+                            xlsxR3.write(row,column,vardoubl);
+
+                        }
+                        else
+                            xlsxR3.write(row,column,tbldata[i][a].toString());
+                    }
+                    else
+                        xlsxR3.write(row,column,tbldata[i][a]);
                 }
             }
 

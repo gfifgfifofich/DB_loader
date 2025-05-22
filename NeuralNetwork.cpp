@@ -342,7 +342,6 @@ void NeuralNetwork::learn(float rate, float* input, float* output, int amount)
 }
 //std::string throutputs[12];
 
-
 void NeuralNetwork::SaveTo(std::string filename)
 {
 	std::ofstream SaveFile(filename);
@@ -426,4 +425,3 @@ void NeuralNetwork::LoadFrom(std::string filename)
 	}
 	f.close();
 }
-

@@ -31,6 +31,8 @@ public:
     QVector<QVector<QVariant>> tbldata;
     QStringList headers;
     std::vector<int> types; // columns types
+    std::vector<std::vector<int>> typecount; // column has a string in it. Force string on whole column
+    std::vector<int> maxVarTypes; // columns types
 
     // import
     Q_INVOKABLE void ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHeader);

@@ -183,6 +183,17 @@ void Highlighter::highlightBlock(const QString &text)
     int bn = currentBlock().blockNumber();
     currentBlock().setUserState(bn);
 
+
+    while(lineInterval.size() <= bn)
+    {
+        lineInterval.emplace_back();
+        lineIntervalColor.emplace_back();
+    }
+
+
+    lineInterval[bn].clear();
+    lineIntervalColor[bn].clear();
+
     tokens[bn].clear();
     QStringList words = text.split(' ');
     int wordstart = 0;
@@ -601,6 +612,10 @@ void Highlighter::highlightBlock(const QString &text)
         else if(word.size() == 2 && isSpecialSymbol(word[0]) && isSpecialSymbol(word[1]))
             format = keywordFormat;
         setFormat(tokens[bn][i].start,tokens[bn][i].end - tokens[bn][i].start+1, format);
+
+        lineInterval[bn].push_back({tokens[bn][i].start,tokens[bn][i].end - tokens[bn][i].start+1});
+        lineIntervalColor[bn].push_back(format.foreground().color());
+
     }
 
     bool quote = false;
@@ -618,6 +633,10 @@ void Highlighter::highlightBlock(const QString &text)
         if(comment)
         {
             setFormat(tokens[bn][i].start,text.size(), multiLineCommentFormat);
+
+            lineInterval[bn].push_back({tokens[bn][i].start,text.size() - tokens[bn][i].start});
+            lineIntervalColor[bn].push_back(multiLineCommentFormat.foreground().color());
+
             break;
         }
         if(tokens[bn][i].text.contains('('))
@@ -641,6 +660,8 @@ void Highlighter::highlightBlock(const QString &text)
                 if(!quote)
                     setFormat(quote_start, (tokens[bn][i].start + 1) - quote_start , quotationFormat);
 
+                lineInterval[bn].push_back({quote_start,(tokens[bn][i].start + 1) - quote_start});
+                lineIntervalColor[bn].push_back(quotationFormat.foreground().color());
                 continue;
             }
         }
@@ -817,13 +838,13 @@ void Highlighter::highlightBlock(const QString &text)
             if(markPrevAsError  && prevend>=0 && prevstart >=0 )setFormat(prevstart,prevToken.size(), format);
             if(markNextAsError  && nextend>=0 && nextstart >=0 )setFormat(nextstart,nextToken.size(), format);
 
+            lineInterval[bn].push_back({tokens[bn][i].start,tokens[bn][i].text.size()});
+            lineIntervalColor[bn].push_back(QColor::fromRgbF(1.0f,0.0f,0.0f,1.0f));
 
-            //qDebug()<<"typo: coma before from";
         }
     }
 
-    //if(rehighlightNext)
-    //    rehighlightBlock(currentBlock().next());
+
 }
 
 void Highlighter::OnBlockCountChanged(int newBlockCount)
