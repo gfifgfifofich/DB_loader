@@ -9,6 +9,7 @@ class LineNumberArea : public QWidget
 public:
     LineNumberArea(CodeEditor *editor) : QWidget(editor), codeEditor(editor)
     {}
+    int id = 0;
 
     QSize sizeHint() const override
     {
@@ -18,7 +19,11 @@ public:
 protected:
     void paintEvent(QPaintEvent *event) override
     {
-        codeEditor->lineNumberAreaPaintEvent(event);
+        if(id==0)
+            codeEditor->lineNumberAreaPaintEvent(event);
+        else if (id==1)
+            codeEditor->drawPreview(event);
+
     }
 
 private:

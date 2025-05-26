@@ -13,10 +13,13 @@
 #include <QFileDialog>
 #include "replacedialog.h"
 #include <QQmlApplicationEngine>
+#include <qstylefactory.h>
 #include <qtimer.h>
 #include "tokenprocessor.h"
 #include <QInputDialog>
 #include "settingswindow.h"
+#include "include/SimpleMail/SimpleMail"
+
 
 /*
 +                                          add togglable "add db name into file name" // feature added, not togglable
@@ -95,16 +98,10 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     ui->stopLoadingQueryButton->hide();
 
 
-
-    while (ui->tabWidget->tabBar()->count()>0)
-    {
-        ui->tabWidget->removeTab(0);
-    }
-    QWidget* wg = new QWidget();
-    wg->setWhatsThis(QVariant(0).toString());
-
-    ui->tabWidget->addTab(wg,"New tab" + QVariant(0).toString());
-    ui->tabWidget->setTabWhatsThis(ui->tabWidget->tabBar()->count()-1,QVariant(0).toString());
+    // graph window init
+    gw.Init();
+    ui->CodeEditorLayout->addLayout(&gw.graph_layout);
+    ui->listWidget->hide();
 
 
     ui->timerdayMonthly->hide();
@@ -122,7 +119,21 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     ui->timerRemainingTime->hide();
     ui->timerLastLaunchTime->hide();
     autolaunchLastLaunch = QDateTime::currentDateTime();
+    autolaunchTimer.setInterval(1000);
+    autolaunchTimer.setSingleShot(false);
+    autolaunchTimer.start();
 
+
+    // init tabs, first code editor instance, DataConnection
+    while (ui->tabWidget->tabBar()->count()>0)
+    {
+        ui->tabWidget->removeTab(0);
+    }
+    QWidget* wg = new QWidget();
+    wg->setWhatsThis(QVariant(0).toString());
+
+    ui->tabWidget->addTab(wg,"New tab" + QVariant(0).toString());
+    ui->tabWidget->setTabWhatsThis(ui->tabWidget->tabBar()->count()-1,QVariant(0).toString());
 
     tabDatas.push_back(new tabdata());
     tabDatas.back()->Name = "New tab0";
@@ -135,6 +146,10 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 
     dc = &tabDatas.back()->dc;
     sqlexecThread = &tabDatas.back()->sqlexecThread;
+
+
+
+    // Menubar Actions, additional keyboard shortcuts
 
     //open new app instance
     connect(ui->actionNew_window,  &QAction::triggered, this, [this]() {
@@ -149,7 +164,6 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     connect(ui->actionRun,  &QAction::triggered, this, [this]() {
         runSqlAsync();
     });
-
 
     //.xlsx export
     connect(ui->actionSave_as_excel,  &QAction::triggered, this, [this]() {
@@ -199,36 +213,6 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 
     new QShortcut(QKeySequence(Qt::CTRL | 96), this, SLOT(cycleTabs())); // ctrl + ` || ctrl + ~ || ctrl + Ё
 
-
-
-    // graph window init
-    gw.Init();
-    ui->CodeEditorLayout->addLayout(&gw.graph_layout);
-    ui->listWidget->hide();
-
-
-    //signal binding
-    //query states
-    connect( dc, SIGNAL(queryBeginCreating()), this, SLOT(onQueryBeginCreating()), Qt::QueuedConnection );
-    connect( dc, SIGNAL(queryBeginExecuting()), this, SLOT(onQueryBegin()), Qt::QueuedConnection );
-    connect( dc, SIGNAL(querySuccess()), this, SLOT(onQuerySuccess()), Qt::QueuedConnection );
-    connect( dc, SIGNAL(execedSql()), this, SLOT(UpdateTable()), Qt::QueuedConnection );
-    connect( dc, SIGNAL(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList)), this, SLOT(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList)), Qt::QueuedConnection );
-
-
-    connect(&executionTimer, SIGNAL(timeout()), this, SLOT(executionTimerTimeout()));
-     connect(&autolaunchTimer, SIGNAL(timeout()), this, SLOT(autolaunchCheck()));
-    //codeeditor
-    connect( cd, SIGNAL(s_suggestedName()), this, SLOT(updatesuggestion()), Qt::QueuedConnection );
-    //graph
-    connect( &gw.buildGraphButton, SIGNAL(pressed()), this, SLOT(UpdateGraph()), Qt::QueuedConnection );
-    connect( &gw.saveAsPDFButton, SIGNAL(pressed()), this, SLOT(saveGraphAsPDF()), Qt::QueuedConnection );
-    connect( &gw.groupBysb, SIGNAL(valueChanged(int)), this, SLOT(on_graph_group_change(int)), Qt::QueuedConnection );
-    connect( &gw.separateBysb, SIGNAL(valueChanged(int)), this, SLOT(on_graph_separator_change(int)), Qt::QueuedConnection );
-    connect( &gw.dataColumnsb, SIGNAL(valueChanged(int)), this, SLOT(on_graph_data_change(int)), Qt::QueuedConnection );
-
-
-
     connect(ui->actionRun_token_processor,  &QAction::triggered, this, [this]() {
         on_pushButton_2_pressed();
     });
@@ -242,19 +226,36 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
         on_nnTestLearn_pressed();
     });
 
-
     connect(ui->actionUserTheme, &QAction::triggered, this, [this]() {
         SettingsWindow* st = new SettingsWindow();
+        connect(st, SIGNAL(saved()), this, SLOT(updateMisc()), Qt::QueuedConnection );
         st->show();
     });
 
+
+    //signal binding
+    //query states
+    connect( dc, SIGNAL(queryBeginCreating()), this, SLOT(onQueryBeginCreating()), Qt::QueuedConnection );
+    connect( dc, SIGNAL(queryBeginExecuting()), this, SLOT(onQueryBegin()), Qt::QueuedConnection );
+    connect( dc, SIGNAL(querySuccess()), this, SLOT(onQuerySuccess()), Qt::QueuedConnection );
+    connect( dc, SIGNAL(execedSql()), this, SLOT(UpdateTable()), Qt::QueuedConnection );
+    connect( dc, SIGNAL(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList)), this, SLOT(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList)), Qt::QueuedConnection );
+
+    // autoexecution
+    connect(&executionTimer, SIGNAL(timeout()), this, SLOT(executionTimerTimeout()));
+    connect(&autolaunchTimer, SIGNAL(timeout()), this, SLOT(autolaunchCheck()));
+
+    //codeeditor
+    connect( cd, SIGNAL(s_suggestedName()), this, SLOT(updatesuggestion()), Qt::QueuedConnection );
+    //graph
+    connect( &gw.buildGraphButton, SIGNAL(pressed()), this, SLOT(UpdateGraph()), Qt::QueuedConnection );
+    connect( &gw.saveAsPDFButton, SIGNAL(pressed()), this, SLOT(saveGraphAsPDF()), Qt::QueuedConnection );
+    connect( &gw.groupBysb, SIGNAL(valueChanged(int)), this, SLOT(on_graph_group_change(int)), Qt::QueuedConnection );
+    connect( &gw.separateBysb, SIGNAL(valueChanged(int)), this, SLOT(on_graph_separator_change(int)), Qt::QueuedConnection );
+    connect( &gw.dataColumnsb, SIGNAL(valueChanged(int)), this, SLOT(on_graph_data_change(int)), Qt::QueuedConnection );
+
     //maximize code editor
     ui->splitter->setSizes({1,2000,1});
-
-
-    autolaunchTimer.setInterval(1000);
-    autolaunchTimer.setSingleShot(false);
-    autolaunchTimer.start();
 
 
     // load last database/driver
@@ -286,6 +287,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
         ui->nnTestLearn->hide();
         ui->nnTestRun->hide();
     }
+
     // if program was opened from command line with filename to open
     if(launchOpenFile)
     {
@@ -303,6 +305,15 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
         QFile file(documentsDir + "/" +"workspaces/" + LastWorkspaceName);
         if (file.open(QFile::ReadOnly | QFile::Text))
             cd->setPlainText(file.readAll());
+
+        // token processor data loaded only when opening app, to minimize open time of files
+        // better to offload this on a separate thread
+
+        qDebug() << "loading token processor";
+        //load tokenprocessor data
+        if(!tokenProcessor.ds.Load((documentsDir + "/" +"FrequencyMaps/test.txt").toStdString()))
+            qDebug() << "failed to load FrequencyMap: " <<  (documentsDir + "/" +"FrequencyMaps/test.txt").toStdString();
+        qDebug() << "loaded token processor";
     }
 
     // get database from file header
@@ -350,45 +361,37 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     // set focus on code editor
     cd->setFocus();
 
-    //load tokenprocessor data
-    if(!tokenProcessor.ds.Load((documentsDir + "/" +"FrequencyMaps/test.txt").toStdString()))
-        qDebug() << "failed to load FrequencyMap: " <<  (documentsDir + "/" +"FrequencyMaps/test.txt").toStdString();
 
     // connect to database
     on_ConnectButton_pressed();
 
 
 
-
     // testing:
 
     DataStorage tmptokends;
-    tmptokends.Load((documentsDir + "/FrequencyMaps/tokens.txt").toStdString());
+    // tmptokends.Load((documentsDir + "/FrequencyMaps/tokens.txt").toStdString());
 
-    for(auto s : tmptokends.data)
-    {
-        for(auto a :s.second)
-        {
-            allPosibbleTokens.push_back(QString().fromLocal8Bit(a.second.c_str()).toLower().trimmed());
-            allPosibbleTokensMap[allPosibbleTokens.back().toLower().trimmed()] = allPosibbleTokens.size()-1;
-        }
-    }
-    qDebug()<<"loaded " << allPosibbleTokens.size() << " distinct tokens";
+    // for(auto s : tmptokends.data)
+    // {
+    //     for(auto a :s.second)
+    //     {
+    //         allPosibbleTokens.push_back(QString().fromLocal8Bit(a.second.c_str()).toLower().trimmed());
+    //         allPosibbleTokensMap[allPosibbleTokens.back().toLower().trimmed()] = allPosibbleTokens.size()-1;
+    //     }
+    // }
+    // qDebug()<<"loaded " << allPosibbleTokens.size() << " distinct tokens";
 
+    // nn setup
     int arch[4] = {1,50,50,1};
     nn.Create(arch,4);
     nn.Randomize();
-    qDebug()<<"Randomized";
     nn.lastCost = 10000000;
 
 
 
+}
 
-}
-void LoaderWidnow::Init()
-{
-    tokenProcessor.ds.Load((documentsDir + "/" +"FrequencyMaps/test.txt").toStdString());
-}
 
 LoaderWidnow::~LoaderWidnow()
 {
@@ -424,9 +427,9 @@ void LoaderWidnow::on_ConnectButton_pressed()
 {
     qDebug()<<"on_ConnectButton_pressed()";
 
-
-    if(!tokenProcessor.ds.Load((documentsDir + "/" +"FrequencyMaps/test.txt").toStdString()))
-        qDebug() << "failed to load FrequencyMap: " <<  (documentsDir + "/" +"FrequencyMaps/test.txt").toStdString();
+//tooo slow
+    // if(!tokenProcessor.ds.Load((documentsDir + "/" +"FrequencyMaps/test.txt").toStdString()))
+    //     qDebug() << "failed to load FrequencyMap: " <<  (documentsDir + "/" +"FrequencyMaps/test.txt").toStdString();
 
     QRandomGenerator64 gen;
     QString conname = QVariant(gen.generate()).toString();
@@ -511,7 +514,7 @@ void LoaderWidnow::on_ConnectButton_pressed()
             cd->highlighter->PostgresStyle = dc->postgre;//(driver == "QPSQL");
             cd->highlighter->UpdateTableColumns(&dc->db,str);
 
-            cd->highlighter->rehighlight();
+            cd->updateMisc();
             cd->highlighter->rehighlight();
 
         }
@@ -531,6 +534,11 @@ void _AsyncFunc(LoaderWidnow* loader)
     loader->dc->execSql();
 }
 
+// Query processing
+void LoaderWidnow::on_pushButton_3_pressed()
+{
+    runSqlAsync();
+}
 void LoaderWidnow::runSqlAsync()
 {
     qDebug()<<"RunSqlAsync()";
@@ -617,14 +625,6 @@ void LoaderWidnow::runSqlAsync()
         dc->_code_start_line = tc.blockNumber();
         dc->_code_start_pos = tc.position();
     }
-    if(runall)
-    {
-        dc->_code_start_line = 0;
-        dc->_code_start_pos = 0;
-        dc->sqlCode = cd->toPlainText();
-        while(dc->sqlCode.endsWith(';'))
-            dc->sqlCode.resize(dc->sqlCode.size()-1);
-    }
 
 
     qDebug()<<"Executing sql:";
@@ -661,7 +661,7 @@ void LoaderWidnow::runSqlAsync()
     if((*sqlexecThread)!=nullptr)
         (*sqlexecThread)->terminate();
 
-    if(createconnection || (!dc->db.isOpen() && !dc->customOracle) || dc->driver != ui->driverComboBox->currentText() ||dc->dbname != ui->DBNameComboBox->currentText())
+    if((!dc->db.isOpen() && !dc->customOracle) || dc->driver != ui->driverComboBox->currentText() ||dc->dbname != ui->DBNameComboBox->currentText())
     {
         qDebug() << "autocreating connection";
         on_ConnectButton_pressed();
@@ -680,9 +680,152 @@ void LoaderWidnow::runSqlAsync()
     executionTimer.start();
 
 }
-void LoaderWidnow::IterButtonPressed()
+void LoaderWidnow::autolaunchCheck()
 {
-    qDebug() << "depricated function";
+
+    ui->timerLastLaunchTime->setText( "Last launch was " + autolaunchLastLaunch.toString());
+
+    if(ui->timer_checkBox->isChecked())
+    {// daily
+
+        QDateTime nextdt = QDateTime::currentDateTime();
+        nextdt.setTime(QTime(ui->timerHourDaily->value(), ui->timerMinuteDaily->value()));
+
+        if(QDateTime::currentDateTime().time().minute() > ui->timerMinuteDaily->value() && QDateTime::currentDateTime().time().hour() >= ui->timerHourDaily->value())
+        {
+            nextdt = nextdt.addDays(1);
+        }
+
+
+
+        QString dtStr = QVariant(QDateTime::currentDateTime().secsTo(nextdt)%60).toString();
+        if(dtStr.size() == 1)
+            dtStr = "0" + dtStr;
+        dtStr = ":" + dtStr;
+        dtStr = QVariant(QDateTime::currentDateTime().secsTo(nextdt)/60%60).toString() + dtStr;
+        if(dtStr.size() == 4)
+            dtStr = "0" + dtStr;
+        dtStr = ":" + dtStr;
+        dtStr = QVariant(QDateTime::currentDateTime().secsTo(nextdt)/3600%24).toString() + dtStr;
+        if(dtStr.size() == 6)
+            dtStr = "0" + dtStr;
+
+        ui->timerRemainingTime->setText("Next launch at:  " + dtStr);
+
+        if( QDateTime::currentDateTime().time().minute() == ui->timerMinuteDaily->value() && QDateTime::currentDateTime().time().hour()== ui->timerHourDaily->value())
+        {
+            if(abs(QDateTime::currentDateTime().toSecsSinceEpoch() - autolaunchLastLaunch.toSecsSinceEpoch()) >= 60)
+            {
+                qDebug() << "Launching automaticly due to daily timer";
+                autolaunchLastLaunch = QDateTime::currentDateTime();
+                runSqlAsync();
+            }
+
+        }
+    }
+    else if(ui->timer_checkBox_3->isChecked())
+    {// weekly
+
+
+
+        QDateTime nextdt = QDateTime::currentDateTime();
+        nextdt.setTime(QTime(ui->timerHourWeekly->value(), ui->timerMinuteWeekly->value()));
+
+
+        if(QDateTime::currentDateTime().date().dayOfWeek() > ui->timerDayWeekly->value() || QDateTime::currentDateTime().date().dayOfWeek() == ui->timerDayWeekly->value() && QDateTime::currentDateTime().time().minute() > ui->timerMinuteWeekly->value() && QDateTime::currentDateTime().time().hour() >= ui->timerHourWeekly->value())
+        {
+            nextdt = nextdt.addDays(7 - QDateTime::currentDateTime().date().dayOfWeek() + ui->timerDayWeekly->value() - 1);
+        }
+        else if(QDateTime::currentDateTime().date().dayOfWeek() < ui->timerDayWeekly->value() && QDateTime::currentDateTime().time().minute() > ui->timerMinuteWeekly->value() && QDateTime::currentDateTime().time().hour() >= ui->timerHourWeekly->value())
+        {
+            while(nextdt.date().dayOfWeek() > 1)
+                nextdt = nextdt.addDays(-1);
+            nextdt = nextdt.addDays(ui->timerDayWeekly->value() -2 );
+        }
+
+        qint64 tm= QDateTime::currentDateTime().secsTo(nextdt);
+        if(tm < 0 && !(tm >-60 && abs(QDateTime::currentDateTime().toSecsSinceEpoch() - autolaunchLastLaunch.toSecsSinceEpoch()) >= 60))
+            tm = 86400 + tm;
+
+        QString dtStr = QVariant(tm%60).toString();
+        if(dtStr.size() == 1)
+            dtStr = "0" + dtStr;
+        dtStr = ":" + dtStr;
+        dtStr = QVariant(tm/60%60).toString() + dtStr;
+        if(dtStr.size() == 4)
+            dtStr = "0" + dtStr;
+        dtStr = ":" + dtStr;
+        dtStr = QVariant(tm/3600%24).toString() + dtStr;
+        if(dtStr.size() == 6)
+            dtStr = "0" + dtStr;
+
+
+
+        ui->timerRemainingTime->setText("Next launch at:  " + QVariant(QDateTime::currentDateTime().daysTo(nextdt)).toString() + ":" + dtStr);
+
+        if( QDateTime::currentDateTime().time().minute() == ui->timerMinuteWeekly->value() && QDateTime::currentDateTime().time().hour()== ui->timerHourWeekly->value() && QDateTime::currentDateTime().date().dayOfWeek() == ui->timerDayWeekly->value())
+        {
+            if(QDateTime::currentDateTime().toSecsSinceEpoch() - autolaunchLastLaunch.toSecsSinceEpoch() >= 60)
+            {
+                qDebug() << "Launching automaticly due to weekly timer";
+                autolaunchLastLaunch = QDateTime::currentDateTime();
+                runSqlAsync();
+            }
+        }
+    }
+    else if(ui->timer_checkBox_2->isChecked())
+    {// monthly
+        QDateTime nextdt = QDateTime::currentDateTime();
+        nextdt.setTime(QTime(ui->timerHourMonthly->value(), ui->timerMinuteMonthly->value()));
+
+        if(QDateTime::currentDateTime().date().day() > ui->timerdayMonthly->value() || QDateTime::currentDateTime().date().day() == ui->timerdayMonthly->value() && QDateTime::currentDateTime().time().minute() > ui->timerMinuteMonthly->value() && QDateTime::currentDateTime().time().hour() >= ui->timerHourMonthly->value())
+        {
+            nextdt = nextdt.addMonths(1);
+            while(nextdt.date().day() > 1)
+                nextdt = nextdt.addDays(-1);
+
+            nextdt = nextdt.addDays(ui->timerdayMonthly->value()-1);
+
+        }
+        else if (QDateTime::currentDateTime().date().day() < ui->timerdayMonthly->value())
+        {
+
+            while(nextdt.date().day() > 1)
+                nextdt = nextdt.addDays(-1);
+
+            nextdt = nextdt.addDays(ui->timerdayMonthly->value()-2);
+        }
+
+
+        qint64 tm= QDateTime::currentDateTime().secsTo(nextdt);
+        if(tm < 0 && !(tm >-60 && abs(QDateTime::currentDateTime().toSecsSinceEpoch() - autolaunchLastLaunch.toSecsSinceEpoch()) >= 60))
+            tm = 86400 + tm;
+
+        QString dtStr = QVariant(tm%60).toString();
+        if(dtStr.size() == 1)
+            dtStr = "0" + dtStr;
+        dtStr = ":" + dtStr;
+        dtStr = QVariant(tm/60%60).toString() + dtStr;
+        if(dtStr.size() == 4)
+            dtStr = "0" + dtStr;
+        dtStr = ":" + dtStr;
+        dtStr = QVariant(tm/3600%24).toString() + dtStr;
+        if(dtStr.size() == 6)
+            dtStr = "0" + dtStr;
+
+
+        ui->timerRemainingTime->setText("Next launch at:  " + QVariant(QDateTime::currentDateTime().daysTo(nextdt)).toString() + ":" + dtStr);
+
+        if( QDateTime::currentDateTime().time().minute() == ui->timerMinuteMonthly->value() && QDateTime::currentDateTime().time().hour()== ui->timerHourMonthly->value() && QDateTime::currentDateTime().date().day() == ui->timerdayMonthly->value())
+        {
+            qDebug() << "Launching automaticly due to monthly timer";
+            if(QDateTime::currentDateTime().toSecsSinceEpoch() - autolaunchLastLaunch.toSecsSinceEpoch() >= 60)
+            {
+                autolaunchLastLaunch = QDateTime::currentDateTime();
+                runSqlAsync();
+            }
+        }
+    }
 }
 
 void LoaderWidnow::executionTimerTimeout()
@@ -856,19 +999,6 @@ void LoaderWidnow::UpdateTable()
     ui->dataSizeLabel_2->setText(msg);
     ui->tableDBNameLabel->setText(dc->dbname);
     dc->tableDataMutex.unlock();
-    if(autosaveXLSX)
-    {
-        ui->saveLineEdit->setText(autofilename);
-
-        on_SaveXLSXButton_pressed();
-    }
-    if(autosaveSQLITE)
-    {
-
-        ui->saveLineEdit->setText(autofilename);
-
-        on_SaveSQLiteButton_pressed();
-    }
 
     on_graph_group_change(gw.groupBysb.value());
     on_graph_separator_change(gw.separateBysb.value());
@@ -908,33 +1038,7 @@ void LoaderWidnow::OpenNewWindow()
     qDebug()<<"opening:" << str;
     QDesktopServices::openUrl(QUrl::fromLocalFile(str));
 }
-void LoaderWidnow::ShowIterateWindow()
-{
-    qDebug()<<"ShowIterateWindow() depracated";
-    b_showIteratorWindow = !b_showIteratorWindow;
-    if(b_showIteratorWindow)
-    {
-        iw.sb1.hide();
-        iw.sb2.hide();
-        iw.sb3.hide();
-        iw.lbls1.hide();
-        iw.lbls2.hide();
-        iw.lbls3.hide();
-        iw.nameline.hide();
-        iw.button.hide();
-    }
-    else
-    {
-        iw.sb1.show();
-        iw.sb2.show();
-        iw.sb3.show();
-        iw.lbls1.show();
-        iw.lbls2.show();
-        iw.lbls3.show();
-        iw.nameline.show();
-        iw.button.show();
-    }
-}
+
 void LoaderWidnow::ShowGraph()
 {
     if(gw.groupBysb.isVisible())
@@ -1075,6 +1179,7 @@ void LoaderWidnow::ShowTimerWindow()
     }
 }
 
+// graphs
 void LoaderWidnow::on_graph_group_change(int val)
 {
     if(val>=0 && val <  dc->data.headers.size())
@@ -1470,6 +1575,7 @@ void LoaderWidnow::saveGraphAsPDF()
     painter.end();
 }
 
+// Table widget
 void LoaderWidnow::CopySelectionFormTable()
 {
     qDebug()<<"CopySelectionFormTable()";
@@ -1532,6 +1638,7 @@ void LoaderWidnow::CopySelectionFormTableSql()
     return;
 }
 
+// code edtitor
 void LoaderWidnow::updatesuggestion()
 {
     ui->suggestionLabel->setText(cd->lastSuggestedWord);
@@ -1563,7 +1670,73 @@ void LoaderWidnow::replaceTool()
     _replacePrev_from = rd.start_line;
     _replacePrev_to = rd.end_line;
 }
+void LoaderWidnow::CommentSelected()
+{
+    cd->CommentSelected();
+}
 
+
+// export
+void LoaderWidnow::on_SaveXLSXButton_pressed()
+{
+    qDebug()<<"on_SaveXLSXButton_pressed()";
+    QString str = documentsDir + "/excel/";
+
+    str += userDS.data["ExcelPrefixAliases"][cd->highlighter->dbSchemaName.toStdString()];
+    str += ui->saveLineEdit->text();
+    if(str.size() > 200)// backup against too long filenames, cuz windows
+        str.resize(200);
+    if(!str.endsWith(".xlsx"))
+        str += ".xlsx";
+    dc->data.sqlCode = dc->sqlCode;
+    dc->data.allSqlCode = cd->toPlainText();
+
+    if(dc->data.ExportToExcel(str,0,0,0,0,true))
+        ui->miscStatusLabel->setText(QString("Saved as XLSX ") + str);
+    else
+        ui->miscStatusLabel->setText(QString("Failed to save xlsx, file probably opened") + str);
+
+}
+void LoaderWidnow::on_SaveCSVButton_pressed()
+{
+    qDebug()<<"on_SaveCSVButton_pressed()";
+    QString str = documentsDir + "/CSV/";
+    if(!cd->highlighter->dbSchemaName.contains('.'))
+        str += cd->highlighter->dbSchemaName;
+    str += ui->saveLineEdit->text();
+    if(str.size() > 200)// backup against too long filenames, cuz windows
+        str.resize(200);
+    if(!str.endsWith(".csv"))
+        str += ".csv";
+    if(dc->data.ExportToCSV(str,';',true))
+        ui->miscStatusLabel->setText(QString("Saved as CSV ") + str);
+    else
+        ui->miscStatusLabel->setText(QString("failed to save to CSV, file probably opened") + str);
+
+}
+void LoaderWidnow::on_SaveSQLiteButton_pressed()
+{
+    qDebug()<<"on_SaveSQLiteButton_pressed()";
+    if(dc->data.ExportToSQLiteTable(ui->saveLineEdit->text()))
+        ui->miscStatusLabel->setText(QString("Saved to SQLite table") + ui->saveLineEdit->text());
+    else
+        ui->miscStatusLabel->setText(QString("Failed to save to SQLite, check colomn names / repetitions") + ui->saveLineEdit->text());
+}
+
+void LoaderWidnow::on_ImportFromCSVButton_pressed()
+{
+    dc->data.ImportFromCSV(QFileDialog::getOpenFileName(this, tr("Select csv file")),';',true);
+    UpdateTable();
+    ui->tableDBNameLabel->setText("Imported from csv");
+}
+void LoaderWidnow::on_importFromExcelButton_pressed()
+{
+    dc->data.ImportFromExcel(QFileDialog::getOpenFileName(),0,0,0,0,true);
+    UpdateTable();
+    ui->tableDBNameLabel->setText("Imported from Excel");
+}
+
+//Workspaces, history
 void LoaderWidnow::SaveWorkspace()
 {
     qDebug()<<"SaveWorkspace()";
@@ -1633,67 +1806,6 @@ void LoaderWidnow::SaveWorkspace()
 
     this->setWindowTitle(LastWorkspaceName);
 }
-
-// export
-void LoaderWidnow::on_SaveXLSXButton_pressed()
-{
-    qDebug()<<"on_SaveXLSXButton_pressed()";
-    QString str = documentsDir + "/excel/";
-
-    str += userDS.data["ExcelPrefixAliases"][cd->highlighter->dbSchemaName.toStdString()];
-    str += ui->saveLineEdit->text();
-    if(str.size() > 200)// backup against too long filenames, cuz windows
-        str.resize(200);
-    if(!str.endsWith(".xlsx"))
-        str += ".xlsx";
-    dc->data.sqlCode = dc->sqlCode;
-    dc->data.allSqlCode = cd->toPlainText();
-
-    if(dc->data.ExportToExcel(str,0,0,0,0,true))
-        ui->miscStatusLabel->setText(QString("Saved as XLSX ") + str);
-    else
-        ui->miscStatusLabel->setText(QString("Failed to save xlsx, file probably opened") + str);
-
-}
-void LoaderWidnow::on_SaveCSVButton_pressed()
-{
-    qDebug()<<"on_SaveCSVButton_pressed()";
-    QString str = documentsDir + "/CSV/";
-    if(!cd->highlighter->dbSchemaName.contains('.'))
-        str += cd->highlighter->dbSchemaName;
-    str += ui->saveLineEdit->text();
-    if(str.size() > 200)// backup against too long filenames, cuz windows
-        str.resize(200);
-    if(!str.endsWith(".csv"))
-        str += ".csv";
-    if(dc->data.ExportToCSV(str,';',true))
-        ui->miscStatusLabel->setText(QString("Saved as CSV ") + str);
-    else
-        ui->miscStatusLabel->setText(QString("failed to save to CSV, file probably opened") + str);
-
-}
-void LoaderWidnow::on_SaveSQLiteButton_pressed()
-{
-    qDebug()<<"on_SaveSQLiteButton_pressed()";
-    if(dc->data.ExportToSQLiteTable(ui->saveLineEdit->text()))
-        ui->miscStatusLabel->setText(QString("Saved to SQLite table") + ui->saveLineEdit->text());
-    else
-        ui->miscStatusLabel->setText(QString("Failed to save to SQLite, check colomn names / repetitions") + ui->saveLineEdit->text());
-}
-
-void LoaderWidnow::on_ImportFromCSVButton_pressed()
-{
-    dc->data.ImportFromCSV(QFileDialog::getOpenFileName(this, tr("Select csv file")),';',true);
-    UpdateTable();
-    ui->tableDBNameLabel->setText("Imported from csv");
-}
-void LoaderWidnow::on_importFromExcelButton_pressed()
-{
-    dc->data.ImportFromExcel(QFileDialog::getOpenFileName(),0,0,0,0,true);
-    UpdateTable();
-    ui->tableDBNameLabel->setText("Imported from Excel");
-}
-
 void LoaderWidnow::on_workspaceLineEdit_textChanged(const QString &arg1)
 {
     LastWorkspaceName = arg1;
@@ -1801,6 +1913,7 @@ void LoaderWidnow::on_DBNameComboBox_currentTextChanged(const QString &arg1)
     userDS.Save((documentsDir + "/userdata.txt").toStdString());
 }
 
+//Pause execution
 void LoaderWidnow::on_stopLoadingQueryButton_pressed()
 {
     //if(dc!= nullptr)
@@ -1816,266 +1929,9 @@ void LoaderWidnow::on_the500LinesCheckBox_checkStateChanged(const Qt::CheckState
         dc->stopAt500Lines = false;
 }
 
-// token processor test
-void LoaderWidnow::on_pushButton_2_pressed()
-{
-    QString text = cd->toPlainText();
-    QDir directory("sqlBackup");
-    QStringList strl = directory.entryList();
 
-
-    if(!tokenProcessor.ds.Load((documentsDir + "/" +"FrequencyMaps/test2.txt").toStdString()))
-        qDebug() << "failed to load FrequencyMap: " <<  (documentsDir + "/" +"FrequencyMaps/test2.txt").toStdString();
-    for(auto x : strl)
-    {
-        QFile f(documentsDir +"/sqlBackup/" + x);
-        f.open(QFile::OpenModeFlag::ReadOnly);
-        text = f.readAll().toStdString().c_str();
-
-        tokenProcessor.processText(text);
-        tokenProcessor.addFrequencies();
-    }
-    tokenProcessor.ds.Save((documentsDir + "/" +"FrequencyMaps/test2.txt").toStdString());
-    QFile fl ((documentsDir + "/" +"FrequencyMaps/tokens.txt"));
-    fl.open(QFile::OpenModeFlag::WriteOnly);
-    int i =0;
-    fl.write("tokens\n");
-    fl.write("{\n");
-
-    for(auto a : tokenProcessor.uniqueTokens)
-    {
-        fl.write((" "+QVariant(i).toString() + " " + a + "\n").toLocal8Bit());
-        i++;
-    }
-    fl.write("}\n");
-    fl.close();
-}
-// run query button
-void LoaderWidnow::on_pushButton_3_pressed()
-{
-    runSqlAsync();
-}
-
-void LoaderWidnow::CommentSelected()
-{
-    cd->CommentSelected();
-}
-
-
-// qml test button
-inline QQmlApplicationEngine* TestqmlEngine = nullptr;
-void LoaderWidnow::on_pushButton_pressed()
-{
-
-    TestqmlEngine->load("DBLoadScript.qml");
-}
-
-#include "include/SimpleMail/SimpleMail"
-
-void LoaderWidnow::sendMail(QString host, QString Sender, QString SenderName, QStringList to,QStringList cc, QString Subject, QString messageText, QStringList attachments)
-{
-    qDebug() << "sending mail" <<host << Sender <<SenderName << to << cc << Subject << messageText << attachments;
-    auto server = new SimpleMail::Server;
-
-
-    server->setHost(host);
-    server->setConnectionType(SimpleMail::Server::TcpConnection);
-
-
-
-    server->setAuthMethod(SimpleMail::Server::AuthNone);
-
-    SimpleMail::MimeMessage message;
-    message.setSender(SimpleMail::EmailAddress(Sender, SenderName));
-    for(auto x : to)
-    {
-        qDebug() << "send to " <<  x;
-        message.addTo(SimpleMail::EmailAddress(x));
-    }
-    if(!(cc.size()==1 && cc[0].trimmed() == ""))
-        for(auto x : cc)
-        {
-            qDebug() << "copy to " <<  x;
-            message.addCc(SimpleMail::EmailAddress(x));
-        }
-
-    message.setSubject(Subject);
-
-
-    auto text = std::make_shared<SimpleMail::MimeText>();
-    qDebug() << "setting text";
-
-    text->setText(messageText);
-
-
-    message.addPart(text);
-
-
-    if(!(attachments.size()==1 && attachments[0].trimmed() == ""))
-        for(auto x : attachments)
-        {
-            qDebug() << "adding attachment " << documentsDir + x;
-            message.addPart(std::make_shared<SimpleMail::MimeAttachment>( std::make_shared<QFile>(documentsDir + x)));
-        }
-    // Now we can send the mail
-    SimpleMail::ServerReply *reply = server->sendMail(message);
-    QObject::connect(reply, &SimpleMail::ServerReply::finished, [reply] {
-        qDebug() << "ServerReply finished" << reply->error() << reply->responseText();
-        reply->deleteLater();// Don't forget to delete it
-
-    });
-
-}
-
-void LoaderWidnow::autolaunchCheck()
-{
-
-
-    ui->timerLastLaunchTime->setText( "Last launch was " + autolaunchLastLaunch.toString());
-
-    if(ui->timer_checkBox->isChecked())
-    {// daily
-
-        QDateTime nextdt = QDateTime::currentDateTime();
-        nextdt.setTime(QTime(ui->timerHourDaily->value(), ui->timerMinuteDaily->value()));
-
-        if(QDateTime::currentDateTime().time().minute() > ui->timerMinuteDaily->value() && QDateTime::currentDateTime().time().hour() >= ui->timerHourDaily->value())
-        {
-            nextdt = nextdt.addDays(1);
-        }
-
-
-
-        QString dtStr = QVariant(QDateTime::currentDateTime().secsTo(nextdt)%60).toString();
-        if(dtStr.size() == 1)
-            dtStr = "0" + dtStr;
-        dtStr = ":" + dtStr;
-        dtStr = QVariant(QDateTime::currentDateTime().secsTo(nextdt)/60%60).toString() + dtStr;
-        if(dtStr.size() == 4)
-            dtStr = "0" + dtStr;
-        dtStr = ":" + dtStr;
-        dtStr = QVariant(QDateTime::currentDateTime().secsTo(nextdt)/3600%24).toString() + dtStr;
-        if(dtStr.size() == 6)
-            dtStr = "0" + dtStr;
-
-        ui->timerRemainingTime->setText("Next launch at:  " + dtStr);
-
-        if( QDateTime::currentDateTime().time().minute() == ui->timerMinuteDaily->value() && QDateTime::currentDateTime().time().hour()== ui->timerHourDaily->value())
-        {
-            if(abs(QDateTime::currentDateTime().toSecsSinceEpoch() - autolaunchLastLaunch.toSecsSinceEpoch()) >= 60)
-            {
-                qDebug() << "Launching automaticly due to daily timer";
-                autolaunchLastLaunch = QDateTime::currentDateTime();
-                runSqlAsync();
-            }
-
-        }
-    }
-    else if(ui->timer_checkBox_3->isChecked())
-    {// weekly
-
-
-
-        QDateTime nextdt = QDateTime::currentDateTime();
-        nextdt.setTime(QTime(ui->timerHourWeekly->value(), ui->timerMinuteWeekly->value()));
-
-
-        if(QDateTime::currentDateTime().date().dayOfWeek() > ui->timerDayWeekly->value() || QDateTime::currentDateTime().date().dayOfWeek() == ui->timerDayWeekly->value() && QDateTime::currentDateTime().time().minute() > ui->timerMinuteWeekly->value() && QDateTime::currentDateTime().time().hour() >= ui->timerHourWeekly->value())
-        {
-            nextdt = nextdt.addDays(7 - QDateTime::currentDateTime().date().dayOfWeek() + ui->timerDayWeekly->value() - 1);
-        }
-        else if(QDateTime::currentDateTime().date().dayOfWeek() < ui->timerDayWeekly->value() && QDateTime::currentDateTime().time().minute() > ui->timerMinuteWeekly->value() && QDateTime::currentDateTime().time().hour() >= ui->timerHourWeekly->value())
-        {
-            while(nextdt.date().dayOfWeek() > 1)
-                nextdt = nextdt.addDays(-1);
-            nextdt = nextdt.addDays(ui->timerDayWeekly->value() -2 );
-        }
-
-        qint64 tm= QDateTime::currentDateTime().secsTo(nextdt);
-        if(tm < 0 && !(tm >-60 && abs(QDateTime::currentDateTime().toSecsSinceEpoch() - autolaunchLastLaunch.toSecsSinceEpoch()) >= 60))
-            tm = 86400 + tm;
-
-        QString dtStr = QVariant(tm%60).toString();
-        if(dtStr.size() == 1)
-            dtStr = "0" + dtStr;
-        dtStr = ":" + dtStr;
-        dtStr = QVariant(tm/60%60).toString() + dtStr;
-        if(dtStr.size() == 4)
-            dtStr = "0" + dtStr;
-        dtStr = ":" + dtStr;
-        dtStr = QVariant(tm/3600%24).toString() + dtStr;
-        if(dtStr.size() == 6)
-            dtStr = "0" + dtStr;
-
-
-
-        ui->timerRemainingTime->setText("Next launch at:  " + QVariant(QDateTime::currentDateTime().daysTo(nextdt)).toString() + ":" + dtStr);
-
-        if( QDateTime::currentDateTime().time().minute() == ui->timerMinuteWeekly->value() && QDateTime::currentDateTime().time().hour()== ui->timerHourWeekly->value() && QDateTime::currentDateTime().date().dayOfWeek() == ui->timerDayWeekly->value())
-        {
-            if(QDateTime::currentDateTime().toSecsSinceEpoch() - autolaunchLastLaunch.toSecsSinceEpoch() >= 60)
-            {
-                qDebug() << "Launching automaticly due to weekly timer";
-                autolaunchLastLaunch = QDateTime::currentDateTime();
-                runSqlAsync();
-            }
-        }
-    }
-    else if(ui->timer_checkBox_2->isChecked())
-    {// monthly
-        QDateTime nextdt = QDateTime::currentDateTime();
-        nextdt.setTime(QTime(ui->timerHourMonthly->value(), ui->timerMinuteMonthly->value()));
-
-        if(QDateTime::currentDateTime().date().day() > ui->timerdayMonthly->value() || QDateTime::currentDateTime().date().day() == ui->timerdayMonthly->value() && QDateTime::currentDateTime().time().minute() > ui->timerMinuteMonthly->value() && QDateTime::currentDateTime().time().hour() >= ui->timerHourMonthly->value())
-        {
-            nextdt = nextdt.addMonths(1);
-            while(nextdt.date().day() > 1)
-                nextdt = nextdt.addDays(-1);
-
-            nextdt = nextdt.addDays(ui->timerdayMonthly->value()-1);
-
-        }
-        else if (QDateTime::currentDateTime().date().day() < ui->timerdayMonthly->value())
-        {
-
-            while(nextdt.date().day() > 1)
-                nextdt = nextdt.addDays(-1);
-
-            nextdt = nextdt.addDays(ui->timerdayMonthly->value()-2);
-        }
-
-
-        qint64 tm= QDateTime::currentDateTime().secsTo(nextdt);
-        if(tm < 0 && !(tm >-60 && abs(QDateTime::currentDateTime().toSecsSinceEpoch() - autolaunchLastLaunch.toSecsSinceEpoch()) >= 60))
-            tm = 86400 + tm;
-
-        QString dtStr = QVariant(tm%60).toString();
-        if(dtStr.size() == 1)
-            dtStr = "0" + dtStr;
-        dtStr = ":" + dtStr;
-        dtStr = QVariant(tm/60%60).toString() + dtStr;
-        if(dtStr.size() == 4)
-            dtStr = "0" + dtStr;
-        dtStr = ":" + dtStr;
-        dtStr = QVariant(tm/3600%24).toString() + dtStr;
-        if(dtStr.size() == 6)
-            dtStr = "0" + dtStr;
-
-
-        ui->timerRemainingTime->setText("Next launch at:  " + QVariant(QDateTime::currentDateTime().daysTo(nextdt)).toString() + ":" + dtStr);
-
-        if( QDateTime::currentDateTime().time().minute() == ui->timerMinuteMonthly->value() && QDateTime::currentDateTime().time().hour()== ui->timerHourMonthly->value() && QDateTime::currentDateTime().date().day() == ui->timerdayMonthly->value())
-        {
-            qDebug() << "Launching automaticly due to monthly timer";
-            if(QDateTime::currentDateTime().toSecsSinceEpoch() - autolaunchLastLaunch.toSecsSinceEpoch() >= 60)
-            {
-                autolaunchLastLaunch = QDateTime::currentDateTime();
-                runSqlAsync();
-            }
-        }
-    }
-}
-
+// Tabs
+inline int _addtabcounter = 1;
 void LoaderWidnow::cycleTabs()
 {
     int indx = ui->tabWidget->currentIndex()+1;
@@ -2085,7 +1941,6 @@ void LoaderWidnow::cycleTabs()
 
     ui->tabWidget->setCurrentIndex(indx);
 }
-
 void LoaderWidnow::on_tabWidget_tabCloseRequested(int index)
 {
     //ui->tabWidget->removeTab(index);
@@ -2165,7 +2020,6 @@ void LoaderWidnow::on_tabWidget_tabCloseRequested(int index)
         ui->tabWidget->removeTab(index);
     }
 }
-
 void LoaderWidnow::on_tabWidget_currentChanged(int index)
 {
     bool found = false;
@@ -2272,7 +2126,6 @@ void LoaderWidnow::on_tabWidget_currentChanged(int index)
 
 
 }
-
 void LoaderWidnow::on_tabWidget_tabBarDoubleClicked(int index)
 {
     bool ok = true;
@@ -2287,8 +2140,6 @@ void LoaderWidnow::on_tabWidget_tabBarDoubleClicked(int index)
         ui->tabWidget->setTabText(index, newName);
     }
 }
-
-inline int _addtabcounter = 1;
 void LoaderWidnow::on_pushButton_4_clicked()
 {// add tab
     QWidget* wg = new QWidget();
@@ -2309,8 +2160,114 @@ void LoaderWidnow::on_pushButton_4_clicked()
     _addtabcounter++;
 }
 
-inline float NN_min = 100000;
 
+void LoaderWidnow::updateMisc()
+{
+    cd->updateMisc();
+}
+void LoaderWidnow::sendMail(QString host, QString Sender, QString SenderName, QStringList to,QStringList cc, QString Subject, QString messageText, QStringList attachments)
+{
+    qDebug() << "sending mail" <<host << Sender <<SenderName << to << cc << Subject << messageText << attachments;
+    auto server = new SimpleMail::Server;
+
+
+    server->setHost(host);
+    server->setConnectionType(SimpleMail::Server::TcpConnection);
+
+
+
+    server->setAuthMethod(SimpleMail::Server::AuthNone);
+
+    SimpleMail::MimeMessage message;
+    message.setSender(SimpleMail::EmailAddress(Sender, SenderName));
+    for(auto x : to)
+    {
+        qDebug() << "send to " <<  x;
+        message.addTo(SimpleMail::EmailAddress(x));
+    }
+    if(!(cc.size()==1 && cc[0].trimmed() == ""))
+        for(auto x : cc)
+        {
+            qDebug() << "copy to " <<  x;
+            message.addCc(SimpleMail::EmailAddress(x));
+        }
+
+    message.setSubject(Subject);
+
+
+    auto text = std::make_shared<SimpleMail::MimeText>();
+    qDebug() << "setting text";
+
+    text->setText(messageText);
+
+
+    message.addPart(text);
+
+
+    if(!(attachments.size()==1 && attachments[0].trimmed() == ""))
+        for(auto x : attachments)
+        {
+            qDebug() << "adding attachment " << documentsDir + x;
+            message.addPart(std::make_shared<SimpleMail::MimeAttachment>( std::make_shared<QFile>(documentsDir + x)));
+        }
+    // Now we can send the mail
+    SimpleMail::ServerReply *reply = server->sendMail(message);
+    QObject::connect(reply, &SimpleMail::ServerReply::finished, [reply] {
+        qDebug() << "ServerReply finished" << reply->error() << reply->responseText();
+        reply->deleteLater();// Don't forget to delete it
+
+    });
+}
+
+
+// qml test button
+inline QQmlApplicationEngine* TestqmlEngine = nullptr;
+void LoaderWidnow::on_pushButton_pressed()
+{
+
+    TestqmlEngine->load("DBLoadScript.qml");
+}
+// token processor test
+void LoaderWidnow::on_pushButton_2_pressed()
+{
+    QString text = cd->toPlainText();
+    QDir directory(documentsDir + "/" + "sqlBackup");
+    QStringList strl = directory.entryList();
+
+
+
+    tokenProcessor.tokens.clear();
+    tokenProcessor.uniqueTokens.clear();
+    tokenProcessor.ds.data.clear();
+
+    for(auto x : strl)
+    {
+        QFile f(documentsDir +"/sqlBackup/" + x);
+        f.open(QFile::OpenModeFlag::ReadOnly);
+        text = f.readAll().toStdString().c_str();
+
+        tokenProcessor.processText(text);
+        tokenProcessor.addFrequencies();
+    }
+    tokenProcessor.ds.Save((documentsDir + "/" +"FrequencyMaps/test2.txt").toStdString());
+    QFile fl ((documentsDir + "/" +"FrequencyMaps/tokens.txt"));
+    fl.open(QFile::OpenModeFlag::WriteOnly);
+    int i =0;
+    fl.write("tokens\n");
+    fl.write("{\n");
+
+    for(auto a : tokenProcessor.uniqueTokens)
+    {
+        fl.write((" "+QVariant(i).toString() + " " + a + "\n").toLocal8Bit());
+        i++;
+    }
+    fl.write("}\n");
+    fl.close();
+}
+
+
+
+inline float NN_min = 100000;
 void LoaderWidnow::on_nnTestRun_pressed()
 {
     qDebug() << "nntestrun undefined";
@@ -2341,7 +2298,6 @@ void LoaderWidnow::on_nnTestRun_pressed()
 
     UpdateTable();
 }
-
 void LoaderWidnow::on_nnTestLearn_pressed()
 {
     qDebug() << "on_nnTestLearn_pressed undefined";
@@ -2435,3 +2391,5 @@ void LoaderWidnow::on_nnTestLearn_pressed()
     }
 
 }
+
+

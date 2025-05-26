@@ -83,7 +83,6 @@ public:
 
     void UpdateTable();
 
-    void RunAsScript(int startfrom = 0);
 
     QSqlDatabase tdb;
 
@@ -187,7 +186,6 @@ private slots:
 
     void on_SaveToSQLiteTable_clicked();
 
-    void subWindowDone();
 
     void ShowGraph();
     void UpdateGraphGraph();

@@ -1,3 +1,6 @@
+
+#ifdef Oracle_OCI_Driver
+
 #ifndef ORACLEDRIVER_H
 #define ORACLEDRIVER_H
 
@@ -150,3 +153,5 @@ inline QDateTime fromOCIDateTime(oracle::occi::Date dateTime)
 
 
 #endif // ORACLEDRIVER_H
+
+#endif

@@ -70,6 +70,8 @@ public:
     void UpdateTableColumns(QSqlDatabase* db, QString dbname);
     void HighLightALl();
     void OnBlockCountChanged(int newBlockCount) ;
+
+    void updateMisc();
 protected:
     void highlightBlock(const QString &text) override;
 

@@ -38,7 +38,7 @@ inline bool isNumber(QString s)
         return false;
     for(auto x : s)
     {
-        if(!x.isDigit() && x!='.'&& x!=',')
+        if(!x.isDigit() && x!='.'&& x!=','&& x!='e'&& x!='E')
             return false;
     }
     return true;

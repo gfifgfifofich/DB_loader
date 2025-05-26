@@ -15,6 +15,7 @@ public:
     CodeEditor(QWidget *parent = nullptr);
 
     void lineNumberAreaPaintEvent(QPaintEvent *event);
+    void drawPreview(QPaintEvent *event);
     int lineNumberAreaWidth();
     Highlighter* highlighter = nullptr;
 
@@ -30,6 +31,8 @@ public:
     QPixmap zoomOutView;
     bool updateZoomOutViewOnScroll = true;
     bool b_codePreview = false;
+
+    void updateMisc();
 
 protected:
     void resizeEvent(QResizeEvent *event) override;

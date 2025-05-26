@@ -527,7 +527,6 @@ void Table::IterButtonPressed()
         tbl->show();
     }
 }
-
 void Table::OpenNewWindow()
 {
 
@@ -540,7 +539,6 @@ void Table::OpenNewWindow()
         ui->statuslabel->setText("error opening file.");
 
 }
-
 void Table::ShowIterateWindow()
 {
     showIteratorWindow = !showIteratorWindow;
@@ -572,7 +570,6 @@ void Table::updatesuggestion()
 {
     ui->SuggestLabel->setText(cd->lastSuggestedWord);
 }
-
 void Table::FillSuggest()
 {
     cd->FillsuggestName();
@@ -1123,291 +1120,6 @@ void Func(Table* tbl)
     return;
 }
 
-inline int active_Windows =0;
-inline bool waiting = false;
-inline int waitongpos = 0;
-
-void Table::subWindowDone()
-{
-    if(waiting)
-    {
-        active_Windows -=1;
-        qDebug()<<"active_Windows called: "<< active_Windows;
-        QString labelstr = "Waiting for ";
-        labelstr += QVariant(active_Windows).toString();
-        labelstr += " queries to finish";
-        ui->statuslabel->setText(labelstr);
-        if(active_Windows <= 0)
-        {
-            waiting = false;
-            qDebug()<<"resuming";
-            RunAsScript(waitongpos);
-        }
-    }
-    if(active_Windows<0)
-    {
-        qDebug()<<"active_Windows count less than 0, something went wrong";
-    }
-}
-
-void Table::RunAsScript(int startfrom)
-{
-    userDS.data["Flags"]["Script"] = "0";
-    ui->CheckBoxScript->setCheckState(Qt::Unchecked);
-
-    QString text = cd->toPlainText();
-    bool in_comand = false;
-    bool in_Select = false;
-    bool in_Set = false;
-    bool in_XLSXSave = false;
-    bool in_SQLITESave = false;
-    bool prev_is_newline = true;
-    bool newTokenAdded = false;
-    bool newVariableAdded = false;
-    bool in_brakets = false;
-    bool WaitNextLine = false;
-    bool readSqlUntillNextCommand = false;
-    int state = 0;
-    QStringList variables;
-    QStringList set_variables;
-    QString     save_text;
-
-    QStringList tokens;
-    QString lastSQL = "";
-    qDebug()<<"Entering loop";
-    for(int i=startfrom;i<text.size();i++)
-    {
-        if(WaitNextLine && text[i] != '\n')
-        {
-            continue;
-        }
-        else if (WaitNextLine && text[i] == '\n')
-        {
-            WaitNextLine = false;
-            in_comand = false;
-
-            continue;// next line reached
-        }
-        if(readSqlUntillNextCommand)
-            lastSQL.push_back(text[i]);
-
-        if(newVariableAdded && (in_XLSXSave || in_SQLITESave) && in_Select)
-        {
-            qDebug()<<"";
-            qDebug()<<"SelectDB Comand";
-            if(variables.size()<4)
-                qDebug() << "less than 4 variables in selectDB";
-            else
-                qDebug()<<variables;
-            qDebug()<<lastSQL;
-            qDebug()<<"";
-            qDebug()<<"SaveToXLSX";
-            qDebug()<<save_text;
-            qDebug()<<"";
-            qDebug()<<i;
-            qDebug()<<text.size();
-            qDebug()<<"";
-
-            QString str = cd->toPlainText();
-
-            Table* tbl = new Table;
-
-            tbl->sqlCode = lastSQL;
-            tbl->cd->setPlainText(lastSQL);
-
-            active_Windows+=1;
-            tbl->autofilename = save_text;
-            tbl->autosaveXLSX = in_XLSXSave;
-            tbl->autosaveSQLITE = in_SQLITESave;
-            tbl->show();
-            thrnum++;
-            tbl->conName = QVariant(thrnum).toString();
-            //tl.tbl->connectDB(QVariant(thrnum).toString(), variables[0].trimmed(),variables[1].trimmed(), variables[2].trimmed(),  variables[3].trimmed());
-
-            tbl->Init(QVariant(thrnum).toString(), variables[0].trimmed(),variables[1].trimmed(), variables[2].trimmed(),  variables[3].trimmed(),lastSQL,save_text);
-
-            tbl->show();
-
-            connect( tbl, SIGNAL(TableUpdated()), this, SLOT(subWindowDone()), Qt::QueuedConnection );
-
-            in_comand = false;
-            in_Select = false;
-            in_Set = false;
-            in_XLSXSave = false;
-            in_SQLITESave = false;
-            prev_is_newline = true;
-            newTokenAdded = false;
-            newVariableAdded = false;
-            in_brakets = false;
-            WaitNextLine = false;
-            readSqlUntillNextCommand = false;
-            state = 0;
-            variables.clear();
-            set_variables.clear();
-            tokens.clear();
-            save_text = "";
-            lastSQL = "";
-
-        }
-        if(text[i]=='\n' && !in_Select && !in_XLSXSave && !in_SQLITESave)
-        {// reset
-            in_comand = false;
-            in_Select = false;
-            in_Set = false;
-            in_XLSXSave = false;
-            in_SQLITESave = false;
-            prev_is_newline = false;
-            newTokenAdded = false;
-            newVariableAdded = false;
-            in_brakets = false;
-            WaitNextLine = false;
-            readSqlUntillNextCommand = false;
-            state = 0;
-            variables.clear();
-            tokens.clear();
-            state = 0;
-            continue;
-        }
-        if( i+1 < text.size() && text[i] == '-' && text[i+1] == '-')
-        {
-            i++;
-            in_comand = true;
-            continue;
-        }
-        if(in_comand)
-        {
-
-            if(readSqlUntillNextCommand)
-            {
-                int maxcount = 100;
-                while(lastSQL.back() !=';' && maxcount > 0)
-                {
-                    lastSQL.resize(lastSQL.size()-1);
-                    maxcount--;
-                }
-            }
-            readSqlUntillNextCommand = false;
-
-            if(in_brakets)
-            {
-                variables.back().push_back(text[i]);
-            }
-
-            if(newVariableAdded)
-            {
-                if(in_Select && variables.size() == 4)
-                {
-                    // nextline, sql
-                    //WaitNextLine = true;
-                    readSqlUntillNextCommand = true;
-                    in_comand = false;
-
-                }
-            }
-
-
-            if(tokens.size() <=0)
-            {
-                tokens.push_back("");
-            }
-            if(text[i] == '{')
-            {
-                variables.push_back("");
-                in_brakets = true;
-                qDebug()<<"in_brakets";
-                continue;
-            }
-            if(text[i] == '}')
-            {
-                variables.back().resize(variables.back().size()-1);
-                if(in_SQLITESave || in_XLSXSave)
-                {
-                    save_text = variables.back();
-                }
-                in_brakets = false;
-                newVariableAdded = true;
-                qDebug()<<"variable " << variables.back();
-                continue;
-            }
-            if(text[i] == ' ')
-            {
-                qDebug()<<"tokens " << tokens.back();
-                newTokenAdded = true;
-            }
-            if(newTokenAdded)
-            {
-
-                qDebug()<<"Processing token " << tokens.back().trimmed();
-                if(tokens.back().trimmed() == "SelectDB")
-                {
-                    in_Select = true;
-                    lastSQL = "";
-                    qDebug()<<"in SelectDB";
-                }
-                if(tokens.back().trimmed() == "Set")
-                    in_Set = true;
-                if(in_Select && tokens.back().trimmed() == "XLSXSave")
-                {
-                    in_XLSXSave = true;
-                    qDebug()<<"in XLSXSave";
-
-                }
-                if(in_Select && tokens.back().trimmed() == "SQLITESave")
-                    in_SQLITESave = true;
-                //if(tokens.back().trimmed() == "Wait" && active_Windows > 0)
-                //{
-                //    waiting = true;
-                //    waitongpos = i;
-                //    qDebug()<<"Waiting for "<<active_Windows << " queries to finish";
-                //    QString labelstr = "Waiting for ";
-                //    labelstr += QVariant(active_Windows).toString();
-                //    labelstr += " queries to finish";
-                //    ui->statuslabel->setText(labelstr);
-                //    return;
-                //}
-                state = 1;
-                tokens.push_back("");
-
-            }
-            tokens.back().push_back(text[i]);
-
-        }
-
-        newTokenAdded = false;
-        prev_is_newline = false;
-        newVariableAdded = false;
-        if(text[i] == '\n')
-            prev_is_newline =true;
-    }
-    waitongpos = 0;
-    if(userDS.Load("userdata.txt"))
-    {
-        userDS.data["Flags"]["Script"] = "1";
-        userDS.Save("userdata.txt");
-    }
-    QString str = "sqlBackup/";
-    QDate dt = QDate::currentDate();
-    str += QVariant(dt.year()).toString();
-    str += "_";
-    str += QVariant(dt.month()).toString();
-    str += "_";
-    str += QVariant(dt.day() ).toString();
-    str += "_";
-    str += QTime::currentTime().toString();
-    str +=".sql";
-    str.replace(":","_");
-    qDebug()<<str;
-    std::ofstream stream (str.toStdString());
-    stream << cd->toPlainText().toStdString();
-    stream.close();
-
-    SaveWorkspace();
-    active_Windows =0;
-    waiting = false;
-    waitongpos = 0;
-    ui->statuslabel->setText("Script finished");
-}
-
 void Table::runSqlAsync(QString conname,QString driver,QString dbname,QString usrname, QString password, bool createconnection, bool runall)
 {
 
@@ -1706,10 +1418,6 @@ void Table::runSqlAsync(QString conname,QString driver,QString dbname,QString us
         }
 
         SaveWorkspace();
-        active_Windows =0;
-        waiting = false;
-        waitongpos = 0;
-        RunAsScript();
     }
 }
 

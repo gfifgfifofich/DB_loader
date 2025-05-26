@@ -24,17 +24,25 @@ void DatabaseConnection::Init()
 {
 
 }
-// really shouldnt've created this class, but yea, here it is. used only when connecting, to delete connection if something wetn wrong
+
+#ifdef Oracle_OCI_Driver
+
+// really shouldnt've created this class, but yea, here it is. used only when connecting, to delete connection if something went wrong
 #include "oracledriver.h"
 
-
-// inline oracle::occi::Environment *((oracle::occi::Environment*)OCI_lastenv) = nullptr;
-// inline oracle::occi::Connection *((oracle::occi::Connection*)OCI_lastcon) = nullptr;
-// inline oracle::occi::Statement *((oracle::occi::Statement*)OCI_laststmt) = nullptr;
 
 inline OCIServer* lastlastserv;
 inline QString lastOracleError = "";
 
+
+//inline OracleDriver* currentRunningOracleDriver = nullptr;
+
+/*Oracle straight up crashes whole app if you try doing that when there are more than some amount of columns. Storing MetaData untill very end will delay crash to when user will want to close app, so works. But app will crash instead of closing if user used Oracle driver(
+yep, imma gonna shart into memory, and not deal with crashes when attempting to clear MetaData.
+*/
+std::vector<std::vector<oracle::occi::MetaData>> mtl;
+
+#endif
 
 bool DatabaseConnection::Create(QString driver, QString dbname, QString username, QString password)
 {
@@ -54,7 +62,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
         if(driver =="QOCI")
         {
             db = QSqlDatabase::addDatabase("QOCI",connectionName);
-            db.setConnectOptions("OCI_ATTR_PREFETCH_ROWS=5000");
+            db.setConnectOptions("OCI_ATTR_PREFETCH_ROWS=5000"); // set prefetch count to load data with speed > 2mbit/s
             oracle = true;
         }
         else if(driver =="QPSQL")
@@ -210,8 +218,9 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
         else
             qDebug() << "nope: "<< db.lastError().text().toStdString();
     }
-    else
+    else if (customOracle)
     {
+        #ifdef Oracle_OCI_Driver
 
         try
         {
@@ -234,6 +243,11 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
             qDebug() << "error creating connection" << ex.getErrorCode() << ex.getMessage();
             return false;
         }
+        #else
+        qDebug() << "Oracle OCI driver nor built, set Oracle_OCI_Driver, Oracle_OCI_Include_Directory and Oracle_OCI_Lib_Directory";
+        return false;
+        #endif
+
     }
     return false;
 }
@@ -253,12 +267,6 @@ bool DatabaseConnection::Create(QString driver, QString DBName)
 }
 
 
-//inline OracleDriver* currentRunningOracleDriver = nullptr;
-
-/*Oracle straight up crashes whole app if you try doing that when there are more than some amount of columns. Storing MetaData untill very end will delay crash to when user will want to close app, so works. But app will crash instead of closing if user used Oracle driver(
-yep, imma gonna shart into memory, and not deal with crashes when attempting to clear MetaData.
-*/
-std::vector<std::vector<oracle::occi::MetaData>> mtl;
 
 bool DatabaseConnection::execSql(QString sql)
 {
@@ -1159,6 +1167,8 @@ bool DatabaseConnection::execSql(QString sql)
     data.typecount.clear();
 
     queryExecutionState = 1;
+
+    #ifdef Oracle_OCI_Driver
     if(customOracle)
     {
 
@@ -1514,6 +1524,7 @@ bool DatabaseConnection::execSql(QString sql)
         queryExecutionState = 4;
         return true;
     }
+    #endif
 
     OCI_lastenv = nullptr;
     OCI_lastcon = nullptr;
@@ -1705,6 +1716,8 @@ void DatabaseConnection::stopRunning()
         dataDownloading = false;
         return;
     }
+
+    #ifdef Oracle_OCI_Driver
     else if(customOracle && ((oracle::occi::Environment*)OCI_lastenv)!=nullptr && ((oracle::occi::Connection*)OCI_lastcon)!=nullptr)
     { // signal to stop running query
 
@@ -1746,7 +1759,7 @@ void DatabaseConnection::stopRunning()
         }
         //currentRunningOracleDriver = nullptr;
     }
-
+    #endif
 }
 
 

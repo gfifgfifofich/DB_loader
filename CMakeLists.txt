@@ -18,8 +18,13 @@ find_package(Qt6 REQUIRED COMPONENTS Quick)
 find_package(Qt6 REQUIRED COMPONENTS QuickControls2)
 add_subdirectory(QXlsx-master/QXlsx)
 
-LINK_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/Oracle/lib)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/Oracle/include)
+
+if(Oracle_OCI_Driver)
+    add_compile_definitions(Oracle_OCI_Driver)
+    LINK_DIRECTORIES(${Oracle_OCI_Lib_Directory})
+    include_directories(${Oracle_OCI_Include_Directory})
+endif()
+
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/SimpleMail)
 LINK_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/lib)
 
@@ -46,13 +51,15 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         table.h table.cpp
         replacedialog.h replacedialog.cpp replacedialog.ui
         DBLoadScript.qml
-        databasetask.h databasetask.cpp
+
         tokenprocessor.h tokenprocessor.cpp
         sqlSubfunctions.h
         NeuralNetwork.h NeuralNetwork.cpp
 
         ${app_icon_resource_windows}
+
         oracledriver.h oracledriver.cpp
+
         settingswindow.h settingswindow.cpp settingswindow.ui
         colorbutton.h colorbutton.cpp
 
@@ -82,7 +89,11 @@ target_link_libraries(untitled PRIVATE Qt6::Charts)
 target_link_libraries(untitled PRIVATE Qt6::Graphs)
 target_link_libraries(untitled PRIVATE Qt6::Quick)
 target_link_libraries(untitled PRIVATE Qt6::QuickControls2)
-target_link_libraries(untitled PRIVATE oci oraocci12)
+
+if(Oracle_OCI_Driver)
+    target_link_libraries(untitled PRIVATE oci oraocci12)
+endif()
+
 target_link_libraries(untitled PRIVATE SimpleMail3Qt6)
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.

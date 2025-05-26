@@ -40,13 +40,14 @@ public:
     explicit LoaderWidnow(QWidget *parent = nullptr);
     ~LoaderWidnow();
 
-    bool autolaunchTimerWindowVisible = false;
-    QTimer autolaunchTimer;
-
     CodeEditor* cd = nullptr;
 
+    // connection
     DatabaseConnection* dc = nullptr;
     QThread** sqlexecThread = nullptr;
+
+    bool autolaunchTimerWindowVisible = false;
+    QTimer autolaunchTimer;
 
     //Tabs
     QStringList tabNames;
@@ -218,78 +219,6 @@ public:
     };
     graph_Window gw;
 
-    // init used inly in scripts
-    void Init();
-    //autosave after exec, used only in depricated scripts
-    QString autofilename = "";
-    bool autosaveXLSX = false;
-    bool autosaveSQLITE = false;
-    bool autosaveCSV = false;
-
-    // used inly in scripts
-    bool createconnection = false;
-    bool runall = false;
-
-    // depracated
-    struct iter_Window
-    {
-        QVBoxLayout iter_layout;
-        QHBoxLayout SpinBox_layout;
-        QHBoxLayout Labels_layout;
-
-        QSpinBox sb1;
-        QSpinBox sb2;
-        QSpinBox sb3;
-
-        QLabel lbls1;
-        QLabel lbls2;
-        QLabel lbls3;
-
-        QLineEdit nameline;
-
-        QPushButton button;
-
-
-        void Init()
-        {
-            SpinBox_layout.addWidget(&sb1);
-            SpinBox_layout.addWidget(&sb2);
-            SpinBox_layout.addWidget(&sb3);
-
-            lbls1.setText("first");
-            lbls2.setText("last");
-            lbls3.setText("step");
-
-            Labels_layout.addWidget(&lbls1);
-            Labels_layout.addWidget(&lbls2);
-            Labels_layout.addWidget(&lbls3);
-            lbls1.setMaximumHeight(16);
-            lbls2.setMaximumHeight(16);
-            lbls3.setMaximumHeight(16);
-
-            iter_layout.addLayout(&Labels_layout);
-            iter_layout.addLayout(&SpinBox_layout);
-
-            nameline.setPlaceholderText("Name_To_Replace");
-            iter_layout.addWidget(&nameline);
-
-            button.setText("Run in separate windows");
-            iter_layout.addWidget(&button);
-
-            sb1.hide();
-            sb2.hide();
-            sb3.hide();
-            lbls1.hide();
-            lbls2.hide();
-            lbls3.hide();
-            nameline.hide();
-            button.hide();
-        }
-
-    };
-    iter_Window iw;
-
-
     NeuralNetwork nn;
 
 
@@ -298,13 +227,15 @@ public slots:
 
 private slots:
 
-    // on DB switch
+    void updateMisc();
+
+    // On DB switch
     void on_DBNameComboBox_currentTextChanged(const QString &arg1);
 
-    // connect to db
+    // Connect to db
     void on_ConnectButton_pressed();
 
-    // run query
+    // Run query
     void runSqlAsync();
     void on_pushButton_3_pressed();
 
@@ -314,7 +245,7 @@ private slots:
     void onQuerySuccess();
     void UpdateTable();
 
-    // update label/timer
+    // Update label/timer
     void executionTimerTimeout();
 
     //Autolaunch timer
@@ -325,25 +256,24 @@ private slots:
     void on_the500LinesCheckBox_checkStateChanged(const Qt::CheckState &arg1);
 
 
-    // data export
+    // Data export
     void on_SaveXLSXButton_pressed();
     void on_SaveCSVButton_pressed();
     void on_SaveSQLiteButton_pressed();
 
-    // data import
+    // Data import
     void on_ImportFromCSVButton_pressed();
     void on_importFromExcelButton_pressed();
 
 
-    // open last saved exel file
+    // Open last saved exel file
     void OpenFile();
 
-    // open output directory
+    // Open output directory
     void OpenDirectory();
 
-    // open new app instance
+    // Open new app instance
     void OpenNewWindow();
-
 
 
     // Code editor bindings
@@ -358,7 +288,6 @@ private slots:
     // SubWindow switches
     void ShowHistoryWindow();
     void ShowWorkspacesWindow();
-    void ShowIterateWindow();
     void ShowTimerWindow();
     void ShowGraph();
 
@@ -373,39 +302,34 @@ private slots:
     //Tabs
     //Cycle to next/first tab
     void cycleTabs();
+    void on_tabWidget_tabCloseRequested(int index);
+    void on_tabWidget_currentChanged(int index);
+    void on_tabWidget_tabBarDoubleClicked(int index);
+
+    void on_pushButton_4_clicked();
 
     //Workspace name change
     void on_workspaceLineEdit_textChanged(const QString &arg1);
-    // history/workspace loading
+    // History/workspace loading
     void on_listWidget_currentTextChanged(const QString &currentText);
-
+    // Workspace save
     void SaveWorkspace();
 
-    // pass to right code editor
+
+    // Pass to right code editor
     void CommentSelected();
 
     // QML test
     void on_pushButton_pressed();
+
     // TokenProcessortest
     void on_pushButton_2_pressed();
+
     //NN tests
     void on_nnTestRun_pressed();
     void on_nnTestLearn_pressed();
 
 
-
-
-    //Depricated
-    void IterButtonPressed();
-
-
-    void on_tabWidget_tabCloseRequested(int index);
-
-    void on_tabWidget_currentChanged(int index);
-
-    void on_tabWidget_tabBarDoubleClicked(int index);
-
-    void on_pushButton_4_clicked();
 
 private:
     Ui::LoaderWidnow *ui;

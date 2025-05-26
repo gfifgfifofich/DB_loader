@@ -25,9 +25,8 @@ inline QQmlApplicationEngine* TestqmlEngine = nullptr;
 
 int main(int argc, char *argv[])
 {
-    qDebug()<< "started";
     fillPaterns();
-    qDebug()<< "filled paths";
+    qDebug()<< "filled patterns";
     usrDir = QStandardPaths::standardLocations(QStandardPaths::HomeLocation)[0];
     if(argc <2)
     {
@@ -45,14 +44,12 @@ int main(int argc, char *argv[])
     documentsDir = QStandardPaths::standardLocations(QStandardPaths::DocumentsLocation)[0] ;
 
 
-    if(!QDir(documentsDir+ "/DBLoader").exists())
-        QDir().mkdir(documentsDir+ "/DBLoader");
+    if(!QDir(documentsDir + "/DBLoader").exists())
+        QDir().mkdir(documentsDir + "/DBLoader");
 
-    //+ "/DBLoader"
     documentsDir = documentsDir + "/DBLoader";
 
-    //create app file scheme if not exists
-
+    //create app file scheme in documents, if not exists already
     if(!QDir(documentsDir+ "/CSV").exists())
         QDir().mkdir(documentsDir+ "/CSV");
     if(!QDir(documentsDir+ "/excel").exists())
@@ -80,7 +77,7 @@ int main(int argc, char *argv[])
 
     qDebug()<< usrDir;
     qDebug()<< documentsDir;
-    QDir::setCurrent(usrDir); // set fixed area for .dll's &shit
+    QDir::setCurrent(usrDir); // set fixed area for .dll's & shit to open .sql files using this app
     qDebug()<< usrDir;
     bool darktheme = false;
     if(userDS.Load((documentsDir + "/userdata.txt").toStdString()))
@@ -93,17 +90,27 @@ int main(int argc, char *argv[])
 
         if(userDS.GetPropertyAsInt("UserTheme", "DarkMainTheme ")>0)
         {
-            darktheme = true;
         }
         userDS.data["user"]["appdir"] = usrDir.toStdString();
     }
 
-    qputenv("QT_QPA_PLATFORM", "windows:darkmode=1");
+    QApplication::setDesktopSettingsAware(true);
 
-    QApplication::setDesktopSettingsAware(false);
-    qDebug() << QApplication::desktopSettingsAware();
+    if(QString(userDS.GetProperty("UserTheme", "DarkMainTheme").c_str()).trimmed() == "Dark")
+    {
+        darktheme = true;
+        qputenv("QT_QPA_PLATFORM", "windows:darkmode=2");
+        QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Dark);
+    }
+    else if(QString(userDS.GetProperty("UserTheme", "DarkMainTheme").c_str()).trimmed() == "Light")
+    {
+        darktheme = false;
+        qputenv("QT_QPA_PLATFORM", "windows:darkmode=1");
+        QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Light);
+    }
     QApplication app(argc, argv);
     app.setStyle("fusion");
+
     if(argc > 0)
     {
         appfilename = argv[0];
@@ -113,7 +120,7 @@ int main(int argc, char *argv[])
     {
         launchOpenFile = true;
         launchOpenFileName = QString().fromLocal8Bit(argv[1]);
-        if(launchOpenFileName.endsWith(".csv") ||launchOpenFileName.endsWith(".xlsx") || launchOpenFileName.endsWith(".db") )
+        if(launchOpenFileName.endsWith(".csv") || launchOpenFileName.endsWith(".xlsx") || launchOpenFileName.endsWith(".db") )
         {
             launchOpenFile =false;
             launchOpenFileName = "";
@@ -126,32 +133,31 @@ int main(int argc, char *argv[])
         TestqmlEngine,
         &QQmlApplicationEngine::objectCreationFailed,
         &app,
-        []() { QCoreApplication::exit(-1); },
+        []() { qDebug() << "closing qml subapp "; },
         Qt::QueuedConnection
         );
 
-    // От 0 до 10
+
 
     qmlRegisterType<TableData>("SourceApplication", 1, 0, "TableData");
     qmlRegisterType<DatabaseConnection>("SourceApplication", 1, 0, "DatabaseConnection");
-    //Table w;
-    //thrnum++;
-    //w.conName = QVariant(thrnum).toString();
-    //w.show();
+
 
     LoaderWidnow w;
-    //if(!darktheme || true)
-    //{
-    //    //auto palette = QApplication::palette();
-    //    QPalette p;
-    //    w.setPalette(p);
-    //}
-            //thrnum++;
-    //w.conName = QVariant(thrnum).toString();
+
+    if(QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark)
+    {
+        QPalette palette = w.palette();
+
+        // Set the color for a specific role, e.g., background color
+        palette.setColor(QPalette::Base, QColor(20, 20, 20)); // Set background to red
+        w.setPalette(palette);
+
+    }
+
 
     w.showMaximized();
 
-    w.Init();
     return app.exec();
 }
 

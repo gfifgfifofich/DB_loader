@@ -40,6 +40,9 @@ SettingsWindow::SettingsWindow(QWidget *parent)
         QLabel* varlbl = new QLabel(var);
         QLineEdit* varLE = new QLineEdit(x.second.c_str());
         ColorButton* varColorbutton = new ColorButton("pick color");
+        QFontComboBox* varFontCB = new QFontComboBox();
+        QComboBox* varCB = new QComboBox();
+        QCheckBox* varCheckBox = new QCheckBox();
 
         QHBoxLayout* valLt = new QHBoxLayout();
 
@@ -48,19 +51,52 @@ SettingsWindow::SettingsWindow(QWidget *parent)
         varColorbutton->setWhatsThis(var);
 
         valLt->addWidget(varlbl);
-        valLt->addWidget(varLE);
         if(var.startsWith("Color"))
         {
             // add color select button
+            valLt->addWidget(varLE);
             valLt->addWidget(varColorbutton);
             connect( varColorbutton, SIGNAL(pressed()), varColorbutton, SLOT(on_pressed()));
             connect( varColorbutton, SIGNAL(cb_pressed(QString)), this, SLOT(cb_pressed(QString)));
-
         }
+        else if(var == "Font")
+        {
+            // add color select button
+
+            varFontCB->setCurrentFont(QFont(QString(x.second.c_str()).trimmed()));
+            valLt->addWidget(varFontCB);
+        }
+        else if(var.startsWith("Bold") || var.startsWith("Italic") || var == "ShowTestButtons" || var == "CodePreview"|| var == "CodePreviewAntialiasing" )
+        {
+            // add color select button
+            if(varLE->text().trimmed() == "true")
+                varCheckBox->setCheckState(Qt::Checked);
+            else
+                varCheckBox->setCheckState(Qt::Unchecked);
+
+            valLt->addWidget(varCheckBox);
+        }
+        else if(var == "DarkMainTheme")
+        {
+
+            // add color select button
+            varCB->addItem("Light");
+            varCB->addItem("Dark");
+            varCB->addItem("System");
+
+            varCB->setCurrentText(varLE->text().trimmed());
+
+            valLt->addWidget(varCB);
+        }
+        else
+            valLt->addWidget(varLE);
 
         varLabels.push_back(varlbl);
         varLEs.push_back(varLE);
         varColorButtons.push_back(varColorbutton);
+        varFontCBs.push_back(varFontCB);
+        varCBs.push_back(varCB);
+        varCheckBoxes.push_back(varCheckBox);
 
         ui->verticalLayout->addLayout(valLt);
     }
@@ -112,10 +148,29 @@ void SettingsWindow::cancel()
 }
 void SettingsWindow::save()
 {
-    for(auto x : varLEs)
+    for(int i=0;i < varLEs.size();i++)
     {
-        userDS.SetProperty("UserTheme",x->whatsThis().toStdString(),x->text().toStdString());
+
+        if(varLEs[i]->whatsThis() == "Font")
+        {
+            varLEs[i]->setText(varFontCBs[i]->currentText());
+        }
+        else if(varLEs[i]->whatsThis().startsWith("Bold") || varLEs[i]->whatsThis().startsWith("Italic") || varLEs[i]->whatsThis() == "ShowTestButtons" || varLEs[i]->whatsThis() == "CodePreview"|| varLEs[i]->whatsThis() == "CodePreviewAntialiasing" )
+        {
+            if(varCheckBoxes[i]->isChecked())
+                varLEs[i]->setText("true");
+            else
+                varLEs[i]->setText("false");
+        }
+        else if(varLEs[i]->whatsThis() == "DarkMainTheme")
+        {
+            varLEs[i]->setText(varCBs[i]->currentText());
+        }
+
+        userDS.SetProperty("UserTheme",varLEs[i]->whatsThis().toStdString(),varLEs[i]->text().toStdString());
+
     }
     userDS.Save((documentsDir + "/userdata.txt").toStdString());
+    emit saved();
     close();
 }

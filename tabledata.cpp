@@ -12,14 +12,6 @@
 
 inline QString documentsDir;
 /*
-
-double 6
-QString 10
-QString 10
-double 6
-QString 10
-QString 10
-QString 10
 QDateTime 16
 double 6
 QString 10
@@ -174,8 +166,7 @@ void TableData::ImportFromSQLiteTable(QString fileName, QString tableName)
 bool TableData::ExportToCSV(QString fileName, char delimeter, bool firstRowHeader)
 {
     QFile fl((additionalSaveFileData + fileName));
-    fl.open(QFile::OpenModeFlag::WriteOnly);
-    if(fl.isOpen())
+    if(fl.open(QFile::OpenModeFlag::WriteOnly))
     {
         for(int i=0;i<headers.size();i++)
         {

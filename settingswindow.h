@@ -2,6 +2,8 @@
 #define SETTINGSWINDOW_H
 
 #include <QMainWindow>
+#include <qcheckbox.h>
+#include <qfontcombobox.h>
 #include <qlabel.h>
 #include <qlineedit.h>
 #include <qpushbutton.h>
@@ -21,7 +23,11 @@ public:
     std::vector<QLabel*> varLabels;
     std::vector<QLineEdit*> varLEs;
     std::vector<QPushButton*> varColorButtons;
-
+    std::vector<QFontComboBox*> varFontCBs;
+    std::vector<QComboBox*> varCBs;
+    std::vector<QCheckBox*> varCheckBoxes;
+signals:
+    void saved();
 private:
     Ui::SettingsWindow *ui;
 private slots:

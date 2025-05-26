@@ -1,6 +1,8 @@
 #include "datastorage.h"
 #include <fstream>
 #include <iostream>
+#include <qdebug.h>
+#include <qlogging.h>
 
 /*
 yoinked from engine
@@ -152,11 +154,13 @@ bool DataStorage::Load(std::string filename)
     }
 
     std::string lastObject = "NULL";
+    int lineCount = 0;
     while (!f.eof())
     {
+        lineCount++;
         char junk;
-        char line[256];
-        f.getline(line, 256);
+        char line[2048];
+        f.getline(line, 2048);
         std::strstream s;
         s << line;
         if (line[0] == '{')
@@ -170,7 +174,7 @@ bool DataStorage::Load(std::string filename)
         {
             lastObject = "";
             int i=0;
-            while (i<256 && line[i] != '\n' && line[i] != '\0')
+            while (i<2048 && line[i] != '\n' && line[i] != '\0')
             {
                 lastObject += line[i];
                 i++;

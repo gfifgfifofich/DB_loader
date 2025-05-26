@@ -1,3 +1,8 @@
+
+
+#ifdef Oracle_OCI_Driver
+
+
 #include "oracledriver.h"
 #include "sqlSubfunctions.h"
 #include <qtimezone.h>
@@ -110,3 +115,4 @@ void OracleDriver::cancel()
 
     }
 }
+#endif

@@ -256,14 +256,14 @@ CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent)
 {
     lineNumberArea = new LineNumberArea(this);
     codePreview = new LineNumberArea(this);
-
+    ((LineNumberArea*) codePreview)->id = 1;
     highlighter = new Highlighter(document());
 
     updateLineNumberAreaWidth(0);
     highlightCurrentLine();
 
     QFont font;
-    font.setFamily("Courier");
+    font.setFamily("Courier NEW");
     font.setFixedPitch(true);
     font.setPointSize(10);
     setFont(font);
@@ -275,59 +275,14 @@ CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent)
     connect(this, &CodeEditor::updateRequest, this, &CodeEditor::updateLineNumberArea);
     connect(this, &CodeEditor::cursorPositionChanged, this, &CodeEditor::highlightCurrentLine);
 
+
     // autocompleation on tab press
     connect( this, SIGNAL(tabDetected()), this, SLOT(fillName()), Qt::QueuedConnection );
     setTabStopDistance(QFontMetricsF(this->font()).horizontalAdvance(' ') * 4);
 
 
 
-
-    qDebug() << "Opening code editors DS";
-    // user theme
-    if(userDS.Load((documentsDir + "/userdata.txt").toStdString()))
-    {
-
-
-        userDS.data["UserTheme"]["CodePreviewLineCount"];
-        userDS.data["UserTheme"]["CodePreviewAntialiasing"];
-        userDS.data["UserTheme"]["CodePreviewSnapCount"];
-        userDS.data["UserTheme"]["CodePreview"];
-        QFont fnt = this->font();
-
-        //qDebug() << fnt.PointSize();
-        fnt.setPointSize(userDS.GetPropertyAsInt("UserTheme","FontSize"));
-        this->setFont(fnt);
-
-        QStringList strl = QString(userDS.data["UserTheme"]["Color_BracketHighlight"].c_str()).split(',');
-        QColor col = QColor(Qt::GlobalColor::darkRed).lighter(35);
-        for(int i=0;i<strl.size();i++)
-        {
-            if(i==0) col.setRed(QVariant(strl[i]).toInt());
-            if(i==1) col.setGreen(QVariant(strl[i]).toInt());
-            if(i==2) col.setBlue(QVariant(strl[i]).toInt());
-            if(i==3) col.setAlpha(QVariant(strl[i]).toInt());
-        }
-        braccketHighlightColor = col;
-
-
-        qDebug() << userDS.data["UserTheme"].count("CodePreview")<< userDS.data["UserTheme"]["CodePreview"];
-        if(userDS.GetPropertyAsBool("UserTheme","CodePreview"))
-        {/*
-            VScrollBar* vsb = new VScrollBar(Qt::Vertical,this);
-            vsb->cd = this;
-            setVerticalScrollBar(vsb);
-            verticalScrollBar()->setStyleSheet("QScrollBar:vertical { width: 150px; }");*/
-            b_codePreview = true;
-        }
-        else
-            b_codePreview = false;
-    }
-    else
-    {
-        qDebug() << "file not opened userdata.txt in code editor";
-    }
-
-    //Scroll bar setup
+    updateMisc();
 
 
 
@@ -385,8 +340,14 @@ void CodeEditor::resizeEvent(QResizeEvent *e)
 }
 void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
 {
+
     QPainter painter(lineNumberArea);
-    painter.fillRect(event->rect(), Qt::black);
+
+    if(QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Light)
+        painter.fillRect(event->rect(), Qt::white);
+    else
+        painter.fillRect(event->rect(), Qt::black);
+
     QTextBlock block = firstVisibleBlock();
 
     int blockNumber = block.blockNumber();
@@ -399,7 +360,12 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
     while (block.isValid() && top <= event->rect().bottom()) {
         if (block.isVisible() && bottom >= event->rect().top()) {
             QString number = QString::number(blockNumber + 1);
-            painter.setPen(Qt::white);
+
+            if(QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Light)
+                painter.setPen(Qt::black);
+            else
+                painter.setPen(Qt::white);
+
             painter.drawText(0, top, lineNumberArea->width(), fontMetrics().height(),
                              Qt::AlignRight, number);
         }
@@ -410,6 +376,32 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
         bottom = top + qRound(blockBoundingRect(block).height());
         ++blockNumber;
     }
+
+}
+
+void CodeEditor::drawPreview(QPaintEvent *event)
+{
+
+
+
+    QTextBlock block = firstVisibleBlock();
+
+    int blockNumber = block.blockNumber();
+
+    int topblock = block.blockNumber();
+    int bottomblock = topblock;
+
+    int top = qRound(blockBoundingGeometry(block).translated(contentOffset()).top());
+    int bottom = top + qRound(blockBoundingRect(block).height());
+    while (block.isValid() && top <= event->rect().bottom()) {
+
+        block = block.next();
+        bottomblock = block.blockNumber();
+        top = bottom;
+        bottom = top + qRound(blockBoundingRect(block).height());
+        ++blockNumber;
+    }
+
     if(bottomblock - topblock <= 0)
     {
         bottomblock = this->blockCount();
@@ -433,9 +425,12 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
     {
 
 
+
         QPixmap px;
 
         QSize sizebuff = size();
+
+        // random noize appears when attempting to render small pixmap, so scale x depending on size y
         int x_mult = 1;
         if(end_at_mult >40)
         {
@@ -453,11 +448,16 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
             x_mult = 8;
         }
 
-        QPainter painter(&px);
+        QPainter CPpainter(&px);
+
+        if(QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Light)
+            CPpainter.fillRect(px.rect(), Qt::white);
+        else
+            CPpainter.fillRect(px.rect(), Qt::black);
 
         if(userDS.GetProperty("UserTheme", "CodePreviewAntialiasing") == "true")
         {
-            painter.setRenderHint(painter.Antialiasing);
+            CPpainter.setRenderHint(CPpainter.Antialiasing);
         }
         float offset = 0;
 
@@ -481,6 +481,8 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
         {
             block = document()->findBlockByNumber( document()->blockCount()-end_at);
         }
+
+
 
         std::vector<QColor> cols;
         std::vector<std::vector<QRect>> rects;
@@ -527,26 +529,28 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
 
         for(i =0; i< rects.size();i++)
         {
-            painter.setBrush(cols[i]);
-            painter.drawRects(rects[i].data(),rects[i].size());
+            CPpainter.setBrush(cols[i]);
+            CPpainter.drawRects(rects[i].data(),rects[i].size());
         }
 
         if(end_at <= this->blockCount())
         {
-            painter.setBrush(QColor(255,255,255,20));
+            CPpainter.setBrush(QColor(255,255,255,20));
             if(bottomvisibleoffset - topvisibleoffset > 0.0f)
-                painter.drawRect(0,topvisibleoffset,1800,bottomvisibleoffset - topvisibleoffset);
+                CPpainter.drawRect(0,topvisibleoffset,1800,bottomvisibleoffset - topvisibleoffset);
             else
-                painter.drawRect(0,topvisibleoffset,1800,500);
+                CPpainter.drawRect(0,topvisibleoffset,1800,500);
         }
+
 
 
         QPainter cpainter(codePreview);
         cpainter.fillRect(codePreview->rect(), Qt::black);
         cpainter.drawPixmap(codePreview->rect(),px);
-    }
-}
 
+    }
+
+}
 void CodeEditor::highlightCurrentLine()
 {
 
@@ -790,7 +794,6 @@ void CodeEditor::highlightCurrentLine()
 
         QString selectedString = textCursor().selectedText();
         selectedString = selectedString.replace('?', '\n');
-        qDebug() << "Selected: " << selectedString;
         int match = 0;
         int start = 0;
         for (int i = 0; i < text.size(); i++)
@@ -883,7 +886,7 @@ void CodeEditor::suggestName()
     QString PrevPrevPrevWord= "";
     QStringList PrevWords;
     bool hasdot = false;
-    int depth = 6; // amount of prevwords to check
+    int depth = 15; // amount of prevwords to check
     QString text = toPlainText();
     int curs = textCursor().position();
     if(curs>=1)
@@ -983,7 +986,7 @@ void CodeEditor::suggestName()
             PrevWord = PrevWords[PrevWords.size()-1].toLower();
         word = "";
         onWhiteSpace = true;
-        qDebug() << "On whitespace";
+
     }
     else
     {
@@ -1011,7 +1014,7 @@ void CodeEditor::suggestName()
     // qDebug() << "PrevWord is " <<PrevWord ;
     // qDebug() << "PrevPrevWord is " <<PrevPrevWord ;
     // qDebug() << "PrevPrevPrevWord is " <<PrevPrevPrevWord ;
-    qDebug() << PrevWords << "onWhiteSpace" << onWhiteSpace << word;
+
     if(PrevWord.contains('.'))
         hasdot = true;
     //qDebug()<<text_interval;
@@ -1065,7 +1068,7 @@ void CodeEditor::suggestName()
             tokenkey = str + " " + tokenkey;
 
             tokenkey = tokenkey.trimmed();
-            qDebug() << "tk is: " << tokenkey << " } word" << str;
+            //qDebug() << "tk is: " << tokenkey << " } word" << str;
             for(auto s : tokenProcessor.ds.data[tokenkey.toStdString()])
             {
                 keys.push_back(s.first.c_str());
@@ -1719,7 +1722,56 @@ QStringList CodeEditor::GetTokensUnderCursor()
     return out_strl;
 }
 
+void CodeEditor::updateMisc()
+{
+
+    qDebug() << "Opening code editors DS";
+    // user theme
+    if(userDS.Load((documentsDir + "/userdata.txt").toStdString()))
+    {
+        userDS.data["UserTheme"]["CodePreviewLineCount"];
+        userDS.data["UserTheme"]["CodePreviewAntialiasing"];
+        userDS.data["UserTheme"]["CodePreviewSnapCount"];
+        userDS.data["UserTheme"]["CodePreview"];
+        userDS.data["UserTheme"]["Font"];
 
 
+        QFont fnt = this->font();
+
+        if(userDS.data["UserTheme"]["Font"].size()>2)
+            fnt.setFamily(QString(userDS.data["UserTheme"]["Font"].c_str()).trimmed());
+        fnt.setPointSize(userDS.GetPropertyAsInt("UserTheme","FontSize"));
+        this->setFont(fnt);
+
+        QStringList strl = QString(userDS.data["UserTheme"]["Color_BracketHighlight"].c_str()).split(',');
+        QColor col = QColor(Qt::GlobalColor::darkRed).lighter(35);
+        for(int i=0;i<strl.size();i++)
+        {
+            if(i==0) col.setRed(QVariant(strl[i]).toInt());
+            if(i==1) col.setGreen(QVariant(strl[i]).toInt());
+            if(i==2) col.setBlue(QVariant(strl[i]).toInt());
+            if(i==3) col.setAlpha(QVariant(strl[i]).toInt());
+        }
+        braccketHighlightColor = col;
+
+
+        if(userDS.GetProperty("UserTheme","CodePreview") == "true")
+        {
+            b_codePreview = true;
+        }
+        else
+            b_codePreview = false;
+
+        userDS.Save((documentsDir + "/userdata.txt").toStdString());
+    }
+    else
+    {
+        qDebug() << "file not opened userdata.txt in code editor";
+    }
+
+    //Scroll bar setup
+    highlighter->updateMisc();
+    highlighter->rehighlight();
+}
 
 

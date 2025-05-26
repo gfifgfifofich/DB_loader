@@ -1,0 +1,11 @@
+prefix=/usr
+exec_prefix=${prefix}
+libdir=C:/Program Files (x86)/libsimplemail/lib
+includedir=C:/Program Files (x86)/libsimplemail/include/simplemail3-qt6
+
+Name: simplemail3-qt6
+Description: SimpleMail library for Qt6
+Version: 3.1.0
+Requires: Qt6Core
+Libs: -L${libdir} -lSimpleMail3Qt6
+Cflags: -I${includedir}
