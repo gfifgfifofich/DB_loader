@@ -17,6 +17,11 @@ object_script.*.Debug
 /.qmake.cache
 /.qmake.stash
 /build
+
+DBLoader CMake/.qmake.cache
+DBLoader CMake/.qmake.stash
+DBLoader CMake/build
+
 *.pro.user
 *.pro.user.*
 *.qbs.user
