@@ -7,6 +7,7 @@ Regular tasks, after 1-2 months of use, will also be much easier, due to TokenPr
 
 And last but not least, charts/Graphs. Windows/Graph, select requered columns, data separators and make a graph. Useful to check if data is correct or not, and where it all goes.
 
+![github3](https://github.com/gfifgfifofich/DB_loader/blob/main/Assets/Demo1.png)
 # Usage
 run any .exe from archive
 
