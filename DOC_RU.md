@@ -1,6 +1,7 @@
 # Usage
 Драйвера:
 ```
+Oracle - OCI Драйвер от оракла. Включает возможноть остановки запроса, быстрее скорость скачивания информации.
 QOCI - Oracle
 QPSQL - Postgre
 LOCAL_SQLITE_DB - SQLite, в неё идёт все сейвы.
@@ -10,9 +11,21 @@ QODBC_EXCEL - для подключения к excel таблицам и вып�
 # Sub_syntax
 Список команд:
 ```
-SubexecToSilentSqliteTable{ -- {DRIVER} {DB_NAME} {savename}}
-SubexecToSilentExcelTable{ -- {DRIVER} {DB_NAME} {savename}}
-SubexecToSilentCSV{ -- {DRIVER} {DB_NAME} {savename}}
+
+DBLPasteMonth{ -- {offset}} -- заменится на месяц + offset: 07, 09, 11
+DBLPasteNumMonth{ -- {offset}} -- заменится на номер месяца + offset: 7, 9, 11
+
+ExcelToMagic{ -- {File} {Column_name} {start Row} {end Row}}
+ExcelToArray{ -- {File} {Column_name} {start Row} {end Row}}
+ExcelToSqliteTable{ -- {File} {Column_name} {start Row} {end Row}}
+CSVToMagic{ -- {File} {Column_name} {start Row} {end Row}}
+CSVToArray{ -- {File} {Column_name} {start Row} {end Row}}
+CSVToSqliteTable{ -- {File} {Column_name} {start Row} {end Row}}
+
+
+SilentSubexecToSqliteTable{ -- {DRIVER} {DB_NAME} {savename}}
+SilentSubexecToExcelTable{ -- {DRIVER} {DB_NAME} {savename}}
+SilentSubexecToCSV{ -- {DRIVER} {DB_NAME} {savename}}
 
 SubexecToSqliteTable{ -- {DRIVER} {DB_NAME} {savename}}
 SubexecToCSV{ -- {DRIVER} {DB_NAME} {savename}}
@@ -38,9 +51,9 @@ select * from table_ITER
 # Detailed description
 ## SubexecTo
 ```
-SubexecToSilentSqliteTable{ -- {DRIVER} {DB_NAME} {savename}}
-SubexecToSilentExcelTable{ -- {DRIVER} {DB_NAME} {savename}}
-SubexecToSilentCSV{ -- {DRIVER} {DB_NAME} {savename}}
+SilentSubexecToSqliteTable{ -- {DRIVER} {DB_NAME} {savename}}
+SilentSubexecToExcelTable{ -- {DRIVER} {DB_NAME} {savename}}
+SilentSubexecToCSV{ -- {DRIVER} {DB_NAME} {savename}}
 
 SubexecToSqliteTable{ -- {DRIVER} {DB_NAME} {savename}}
 SubexecToCSV{ -- {DRIVER} {DB_NAME} {savename}}
@@ -48,7 +61,7 @@ SubexecToExcelTable{ -- {DRIVER} {DB_NAME} {savename}}
 ```
 Все команды SubexecToSilent выполняют под запрос, сохраняют в соответствующем виде, не учитываясь основном запросе
 ```sql
-SubexecToSilentSqliteTable
+SilentSubexecToSqliteTable
 { 
 	-- {QOCI} {127.0.0.1:1521/KTKDB_DB2} {tmp2}
 	SELECT * from cool_oracle_table	
@@ -86,9 +99,13 @@ result:
 query 1 	Success	 	8	10
 query 2 	Success	 	8	10
 ```
-And files q1.xlsx, q2.xlsx in excel/
-
-
+И Файлы q1.xlsx, q2.xlsx in excel/
+##SubexecAppendCSV
+```sql
+SilentSubexecAppendCSV
+SubexecAppendCSV
+```
+Добавляют выгрузку в csv файл, вместо его замены
 ## ForLoop
 ```
 ForLoop { -- {REPLACE_STRING} {from} {to} {step}}
