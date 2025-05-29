@@ -23,7 +23,7 @@ void TokenProcessor::addFrequencies()
     QString prevprevtoken = "";
     QString prevtoken = "";
     QStringList prevtokens;
-    int depth = 15;
+    int depth = 30;
 
     bool in_qutes = false;
     bool in_doublequtes = false;
@@ -31,15 +31,15 @@ void TokenProcessor::addFrequencies()
     for(auto s : tokens)
     {
         // include comments or not
-        // if(s.contains("--"))
-        //     inComment=true;
-        // if(inComment && s.contains("\n"))
-        // {
-        //     inComment = false;
-        //     continue;
-        // }
-        // if(inComment)
-        //     continue;
+        if(s.contains("--"))
+            inComment=true;
+        if(inComment && s.contains("\n"))
+        {
+            inComment = false;
+            continue;
+        }
+        if(inComment)
+            continue;
 
         // include data from quotes, or not
         int quotes = s.count('\'');
@@ -63,12 +63,14 @@ void TokenProcessor::addFrequencies()
 
 
 
-        if(s.trimmed().size() < 1 || s.trimmed() ==" ")
-            continue;
         if(prevtokens.size() > 0)
         {
             QString str = s.replace('\n',' ').replace('\t',' ').replace('\u0000',' ').toLower().trimmed();
-            if((!isNumber(str) || str == "."|| (!isWord(str) && !isNumber(str))) && !str.contains('{') && !str.contains('}')&& !str.contains(','))
+            if((!isNumber(str) || str == "."|| (!isWord(str) && !isNumber(str))) && !str.contains('{')&& !str.contains(';') && !str.contains('}'))
+
+
+            //isWord(str) && !isNumber(str) || (str.size()>2 && !isNumber(str)) || str == '.'||  str == '('|| str == ')'|| str == '='|| str == "--" || str == ">=" || str == "<=")
+                //|| (!isNumber(str) || str == "."|| (!isWord(str) && !isNumber(str))) && !str.contains('{')&& !str.contains(';') && !str.contains('}')
             {
                 QString tokenkey = "";
 
@@ -80,12 +82,15 @@ void TokenProcessor::addFrequencies()
                     tokenkey = tokenkey.trimmed();
                     if(wordcount >= 0)
                     {
-                        float val = pow(1.5,a) * 0.1f * sqrt(str.size());
-                        float freq = ds.GetPropertyAsFloat(tokenkey.toStdString(),str.toStdString()); // get freq
+                        float val =pow(1.5,a) * 0.1f * sqrt(str.size());
+                        float freq = freqs[tokenkey][str];//ds.GetPropertyAsFloat(tokenkey.toStdString(),str.toStdString()); // get freq
+
                         freq += val;
+
+
                         if(freq > 10000)
                             freq = 10000;
-                        ds.SetProperty(tokenkey.toStdString(),str.toStdString(),freq); //set to freq + val
+                        freqs[tokenkey][str] = freq;//ds.SetProperty(tokenkey.toStdString(),str.toStdString(),freq); //set to freq + val
                     }
                 }
                 prevtokens.push_back(str);
@@ -95,7 +100,10 @@ void TokenProcessor::addFrequencies()
         }
         else
             prevtokens.push_back(s.replace('\n',' ').replace('\t',' ').replace('\u0000',' ').toLower().trimmed());
+
     }
+
+
 }
 
 

@@ -18,6 +18,9 @@ public:
 
     QStringList tokens;
     QMap<QString, QString> uniqueTokens;
+
+    std::map<QString,std::map<QString, float>> freqs;
+
     DataStorage ds;
     void processText(QString &text);
     void addFrequencies();

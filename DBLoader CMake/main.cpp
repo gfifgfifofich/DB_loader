@@ -27,8 +27,11 @@ int main(int argc, char *argv[])
 {
     fillPaterns();
     qDebug()<< "filled patterns";
-    usrDir = QStandardPaths::standardLocations(QStandardPaths::HomeLocation)[0];
-    if(argc <2)
+    QStringList strl = QStandardPaths::standardLocations(QStandardPaths::HomeLocation);
+    if(strl.size() > 0)
+        usrDir = strl[0];
+
+    if(argc <2 && argc > 0)
     {
         usrDir = argv[0];
         if(usrDir.endsWith(".exe"))
@@ -39,15 +42,19 @@ int main(int argc, char *argv[])
             }
         }
     }
+    strl.clear();
 
-
-    documentsDir = QStandardPaths::standardLocations(QStandardPaths::DocumentsLocation)[0] ;
+    QStringList strl2 = QStandardPaths::standardLocations(QStandardPaths::DocumentsLocation);
+    if(strl2.size() > 0)
+        documentsDir = strl2[0];
 
 
     if(!QDir(documentsDir + "/DBLoader").exists())
         QDir().mkdir(documentsDir + "/DBLoader");
 
+
     documentsDir = documentsDir + "/DBLoader";
+
 
     //create app file scheme in documents, if not exists already
     if(!QDir(documentsDir+ "/CSV").exists())
@@ -60,6 +67,7 @@ int main(int argc, char *argv[])
         QDir().mkdir(documentsDir+ "/sqlBackup");
     if(!QDir(documentsDir+ "/workspaces").exists())
         QDir().mkdir(documentsDir+ "/workspaces");
+
 
     if(!QFile(documentsDir + "/sqlHistoryList.txt").exists())
     {
@@ -80,34 +88,35 @@ int main(int argc, char *argv[])
     QDir::setCurrent(usrDir); // set fixed area for .dll's & shit to open .sql files using this app
     qDebug()<< usrDir;
     bool darktheme = false;
-    if(userDS.Load((documentsDir + "/userdata.txt").toStdString()))
+    qDebug() << "reached if(userDS.Load((documentsDir + /userdata.txt).toStdString()))" << (documentsDir + "/userdata.txt");
+    if(userDS.Load((documentsDir + "/userdata.txt")))
     {
-
         if(argc >= 2)
         {
-            usrDir = userDS.data["user"]["appdir"].c_str();
+            usrDir = userDS.data["user"]["appdir"];
         }
 
-        if(userDS.GetPropertyAsInt("UserTheme", "DarkMainTheme ")>0)
-        {
-        }
-        userDS.data["user"]["appdir"] = usrDir.toStdString();
+
+        userDS.data["user"]["appdir"] = usrDir;
     }
+
+    qDebug() << "if(userDS.Load((documentsDir + /userdata.txt)))";
 
     QApplication::setDesktopSettingsAware(true);
 
-    if(QString(userDS.GetProperty("UserTheme", "DarkMainTheme").c_str()).trimmed() == "Dark")
+    if(QString(userDS.GetProperty("UserTheme", "DarkMainTheme")).trimmed() == "Dark")
     {
         darktheme = true;
         qputenv("QT_QPA_PLATFORM", "windows:darkmode=2");
         QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Dark);
     }
-    else if(QString(userDS.GetProperty("UserTheme", "DarkMainTheme").c_str()).trimmed() == "Light")
+    else if(QString(userDS.GetProperty("UserTheme", "DarkMainTheme")).trimmed() == "Light")
     {
         darktheme = false;
         qputenv("QT_QPA_PLATFORM", "windows:darkmode=1");
         QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Light);
     }
+    qDebug() << "reached app";
     QApplication app(argc, argv);
     app.setStyle("fusion");
 
@@ -118,8 +127,21 @@ int main(int argc, char *argv[])
     }
     if(argc>1)
     {
+        int i =0;
+        while(i < argc)
+        {
+            if(QString().fromLocal8Bit(argv[i]).endsWith(".exe"))
+            {
+                i++;
+                break;
+            }
+            else
+                i++;
+        }
         launchOpenFile = true;
-        launchOpenFileName = QString().fromLocal8Bit(argv[1]);
+        launchOpenFileName = QString().fromLocal8Bit(argv[i]);
+
+
         if(launchOpenFileName.endsWith(".csv") || launchOpenFileName.endsWith(".xlsx") || launchOpenFileName.endsWith(".db") )
         {
             launchOpenFile =false;
@@ -127,6 +149,8 @@ int main(int argc, char *argv[])
         }
     }
 
+
+    qDebug() << "QQmlApplicationEngine";
     QQmlApplicationEngine eng;
     TestqmlEngine = &eng;
     QObject::connect(
@@ -143,6 +167,7 @@ int main(int argc, char *argv[])
     qmlRegisterType<DatabaseConnection>("SourceApplication", 1, 0, "DatabaseConnection");
 
 
+    qDebug() << "LoaderWidnow w;";
     LoaderWidnow w;
 
     if(QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark)
@@ -156,8 +181,13 @@ int main(int argc, char *argv[])
     }
 
 
+    qDebug() << "LoaderWidnow w.showMaximized();";
     w.showMaximized();
 
+    qDebug() << "LoaderWidnow w.showedMaximized();";
     return app.exec();
 }
+
+
+
 

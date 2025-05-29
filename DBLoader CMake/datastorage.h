@@ -4,38 +4,38 @@
 #ifndef DATASTORAGE_H
 #define DATASTORAGE_H
 
+#include <qcoreapplication.h>
 #include <string>
-#include <strstream>
 #include <vector>
 #include <map>
 class DataStorage
 {
 public:
 
-    std::map<std::string,std::map<std::string, std::string>> data;
+    std::map<QString,std::map<QString, QString>> data;
 
-    void AddObject(std::string ObjectName);
-    void PopObject(std::string ObjectName);
+    void AddObject(QString ObjectName);
+    void PopObject(QString ObjectName);
 
-    void PopProperty(std::string ObjectName, std::string Property);
-    void AddProperty(std::string ObjectName, std::string Property, std::string value = "");
+    void PopProperty(QString ObjectName, QString Property);
+    void AddProperty(QString ObjectName, QString Property, QString value = "");
 
-    std::map<std::string, std::string> GetObject(std::string ObjectName);
-    std::vector<std::string> GetProperties(std::string ObjectName);
+    std::map<QString, QString> GetObject(QString ObjectName);
+    std::vector<QString> GetProperties(QString ObjectName);
 
-    std::string GetProperty(std::string ObjectName, std::string Property);
-    int GetPropertyAsInt(std::string ObjectName, std::string Property);
-    float GetPropertyAsFloat(std::string ObjectName, std::string Property);
-    bool GetPropertyAsBool(std::string ObjectName, std::string Property);
+    QString GetProperty(QString ObjectName, QString Property);
+    int GetPropertyAsInt(QString ObjectName, QString Property);
+    float GetPropertyAsFloat(QString ObjectName, QString Property);
+    bool GetPropertyAsBool(QString ObjectName, QString Property);
 
-    void SetProperty(std::string ObjectName, std::string Property, std::string value = "");
-    void SetProperty(std::string ObjectName, std::string Property, bool value);
-    void SetProperty(std::string ObjectName, std::string Property, int value);
-    void SetProperty(std::string ObjectName, std::string Property, float value);
+    void SetProperty(QString ObjectName, QString Property, QString value = "");
+    void SetProperty(QString ObjectName, QString Property, bool value);
+    void SetProperty(QString ObjectName, QString Property, int value);
+    void SetProperty(QString ObjectName, QString Property, float value);
 
-    void Save(std::string filename);
-    bool Load(std::string filename);
-    std::string ToString();
+    void Save(QString filename);
+    bool Load(QString filename);
+    QString ToString();
 };
 
 #endif // DATASTORAGE_H

@@ -712,138 +712,161 @@ void Highlighter::highlightBlock(const QString &text)
 
 }
 
-
+// static QStringList strl;
+// static QStringList strl2;
+// static QStringList strl3;
+// static QStringList strl4;
+// static QStringList strl5;
 void Highlighter::updateMisc()
 {
     // load user theme
-    if(userDS.Load((documentsDir +"/userdata.txt").toStdString()))
+    qDebug() << "highlighter updating misc";
+
+    qDebug() <<documentsDir +"/userdata.txt";
+    if(userDS.Load(documentsDir +"/userdata.txt"))
     {
+
         int fnt_size = userDS.GetPropertyAsInt("UserTheme","FontSize");
-        if(QString(userDS.data["UserTheme"]["Italic_KeyWord"].c_str()).trimmed().toLower() == "true")
+
+
+        if(userDS.data["UserTheme"]["Italic_KeyWord"].trimmed().toLower() == "true")
             keywordFormat.setFontItalic(true);
         else
             keywordFormat.setFontItalic(false);
-        if(QString(userDS.data["UserTheme"]["Bold_KeyWord"].c_str()).trimmed().toLower() == "true")
+        if(userDS.data["UserTheme"]["Bold_KeyWord"].trimmed().toLower() == "true")
             keywordFormat.setFontWeight(QFont::Bold);
         else
             keywordFormat.setFontWeight(QFont::Weight::Normal);
-        QStringList strl = QString(userDS.data["UserTheme"]["Color_KeyWord"].c_str()).split(',');
+
+
+
+        //strl = QString(userDS.data["UserTheme"]["Color_KeyWord"]).split(',');
         QColor col = QColor::fromRgbF(0.25f,0.55f,0.95f,1.0f);
-        for(int i=0;i<strl.size();i++)
+        qDebug() << "strling";
+        for(int i=0;i<QString(userDS.data["UserTheme"]["Color_KeyWord"]).split(',').size();i++)
         {
-            if(i==0) col.setRed(QVariant(strl[i]).toInt());
-            if(i==1) col.setGreen(QVariant(strl[i]).toInt());
-            if(i==2) col.setBlue(QVariant(strl[i]).toInt());
-            if(i==3) col.setAlpha(QVariant(strl[i]).toInt());
+            if(i==0) col.setRed(QVariant(QString(userDS.data["UserTheme"]["Color_KeyWord"]).split(',')[i]).toInt());
+            if(i==1) col.setGreen(QVariant(QString(userDS.data["UserTheme"]["Color_KeyWord"]).split(',')[i]).toInt());
+            if(i==2) col.setBlue(QVariant(QString(userDS.data["UserTheme"]["Color_KeyWord"]).split(',')[i]).toInt());
+            if(i==3) col.setAlpha(QVariant(QString(userDS.data["UserTheme"]["Color_KeyWord"]).split(',')[i]).toInt());
         }
+        qDebug() << "strlinged";
         keywordFormat.setForeground( col);
         keywordFormat.setFontPointSize(fnt_size);
         if(userDS.data["UserTheme"]["Font"].size()>2)
-            keywordFormat.setFontFamilies(QStringList(QString(userDS.data["UserTheme"]["Font"].c_str()).trimmed()));
+            keywordFormat.setFontFamilies(QStringList(QString(userDS.data["UserTheme"]["Font"]).trimmed()));
 
 
 
 
-        if(QString(userDS.data["UserTheme"]["Italic_column_name"].c_str()).trimmed().toLower() == "true") // columns
+
+
+        if(QString(userDS.data["UserTheme"]["Italic_column_name"]).trimmed().toLower() == "true") // columns
             NameFormat.setFontItalic(true);
         else
             NameFormat.setFontItalic(false);
-        if(QString(userDS.data["UserTheme"]["Bold_column_name"].c_str()).trimmed().toLower() == "true")
+        if(QString(userDS.data["UserTheme"]["Bold_column_name"]).trimmed().toLower() == "true")
             NameFormat.setFontWeight(QFont::Bold);
         else
             NameFormat.setFontWeight(QFont::Weight::Normal);
-        strl = QString(userDS.data["UserTheme"]["Color_column_name"].c_str()).split(',');
+
+        //strl2 = QString(userDS.data["UserTheme"]["Color_column_name"]).split(',');
         col = QColor::fromRgbF(0.85f,0.45f,0.15f,1.0f);
-        for(int i=0;i<strl.size();i++)
+        for(int i=0;i<QString(userDS.data["UserTheme"]["Color_column_name"]).split(',').size();i++)
         {
-            if(i==0) col.setRed(QVariant(strl[i]).toInt());
-            if(i==1) col.setGreen(QVariant(strl[i]).toInt());
-            if(i==2) col.setBlue(QVariant(strl[i]).toInt());
-            if(i==3) col.setAlpha(QVariant(strl[i]).toInt());
+            if(i==0) col.setRed(QVariant(QString(userDS.data["UserTheme"]["Color_column_name"]).split(',')[i]).toInt());
+            if(i==1) col.setGreen(QVariant(QString(userDS.data["UserTheme"]["Color_column_name"]).split(',')[i]).toInt());
+            if(i==2) col.setBlue(QVariant(QString(userDS.data["UserTheme"]["Color_column_name"]).split(',')[i]).toInt());
+            if(i==3) col.setAlpha(QVariant(QString(userDS.data["UserTheme"]["Color_column_name"]).split(',')[i]).toInt());
         }
         NameFormat.setForeground( col );
         NameFormat.setFontPointSize(fnt_size);
         if(userDS.data["UserTheme"]["Font"].size()>2)
-            NameFormat.setFontFamilies(QStringList(QString(userDS.data["UserTheme"]["Font"].c_str()).trimmed()));
+            NameFormat.setFontFamilies(QStringList(QString(userDS.data["UserTheme"]["Font"]).trimmed()));
 
 
 
-        if(QString(userDS.data["UserTheme"]["Italic_table_name"].c_str()).trimmed().toLower() == "true") // tables
+
+        if(QString(userDS.data["UserTheme"]["Italic_table_name"]).trimmed().toLower() == "true") // tables
             classFormat.setFontItalic(true);
         else
             classFormat.setFontItalic(false);
-        if(QString(userDS.data["UserTheme"]["Bold_table_name"].c_str()).trimmed().toLower() == "true")
+        if(QString(userDS.data["UserTheme"]["Bold_table_name"]).trimmed().toLower() == "true")
             classFormat.setFontWeight(QFont::Bold);
         else
             classFormat.setFontWeight(QFont::Weight::Normal);
-        strl = QString(userDS.data["UserTheme"]["Color_table_name"].c_str()).split(',');
+        // strl3 = QString(userDS.data["UserTheme"]["Color_table_name"]).split(',');
         col = QColor::fromRgbF(0.65f,0.25f,0.65f,1.0f);
-        for(int i=0;i<strl.size();i++)
+        for(int i=0;i<QString(userDS.data["UserTheme"]["Color_table_name"]).split(',').size();i++)
         {
-            if(i==0) col.setRed(QVariant(strl[i]).toInt());
-            if(i==1) col.setGreen(QVariant(strl[i]).toInt());
-            if(i==2) col.setBlue(QVariant(strl[i]).toInt());
-            if(i==3) col.setAlpha(QVariant(strl[i]).toInt());
+            if(i==0) col.setRed(QVariant(QString(userDS.data["UserTheme"]["Color_table_name"]).split(',')[i]).toInt());
+            if(i==1) col.setGreen(QVariant(QString(userDS.data["UserTheme"]["Color_table_name"]).split(',')[i]).toInt());
+            if(i==2) col.setBlue(QVariant(QString(userDS.data["UserTheme"]["Color_table_name"]).split(',')[i]).toInt());
+            if(i==3) col.setAlpha(QVariant(QString(userDS.data["UserTheme"]["Color_table_name"]).split(',')[i]).toInt());
         }
         classFormat.setForeground( col );
         classFormat.setFontPointSize(fnt_size);
         if(userDS.data["UserTheme"]["Font"].size()>2)
-            classFormat.setFontFamilies(QStringList(QString(userDS.data["UserTheme"]["Font"].c_str()).trimmed()));
+            classFormat.setFontFamilies(QStringList(QString(userDS.data["UserTheme"]["Font"]).trimmed()));
 
 
 
-        if(QString(userDS.data["UserTheme"]["Italic_quotation"].c_str()).trimmed().toLower() == "true")
+
+        if(QString(userDS.data["UserTheme"]["Italic_quotation"]).trimmed().toLower() == "true")
             quotationFormat.setFontItalic(true);
         else
             quotationFormat.setFontItalic(false);
-        if(QString(userDS.data["UserTheme"]["Bold_quotation"].c_str()).trimmed().toLower() == "true")
+        if(QString(userDS.data["UserTheme"]["Bold_quotation"]).trimmed().toLower() == "true")
             quotationFormat.setFontWeight(QFont::Weight::Bold);
         else
             quotationFormat.setFontWeight(QFont::Weight::Normal);
 
-        strl = QString(userDS.data["UserTheme"]["Color_quotation"].c_str()).split(',');
+        //strl4 = QString(userDS.data["UserTheme"]["Color_quotation"]).split(',');
         col = QColor::fromRgbF(0.6f,0.5f,0.25f,1.0f);
-        for(int i=0;i<strl.size();i++)
+        for(int i=0;i<QString(userDS.data["UserTheme"]["Color_quotation"]).split(',').size();i++)
         {
-            if(i==0) col.setRed(QVariant(strl[i]).toInt());
-            if(i==1) col.setGreen(QVariant(strl[i]).toInt());
-            if(i==2) col.setBlue(QVariant(strl[i]).toInt());
-            if(i==3) col.setAlpha(QVariant(strl[i]).toInt());
+            if(i==0) col.setRed(QVariant(QString(userDS.data["UserTheme"]["Color_quotation"]).split(',')[i]).toInt());
+            if(i==1) col.setGreen(QVariant(QString(userDS.data["UserTheme"]["Color_quotation"]).split(',')[i]).toInt());
+            if(i==2) col.setBlue(QVariant(QString(userDS.data["UserTheme"]["Color_quotation"]).split(',')[i]).toInt());
+            if(i==3) col.setAlpha(QVariant(QString(userDS.data["UserTheme"]["Color_quotation"]).split(',')[i]).toInt());
         }
         quotationFormat.setForeground(col);
         quotationFormat.setFontPointSize(fnt_size);
         if(userDS.data["UserTheme"]["Font"].size()>2)
-            quotationFormat.setFontFamilies(QStringList(QString(userDS.data["UserTheme"]["Font"].c_str()).trimmed()));
+            quotationFormat.setFontFamilies(QStringList(QString(userDS.data["UserTheme"]["Font"]).trimmed()));
 
 
 
-        if(QString(userDS.data["UserTheme"]["Italic_comment"].c_str()).trimmed().toLower() == "true")
+
+        if(QString(userDS.data["UserTheme"]["Italic_comment"]).trimmed().toLower() == "true")
             multiLineCommentFormat.setFontItalic(true);
         else
             multiLineCommentFormat.setFontItalic(false);
 
-        if(QString(userDS.data["UserTheme"]["Bold_comment"].c_str()).trimmed().toLower() == "true")
+        if(QString(userDS.data["UserTheme"]["Bold_comment"]).trimmed().toLower() == "true")
             multiLineCommentFormat.setFontWeight(QFont::Bold);
         else
             multiLineCommentFormat.setFontWeight(QFont::Weight::Normal);
-        strl = QString(userDS.data["UserTheme"]["Color_comment"].c_str()).split(',');
+        // strl5 = QString(userDS.data["UserTheme"]["Color_comment"]).split(',');
         col = QColor::fromRgbF(0.15f,0.75f,0.15f,1.0f);
-        for(int i=0;i<strl.size();i++)
+        for(int i=0;i<QString(userDS.data["UserTheme"]["Color_comment"]).split(',').size();i++)
         {
-            if(i==0) col.setRed(QVariant(strl[i]).toInt());
-            if(i==1) col.setGreen(QVariant(strl[i]).toInt());
-            if(i==2) col.setBlue(QVariant(strl[i]).toInt());
-            if(i==3) col.setAlpha(QVariant(strl[i]).toInt());
+            if(i==0) col.setRed(QVariant(QString(userDS.data["UserTheme"]["Color_comment"]).split(',')[i]).toInt());
+            if(i==1) col.setGreen(QVariant(QString(userDS.data["UserTheme"]["Color_comment"]).split(',')[i]).toInt());
+            if(i==2) col.setBlue(QVariant(QString(userDS.data["UserTheme"]["Color_comment"]).split(',')[i]).toInt());
+            if(i==3) col.setAlpha(QVariant(QString(userDS.data["UserTheme"]["Color_comment"]).split(',')[i]).toInt());
         }
         multiLineCommentFormat.setForeground(col);
         multiLineCommentFormat.setFontPointSize(fnt_size);
         if(userDS.data["UserTheme"]["Font"].size()>2)
-            multiLineCommentFormat.setFontFamilies(QStringList(QString(userDS.data["UserTheme"]["Font"].c_str()).trimmed()));
+            multiLineCommentFormat.setFontFamilies(QStringList(QString(userDS.data["UserTheme"]["Font"]).trimmed()));
+
 
 
         //Courier NEW
 
         functionFormat.setForeground(Qt::blue);
+
 
     }
     else
@@ -881,6 +904,7 @@ void Highlighter::updateMisc()
         multiLineCommentFormat.setForeground(QColor::fromRgbF(0.15f,0.75f,0.15f,1.0f));
     }
 
+    qDebug() << "highlighter updated";
 
     singleLineCommentFormat.setForeground(QColor(Qt::green).lighter(90));
 }
@@ -921,80 +945,47 @@ void Highlighter::UpdateTableColumns(QSqlDatabase* db, QString dbname)
     // if not sqlite, load using special query, save as schemaName.txt
     if(!QSLiteStyle)
     {
-        QStringList strl = db->databaseName().split(';');
+        //strl = db->databaseName().split(';');
         QString filename =documentsDir + "/"+ dbname;
 
         filename += QString(".txt");
         if(QFile::exists(filename))
         {
-            TableColumnDS.Load(filename.toStdString());
+            TableColumnDS.Load(filename);
         }
-        else
-        {
-            QString sql = "";
-            QFile fl("user_get_tables_columns_script.sql");
-            fl.open(QFile::OpenModeFlag::ReadOnly);
-            sql = fl.readAll();
-
-            db->open();
-            QSqlQuery q(*db);
-
-
-            if(q.exec(sql))
-            {
-
-                while(q.next())
-                {
-                    QString c_a = "";
-                    QString c_b = "";
-                    for(int a=0, total = q.record().count();a<total;++a)
-                    {
-                        if(a==0)
-                            c_a = q.value(a).toString();
-                        if(a==1)
-                            c_b = q.value(a).toString();
-                    }
-                    TableColumnDS.data[c_a.toStdString()][c_b.toStdString()];
-                }
-                qDebug()<<TableColumnDS.data.size()  << filename;
-            }
-            else
-                qDebug()<<"error in sql: \n " << sql;
-            TableColumnDS.Save(filename.toStdString());
-            qDebug()<<filename;
-        }
+        //strl.clear();
     }
     else
     {// if sqlite, load directly from it
 
         db->open();
-        QStringList tblnames = db->driver()->tables(QSql::AllTables);
-        for(auto tbl : tblnames)
+        //strl = db->driver()->tables(QSql::AllTables);
+        for(auto tbl : db->driver()->tables(QSql::AllTables))
         {
-            TableColumnDS.data[tbl.toLower().toStdString()];
+            TableColumnDS.data[tbl.toLower()];
         }
-        for(auto tbn : tblnames)
+        for(auto tbn : db->driver()->tables(QSql::AllTables))
         {
             QSqlRecord rec = db->driver()->record(tbn);
             int reccount = rec.count();
             for(int a=0,total = reccount; a<total;a++)
             {
-                TableColumnDS.data[tbn.toLower().toStdString()][rec.fieldName(a).toLower().toStdString()];
+                TableColumnDS.data[tbn.toLower()][rec.fieldName(a).toLower()];
             }
         }
-
+        //strl.clear();
     }
 
     for(auto x : TableColumnDS.data)
     {
         for(auto y : x.second)
         {
-            TableColumnMap[x.first.c_str()][y.first.c_str()] = true;
-            TableColumnMap_lower[QVariant(x.first.c_str()).toString().toLower()][QVariant(y.first.c_str()).toString().toLower()] = true;
-            ColumnMap[y.first.c_str()] = true;
-            ColumnMap_lower[QVariant(y.first.c_str()).toString().toLower()] = true;
+            TableColumnMap[x.first][y.first] = true;
+            TableColumnMap_lower[QVariant(x.first).toString().toLower()][QVariant(y.first).toString()] = true;
+            ColumnMap[y.first] = true;
+            ColumnMap_lower[QVariant(y.first).toString().toLower()] = true;
 
         }
-        dbPatterns.push_back(x.first.c_str());
+        dbPatterns.push_back(x.first);
     }
 }

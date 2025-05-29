@@ -38,6 +38,18 @@ private:
 public:
     Highlighter(QTextDocument *parent = 0);
 
+
+
+    // highlihghting formats
+    QTextCharFormat keywordFormat;
+    QTextCharFormat NameFormat;
+    QTextCharFormat classFormat;
+    QTextCharFormat singleLineCommentFormat;
+    QTextCharFormat multiLineCommentFormat;
+    QTextCharFormat quotationFormat;
+    QTextCharFormat functionFormat;
+
+
     // Token maps for highlighting
     QMap<QString,bool> ColumnMap;
     QMap<QString,QString> TableColumnAliasMap; // key-alias-name / key-table-name
@@ -72,19 +84,12 @@ public:
     void OnBlockCountChanged(int newBlockCount) ;
 
     void updateMisc();
+
+
 protected:
     void highlightBlock(const QString &text) override;
 
 private:
-
-    // highlihghting formats
-    QTextCharFormat keywordFormat;
-    QTextCharFormat NameFormat;
-    QTextCharFormat classFormat;
-    QTextCharFormat singleLineCommentFormat;
-    QTextCharFormat multiLineCommentFormat;
-    QTextCharFormat quotationFormat;
-    QTextCharFormat functionFormat;
 
     // unused regexes
     QRegularExpression commentStartExpression;

@@ -187,7 +187,7 @@ Worksheet::Worksheet(const QString &name, int id, Workbook *workbook, CreateFlag
 Worksheet *Worksheet::copy(const QString &distName, int distId) const
 {
     Q_D(const Worksheet);
-    Worksheet *sheet          = new Worksheet(distName, distId, d->workbook, F_NewFromScratch);
+    auto sheet                = new Worksheet(distName, distId, d->workbook, F_NewFromScratch);
     WorksheetPrivate *sheet_d = sheet->d_func();
 
     sheet_d->dimension = d->dimension;
@@ -540,6 +540,7 @@ QVariant Worksheet::read(int row, int column) const
 
     if (cell->isDateTime()) {
         QVariant vDateTime = cell->dateTime();
+        qDebug() << "vDateTime  " << vDateTime ;
         return vDateTime;
     }
 
@@ -1037,8 +1038,8 @@ bool Worksheet::writeHyperlink(int row,
     d->cellTable.setValue(row, column, cell);
 
     // Store the hyperlink data in a separate table
-    d->urlTable[row][column] = std::shared_ptr<XlsxHyperlinkData>(new XlsxHyperlinkData(
-        XlsxHyperlinkData::External, urlString, locationString, QString(), tip));
+    d->urlTable[row][column] = std::make_shared<XlsxHyperlinkData>(
+        XlsxHyperlinkData::External, urlString, locationString, QString{}, tip);
 
     return true;
 }
@@ -1094,16 +1095,15 @@ int Worksheet::insertImage(int row, int column, const QImage &image)
         d->drawing = std::make_shared<Drawing>(this, F_NewFromScratch);
     }
 
-    DrawingOneCellAnchor *anchor =
-        new DrawingOneCellAnchor(d->drawing.get(), DrawingAnchor::Picture);
+    auto anchor = new DrawingOneCellAnchor(d->drawing.get(), DrawingAnchor::Picture);
 
     /*
             The size are expressed as English Metric Units (EMUs).
             EMU is 1/360 000 of centimiter.
     */
     anchor->from = XlsxMarker(row, column, 0, 0);
-    float scaleX = 36e6f / std::max(1, image.dotsPerMeterX());
-    float scaleY = 36e6f / std::max(1, image.dotsPerMeterY());
+    float scaleX = 36e6F / std::max(1, image.dotsPerMeterX());
+    float scaleY = 36e6F / std::max(1, image.dotsPerMeterY());
     anchor->ext  = QSize(int(image.width() * scaleX), int(image.height() * scaleY));
 
     anchor->setObjectPicture(image);
@@ -1184,8 +1184,7 @@ Chart *Worksheet::insertChart(int row, int column, const QSize &size)
     if (!d->drawing)
         d->drawing = std::make_shared<Drawing>(this, F_NewFromScratch);
 
-    DrawingOneCellAnchor *anchor =
-        new DrawingOneCellAnchor(d->drawing.get(), DrawingAnchor::Picture);
+    auto anchor = new DrawingOneCellAnchor(d->drawing.get(), DrawingAnchor::Picture);
 
     /*
             The size are expressed as English Metric Units (EMUs). There are
@@ -1654,15 +1653,6 @@ void WorksheetPrivate::saveXmlCellData(QXmlStreamWriter &writer,
                                 cell->value().toBool() ? QStringLiteral("1") : QStringLiteral("0"));
     } else if (cell->cellType() == Cell::DateType) // 'd'
     {
-        // dev67
-
-        double num  = cell->value().toDouble();
-        bool is1904 = q->workbook()->isDate1904();
-        if (!is1904 && num > 60) // for mac os excel
-        {
-            num = num - 1;
-        }
-
         // number type. see for 18.18.11 ST_CellType (Cell Type) more information.
         writer.writeAttribute(QStringLiteral("t"), QStringLiteral("n"));
         writer.writeTextElement(QStringLiteral("v"), cell->value().toString());
@@ -1960,12 +1950,6 @@ double Worksheet::columnWidth(int column)
 
     QList<std::shared_ptr<XlsxColumnInfo>> columnInfoList = d->getColumnInfoList(column, column);
 
-    // [dev54]
-    if (columnInfoList.size() == 0) {
-        // column information is not found
-        // qDebug() << "[debug]" << __FUNCTION__ <<  "column (info) is not found. " << column;
-    }
-
     if (columnInfoList.count() == 1) {
         // column information is found
         // qDebug() << "[debug]" << __FUNCTION__ <<  "column (info) is found. " << column <<
@@ -2123,7 +2107,7 @@ bool Worksheet::groupRows(int rowFirst, int rowLast, bool collapsed)
         if (it != d->rowsInfo.end()) {
             (*it)->outlineLevel += 1;
         } else {
-            std::shared_ptr<XlsxRowInfo> info(new XlsxRowInfo);
+            auto info = std::make_shared<XlsxRowInfo>();
             info->outlineLevel += 1;
             it = d->rowsInfo.insert(row, info);
         }
@@ -2133,7 +2117,7 @@ bool Worksheet::groupRows(int rowFirst, int rowLast, bool collapsed)
     if (collapsed) {
         auto it = d->rowsInfo.find(rowLast + 1);
         if (it == d->rowsInfo.end())
-            it = d->rowsInfo.insert(rowLast + 1, std::shared_ptr<XlsxRowInfo>(new XlsxRowInfo));
+            it = d->rowsInfo.insert(rowLast + 1, std::make_shared<XlsxRowInfo>());
         (*it)->collapsed = true;
     }
     return true;
@@ -2252,9 +2236,9 @@ int WorksheetPrivate::colPixelsSize(int col) const
     if (it != col_sizes.constEnd()) {
         double width = it.value();
         if (width < 1)
-            pixels = static_cast<int>(width * (max_digit_width + padding) + 0.5);
+            pixels = static_cast<int>(std::lround(width * (max_digit_width + padding)));
         else
-            pixels = static_cast<int>(width * max_digit_width + 0.5) + padding;
+            pixels = static_cast<int>(std::lround(width * max_digit_width)) + padding;
     } else {
         pixels = 64;
     }
@@ -2842,7 +2826,7 @@ SharedStrings *WorksheetPrivate::sharedStrings() const
     return workbook->sharedStrings();
 }
 
-QVector<CellLocation> Worksheet::getFullCells(int *maxRow, int *maxCol)
+QVector<CellLocation> Worksheet::getFullCells(int *maxRow, int *maxCol) const
 {
     Q_D(const Worksheet);
 
@@ -2864,10 +2848,11 @@ QVector<CellLocation> Worksheet::getFullCells(int *maxRow, int *maxCol)
         return ret;
     }
 
-    for (const auto row : d->cellTable.sortedRows()) {
-        auto &columns      = d->cellTable.cells[row];
-        auto columnsSorted = CellTable::sorteIntList(columns.keys());
-        for (const auto col : columnsSorted) {
+    const auto sortedRows = d->cellTable.sortedRows();
+    for (const auto row : sortedRows) {
+        const auto &columns      = d->cellTable.cells[row];
+        const auto columnsSorted = CellTable::sorteIntList(columns.keys());
+        for (const auto &col : columnsSorted) {
             // It's faster to iterate but cellTable is unordered which might not
             // be what callers want?
             auto cell = std::make_shared<Cell>(columns.value(col).get());

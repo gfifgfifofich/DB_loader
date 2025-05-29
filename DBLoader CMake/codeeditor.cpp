@@ -257,10 +257,13 @@ CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent)
     lineNumberArea = new LineNumberArea(this);
     codePreview = new LineNumberArea(this);
     ((LineNumberArea*) codePreview)->id = 1;
+    qDebug() << "reached Highlighter";
     highlighter = new Highlighter(document());
 
+    qDebug() << "news done";
     updateLineNumberAreaWidth(0);
-    highlightCurrentLine();
+
+
 
     QFont font;
     font.setFamily("Courier NEW");
@@ -447,7 +450,7 @@ void CodeEditor::drawPreview(QPaintEvent *event)
             px = QPixmap(size().width(),size().height());
             x_mult = 8;
         }
-
+        x_mult *=0.8f;
         QPainter CPpainter(&px);
 
         if(QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Light)
@@ -529,9 +532,34 @@ void CodeEditor::drawPreview(QPaintEvent *event)
 
         for(i =0; i< rects.size();i++)
         {
-            CPpainter.setBrush(cols[i]);
-            CPpainter.drawRects(rects[i].data(),rects[i].size());
+            if(highlighter->multiLineCommentFormat.foreground().color() != cols[i] && highlighter->quotationFormat.foreground().color() != cols[i])
+            {
+                CPpainter.setBrush(cols[i]);
+                CPpainter.drawRects(rects[i].data(),rects[i].size());
+            }
         }
+
+
+        for(i =0; i< rects.size();i++)
+        {
+            if(highlighter->quotationFormat.foreground().color() == cols[i])
+            {
+                CPpainter.setBrush(cols[i]);
+                CPpainter.drawRects(rects[i].data(),rects[i].size());
+            }
+        }
+
+
+        for(i =0; i< rects.size();i++)
+        {
+            if(highlighter->multiLineCommentFormat.foreground().color() == cols[i])
+            {
+                CPpainter.setBrush(cols[i]);
+                CPpainter.drawRects(rects[i].data(),rects[i].size());
+            }
+        }
+
+
 
         if(end_at <= this->blockCount())
         {
@@ -886,11 +914,13 @@ void CodeEditor::suggestName()
     QString PrevPrevPrevWord= "";
     QStringList PrevWords;
     bool hasdot = false;
-    int depth = 15; // amount of prevwords to check
+    int depth = 30; // amount of prevwords to check
     QString text = toPlainText();
     int curs = textCursor().position();
     if(curs>=1)
         curs-=1;
+
+
     int curscop = curs;
     int start = curs;
     int end = curs;
@@ -926,9 +956,17 @@ void CodeEditor::suggestName()
     int end2 = curs2;
     for(int i =0;i < depth; i++)
     {
+
+
+
         curs2 = start2 - 1;
         if(curs2>=1)
             curs2-=1;
+        if(curs2 <0)
+        {
+            curs2=0;
+            break;
+        }
         curscop2 = curs2;
         start2 = curs2;
         end2 = curs2;
@@ -1032,9 +1070,11 @@ void CodeEditor::suggestName()
     bool inComment = false;
     tokenkey = "";
 
-    // grabbing data from tokenProcessor of requered depth
+
+        // grabbing data from tokenProcessor of requered depth
     if(onWhiteSpace ) // currently, due to really bad data from tokenprocessor, its data is disabled from autocompleate, in case user started typing something
         // skip current word, to not ruin map find. Ruins everyting else due to bad data from tokenprocessor
+
     for (int a = PrevWords.size() -1; a >= 0 ;a--)
     {
 
@@ -1069,12 +1109,12 @@ void CodeEditor::suggestName()
 
             tokenkey = tokenkey.trimmed();
             //qDebug() << "tk is: " << tokenkey << " } word" << str;
-            for(auto s : tokenProcessor.ds.data[tokenkey.toStdString()])
+            for(auto s : tokenProcessor.ds.data[tokenkey])
             {
-                keys.push_back(s.first.c_str());
-                token_keys.push_back(s.first.c_str());
-                token_key_values[s.first.c_str()] += (tokenProcessor.ds.GetPropertyAsFloat(tokenkey.toStdString(),s.first));
-                //qDebug() << s.first << tokenProcessor.ds.GetPropertyAsFloat(tokenkey.toStdString(),s.first);
+                keys.push_back(s.first);
+                token_keys.push_back(s.first);
+                token_key_values[s.first] += (tokenProcessor.ds.GetPropertyAsFloat(tokenkey,s.first));
+                //qDebug() << s.first << tokenProcessor.ds.GetPropertyAsFloat(tokenkey,s.first);
             }
         }
     }
@@ -1721,13 +1761,13 @@ QStringList CodeEditor::GetTokensUnderCursor()
     out_strl.push_back(word);
     return out_strl;
 }
-
+static QStringList strl;
 void CodeEditor::updateMisc()
 {
 
     qDebug() << "Opening code editors DS";
     // user theme
-    if(userDS.Load((documentsDir + "/userdata.txt").toStdString()))
+    if(userDS.Load((documentsDir + "/userdata.txt")))
     {
         userDS.data["UserTheme"]["CodePreviewLineCount"];
         userDS.data["UserTheme"]["CodePreviewAntialiasing"];
@@ -1736,14 +1776,18 @@ void CodeEditor::updateMisc()
         userDS.data["UserTheme"]["Font"];
 
 
+        qDebug() << "in";
         QFont fnt = this->font();
 
         if(userDS.data["UserTheme"]["Font"].size()>2)
-            fnt.setFamily(QString(userDS.data["UserTheme"]["Font"].c_str()).trimmed());
+            fnt.setFamily(QString(userDS.data["UserTheme"]["Font"]).trimmed());
+
         fnt.setPointSize(userDS.GetPropertyAsInt("UserTheme","FontSize"));
         this->setFont(fnt);
 
-        QStringList strl = QString(userDS.data["UserTheme"]["Color_BracketHighlight"].c_str()).split(',');
+        qDebug() << "in 2";
+        strl = userDS.data["UserTheme"]["Color_BracketHighlight"].split(',');
+        qDebug() << "in 3";
         QColor col = QColor(Qt::GlobalColor::darkRed).lighter(35);
         for(int i=0;i<strl.size();i++)
         {
@@ -1753,6 +1797,7 @@ void CodeEditor::updateMisc()
             if(i==3) col.setAlpha(QVariant(strl[i]).toInt());
         }
         braccketHighlightColor = col;
+        qDebug() << "in 4";
 
 
         if(userDS.GetProperty("UserTheme","CodePreview") == "true")
@@ -1762,7 +1807,9 @@ void CodeEditor::updateMisc()
         else
             b_codePreview = false;
 
-        userDS.Save((documentsDir + "/userdata.txt").toStdString());
+        userDS.Save((documentsDir + "/userdata.txt"));
+        strl.clear();
+        qDebug() << "out";
     }
     else
     {

@@ -10,6 +10,17 @@
 
 // crash on parralel sqlite in multiple tabs, sqlite save
 
+
+
+/*
+
+created query
+executing query
+onQueryBeginCreating()
+onQueryBegin()
+17:42:06: The process crashed.
+
+*/
 inline QString usrDir;
 inline QString documentsDir;
 
@@ -255,12 +266,12 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
 // create db connection using user data
 bool DatabaseConnection::Create(QString driver, QString DBName)
 {
-    if(userDS.Load((documentsDir + "/userdata.txt").toStdString()))
+    if(userDS.Load((documentsDir + "/userdata.txt")))
     {
         this->driver = driver;
         this->dbname = DBName;
-        this->usrname = userDS.data[DBName.toStdString()]["name"].c_str();
-        this->password = userDS.data[DBName.toStdString()]["password"].c_str();
+        this->usrname = userDS.data[DBName]["name"];
+        this->password = userDS.data[DBName]["password"];
         return Create(driver.trimmed(),dbname.trimmed(), usrname.trimmed(), password.trimmed());
     }
     else return false;
@@ -298,7 +309,7 @@ bool DatabaseConnection::execSql(QString sql)
     QString keywordbuff = "";
     std::vector<int> localKeywordsMatch;
     localKeywordsMatch.resize(subCommandPatterns.size());
-    userDS.Load((documentsDir + "/userdata.txt").toStdString());
+    userDS.Load((documentsDir + "/userdata.txt"));
 
     // iterate through keywords, detect similarity
     qDebug()<<"Entered sql subcomand processing ";
@@ -476,8 +487,8 @@ bool DatabaseConnection::execSql(QString sql)
                             // if its subexec, subexec, else load from excel file
                             if(subCommandPatterns[i].startsWith("Subexec") ||subCommandPatterns[i].startsWith("SilentSubexec"))
                             {
-                                QString username = userDS.GetObject(subscriptDBname.toStdString())["name"].c_str();
-                                QString password = userDS.GetObject(subscriptDBname.toStdString())["password"].c_str();
+                                QString username = userDS.GetObject(subscriptDBname)["name"];
+                                QString password = userDS.GetObject(subscriptDBname)["password"];
                                 qDebug()<< subscriptDriver << subscriptDBname << username.trimmed() << password.trimmed();
                                 subscriptConnesction->connectionName = connectionName + QVariant(a).toString();
                                 subscriptConnesction->Create(subscriptDriver.trimmed(),subscriptDBname.trimmed(),username.trimmed(),password.trimmed());
@@ -643,7 +654,8 @@ bool DatabaseConnection::execSql(QString sql)
                                     if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
                                     {
                                         formatedSql += "'";
-                                        formatedSql += subscriptConnesction->data.tbldata[0][0].toString();
+                                        if(subscriptConnesction->data.tbldata.size() > 0 && subscriptConnesction->data.tbldata[0].size()>0)
+                                            formatedSql += subscriptConnesction->data.tbldata[0][0].toString();
                                         formatedSql += "'";
                                         formatedSql += " as \"Error message\", ";
                                     }
@@ -674,7 +686,7 @@ bool DatabaseConnection::execSql(QString sql)
                                 QString saveErrorStr = "";
 
                                 if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
-                                    if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
+                                    if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0 && subscriptConnesction->data.tbldata[0].size() > 0)
                                         if(!subscriptConnesction->data.ExportToExcel(QString(documentsDir + "/" +"excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true))
                                             saveErrorStr = "Failed to save to excel, probably file is opened";
 
@@ -691,7 +703,8 @@ bool DatabaseConnection::execSql(QString sql)
                                 if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
                                 {
                                     formatedSql += "'";
-                                    formatedSql += subscriptConnesction->data.tbldata[0][0].toString();
+                                    if(subscriptConnesction->data.tbldata.size() > 0 && subscriptConnesction->data.tbldata[0].size()>0)
+                                        formatedSql += subscriptConnesction->data.tbldata[0][0].toString();
                                     formatedSql += "'";
                                     formatedSql += " as \"Error message\", ";
                                 }
@@ -927,9 +940,12 @@ bool DatabaseConnection::execSql(QString sql)
                                     if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
                                         subscriptConnesction->data.ExportToSQLiteTable(subscriptDBname);
                             }
+
+                            qDebug() << "closing subconnection";
                             subscriptConnesction->db.close();
                             delete subscriptConnesction;
                             subscriptConnesction = nullptr;
+                            qDebug() << "closed";
 
                             if(stopNow)
                             {
@@ -1228,7 +1244,7 @@ bool DatabaseConnection::execSql(QString sql)
                         {
 
                             if(types[i]!=6)
-                                data.tbldata[i].push_back(fixQVariantTypeFormat(QString().fromLocal8Bit(QByteArray::fromStdString(rset->getString(i+1)))));
+                                data.tbldata[i].push_back(QString().fromLocal8Bit(QByteArray::fromStdString(rset->getString(i+1))));
                             else
                             {
                                 QString tmpstr = QString().fromLocal8Bit(QByteArray::fromStdString(rset->getString(i+1))).replace(',','.');
@@ -1289,6 +1305,13 @@ bool DatabaseConnection::execSql(QString sql)
             {
                 lastLaunchIsError = true;
                 qDebug()<<"oracle::occi::SQLException at runSelect" << " Error number: "<<  ex.getErrorCode()  << "    "<<ex.getMessage() ;
+                data.headers.clear();
+                data.tbldata.clear();
+                data.tbldata.emplace_back();
+                data.headers.push_back("Error");
+                data.headers.push_back("db Error");
+                data.headers.push_back("driver Error");
+
 
                 int errorpos = 0; //
                 status = false;
@@ -1347,17 +1370,21 @@ bool DatabaseConnection::execSql(QString sql)
                         data.headers.push_back("Error");
                         data.tbldata.back().emplace_back("user canceled query");
                     }
-                    dataDownloading = false;
                     qDebug() << "stopped";
                     OCI_lastenv = nullptr;
                     OCI_lastcon = nullptr;
                     executing = false;
                     executionEnd = QDateTime::currentDateTime();
                     executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
+                    lastLaunchIsError = true;
                     emit execedSql();
                     queryExecutionState = 4;
                     return false;
                 }
+                dataDownloading = false;
+                lastLaunchIsError = true;
+
+
             }
 
             qDebug() << "closing statement";
@@ -1433,6 +1460,7 @@ bool DatabaseConnection::execSql(QString sql)
                 executing = false;
                 executionEnd = QDateTime::currentDateTime();
                 executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
+                lastLaunchIsError = true;
                 emit execedSql();
                 queryExecutionState = 4;
                 return false;

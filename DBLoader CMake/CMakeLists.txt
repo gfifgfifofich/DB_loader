@@ -62,6 +62,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
 
         settingswindow.h settingswindow.cpp settingswindow.ui
         colorbutton.h colorbutton.cpp
+        structuredescriptor.h structuredescriptor.cpp structuredescriptor.ui
 
     )
 # Define target properties for Android with Qt 6 as:
@@ -89,6 +90,9 @@ target_link_libraries(untitled PRIVATE Qt6::Charts)
 target_link_libraries(untitled PRIVATE Qt6::Graphs)
 target_link_libraries(untitled PRIVATE Qt6::Quick)
 target_link_libraries(untitled PRIVATE Qt6::QuickControls2)
+
+
+
 
 if(Oracle_OCI_Driver)
     target_link_libraries(untitled PRIVATE oci oraocci12)

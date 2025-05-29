@@ -698,6 +698,7 @@
     <addaction name="actionHistory"/>
     <addaction name="actionWorkspaces"/>
     <addaction name="actionAutorun"/>
+    <addaction name="actionDescriber"/>
    </widget>
    <widget class="QMenu" name="menuData">
     <property name="title">
@@ -885,6 +886,14 @@
   <action name="actionImport_from_csv_file">
    <property name="text">
     <string>Import from csv file</string>
+   </property>
+  </action>
+  <action name="actionDescriber">
+   <property name="text">
+    <string>Describer</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+D</string>
    </property>
   </action>
  </widget>

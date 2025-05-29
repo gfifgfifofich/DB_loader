@@ -15,6 +15,11 @@ inline QString documentsDir;
 QDateTime 16
 double 6
 QString 10
+
+
+fucked up date imports from excel
+
+reeeeally fucked up date imports form excel
 */
 
 TableData::TableData(QObject *parent)
@@ -272,7 +277,7 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                 if(maxVarTypes.size() == tbldata.size()+1)
                 {
                     if(maxVarTypes[i] == 16)
-                        xlsxR3.write(row,column,tbldata[i][a].toDateTime());
+                        xlsxR3.write(row,column,tbldata[i][a]);
                     else if(maxVarTypes[i] == 10)
                         xlsxR3.write(row,column,tbldata[i][a].toString());
                     else if(maxVarTypes[i] == 6)

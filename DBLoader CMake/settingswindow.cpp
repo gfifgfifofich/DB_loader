@@ -35,10 +35,10 @@ SettingsWindow::SettingsWindow(QWidget *parent)
 
     for(auto x : userDS.data["UserTheme"])
     {
-        QString var = x.first.c_str();
+        QString var = x.first;
 
         QLabel* varlbl = new QLabel(var);
-        QLineEdit* varLE = new QLineEdit(x.second.c_str());
+        QLineEdit* varLE = new QLineEdit(x.second);
         ColorButton* varColorbutton = new ColorButton("pick color");
         QFontComboBox* varFontCB = new QFontComboBox();
         QComboBox* varCB = new QComboBox();
@@ -63,7 +63,7 @@ SettingsWindow::SettingsWindow(QWidget *parent)
         {
             // add color select button
 
-            varFontCB->setCurrentFont(QFont(QString(x.second.c_str()).trimmed()));
+            varFontCB->setCurrentFont(QFont(QString(x.second).trimmed()));
             valLt->addWidget(varFontCB);
         }
         else if(var.startsWith("Bold") || var.startsWith("Italic") || var == "ShowTestButtons" || var == "CodePreview"|| var == "CodePreviewAntialiasing" )
@@ -167,10 +167,10 @@ void SettingsWindow::save()
             varLEs[i]->setText(varCBs[i]->currentText());
         }
 
-        userDS.SetProperty("UserTheme",varLEs[i]->whatsThis().toStdString(),varLEs[i]->text().toStdString());
+        userDS.SetProperty("UserTheme",varLEs[i]->whatsThis(),varLEs[i]->text());
 
     }
-    userDS.Save((documentsDir + "/userdata.txt").toStdString());
+    userDS.Save((documentsDir + "/userdata.txt"));
     emit saved();
     close();
 }

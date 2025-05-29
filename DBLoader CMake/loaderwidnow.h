@@ -225,7 +225,8 @@ public:
 public slots:
     void sendMail(QString host, QString Sender, QString SenderName, QStringList to,QStringList cc, QString Subject, QString messageText, QStringList attachments);
 
-private slots:
+
+    void openDescriptorWindow();
 
     void updateMisc();
 
@@ -337,4 +338,5 @@ private:
 signals:
     void TableUpdated();
 };
+inline LoaderWidnow* loadWind = nullptr;
 #endif // LOADERWIDNOW_H

@@ -1,6 +1,8 @@
 #include "datastorage.h"
 #include <fstream>
 #include <iostream>
+#include <qdir.h>
+#include <sstream>
 #include <qdebug.h>
 #include <qlogging.h>
 
@@ -8,120 +10,120 @@
 yoinked from engine
 */
 
-void DataStorage::AddObject(std::string ObjectName)
+void DataStorage::AddObject(QString ObjectName)
 {
-    std::map<std::string, std::string> a;
-    data.insert(std::pair<std::string, std::map<std::string, std::string>>(ObjectName, a));
+    std::map<QString, QString> a;
+    data.insert(std::pair<QString, std::map<QString, QString>>(ObjectName, a));
 }
 
 
-void DataStorage::AddProperty(std::string ObjectName, std::string Property, std::string value)
+void DataStorage::AddProperty(QString ObjectName, QString Property, QString value)
 {
-    data[ObjectName].insert(std::pair < std::string, std::string>(Property, value));
+    data[ObjectName].insert(std::pair < QString, QString>(Property, value));
 }
 
 
-void DataStorage::PopProperty(std::string ObjectName, std::string Property)
+void DataStorage::PopProperty(QString ObjectName, QString Property)
 {
     data[ObjectName].erase(Property);
 
 }
-void DataStorage::PopObject(std::string ObjectName)
+void DataStorage::PopObject(QString ObjectName)
 {
     data.erase(ObjectName);
 }
 
 
-std::map<std::string, std::string> DataStorage::GetObject(std::string ObjectName)
+std::map<QString, QString> DataStorage::GetObject(QString ObjectName)
 {
     return data[ObjectName];
 }
 
-std::vector<std::string> DataStorage::GetProperties(std::string ObjectName)
+std::vector<QString> DataStorage::GetProperties(QString ObjectName)
 {
-    std::vector<std::string> Properties;
+    std::vector<QString> Properties;
     for (auto i : data[ObjectName])
         Properties.push_back(i.first);
 
     return Properties;
 }
 
-std::string DataStorage::GetProperty(std::string ObjectName, std::string Property)
+QString DataStorage::GetProperty(QString ObjectName, QString Property)
 {
-    std::string prop = data[ObjectName][Property];
-    while(prop.size()>0 && prop[prop.size()-1] == ' ')
-        prop.pop_back();
-    return prop;
+    QString prop = data[ObjectName][Property];
+    return prop.trimmed();
 }
 
-int DataStorage::GetPropertyAsInt(std::string ObjectName, std::string Property)
+int DataStorage::GetPropertyAsInt(QString ObjectName, QString Property)
 {
-    std::strstream ss;
-    ss<< data[ObjectName][Property];
-    int i = 0;
-    ss >> i;
-    return i;
+    return QVariant(data[ObjectName][Property]).toInt();
 }
-float DataStorage::GetPropertyAsFloat(std::string ObjectName, std::string Property)
+float DataStorage::GetPropertyAsFloat(QString ObjectName, QString Property)
 {
-    std::strstream ss;
-    ss << data[ObjectName][Property];
-    float f = 0.0f;
-    ss >> f;
-    return f;
+    return QVariant(data[ObjectName][Property]).toFloat();
 }
-bool DataStorage::GetPropertyAsBool(std::string ObjectName, std::string Property)
+bool DataStorage::GetPropertyAsBool(QString ObjectName, QString Property)
 {
-    std::strstream ss;
-    ss << data[ObjectName][Property];
-    bool b = 0;
-    ss >> b;
-    return b;
+    return QVariant(data[ObjectName][Property]).toBool();
 }
 
-void DataStorage::SetProperty(std::string ObjectName, std::string Property, std::string value)
+void DataStorage::SetProperty(QString ObjectName, QString Property, QString value)
 {
     data[ObjectName][Property] = value;
 }
 
-void DataStorage::SetProperty(std::string ObjectName,std::string Property, bool value)
+void DataStorage::SetProperty(QString ObjectName,QString Property, bool value)
 {
-    data[ObjectName][Property] = std::to_string(value);
+    data[ObjectName][Property] = QVariant(value).toString();
 
 }
-void DataStorage::SetProperty(std::string ObjectName,std::string Property, int value)
+void DataStorage::SetProperty(QString ObjectName,QString Property, int value)
 {
-    data[ObjectName][Property] = std::to_string(value);
+    data[ObjectName][Property] = QVariant(value).toString();
 
 }
-void DataStorage::SetProperty(std::string ObjectName,std::string Property, float value)
+void DataStorage::SetProperty(QString ObjectName,QString Property, float value)
 {
-    data[ObjectName][Property] = std::to_string(value);
+    data[ObjectName][Property] = QVariant(value).toString();
 }
 
 
-void DataStorage::Save(std::string filename)
+void DataStorage::Save(QString filename)
 {
-    std::ofstream File(filename);
+    qDebug() << "entered save";
+    QFile File(filename);
 
+    if(!File.open(QFile::OpenModeFlag::ReadWrite))
+    {
+        qDebug() << "Failed to write";
+        return;
+    }
+    qDebug() << "data iter";
     for (auto i : data)
     {
-        File << i.first;
-        File << "\n{";
+        //qDebug() << "   " << i.first;
+        File.write(i.first.toUtf8().constData());
+        //qDebug() << "   written" << i.first;
+        File.write("\n{");
 
         for (auto p : i.second)
         {
-            File << "\n	" << p.first << " " << p.second << "";
+            File.write("\n	");
+            File.write(p.first.toUtf8().constData());
+            File.write(" ");
+            File.write(p.second.toUtf8().constData());
+            File.write("");
         }
 
-        File << "\n}\n";
+        File.write("\n}\n");
     }
-    File.close();
+    qDebug() << "closing";
+    //File.close();
 }
 
-std::string DataStorage::ToString()
+QString DataStorage::ToString()
 {
-    std::string File = "";
+    QString File = "";
 
     for (auto i : data)
     {
@@ -142,26 +144,34 @@ std::string DataStorage::ToString()
     return File;
 }
 
-bool DataStorage::Load(std::string filename)
+bool DataStorage::Load(QString filename)
 {
+    qDebug() << "ds.load " << filename;
+    for(auto d :data)
+        d.second.clear();
     data.clear();
-
-    std::ifstream f(filename);
-    if (!f.is_open())
+    qDebug() << "cleared ";
+    QFile f(filename);
+    if (!f.open(QFile::OpenModeFlag::ReadOnly))
     {
-        std::cout << "ERROR LOADING SaveFile: Unable to load " << filename;
+        qDebug() << "ERROR LOADING SaveFile: Unable to load " << filename;
         return false;
     }
-
-    std::string lastObject = "NULL";
+    qDebug() << "opened file";
+    QString lastObject = "NULL";
     int lineCount = 0;
-    while (!f.eof())
+    char junk;
+    char line[10256];
+    qDebug() << "entering";
+    while (!f.atEnd())
     {
         lineCount++;
-        char junk;
-        char line[2048];
-        f.getline(line, 2048);
-        std::strstream s;
+        //qDebug() << "ds rolling "<< lineCount;
+
+        int read_size = f.readLine(line,10256);
+        //qDebug() << line;
+
+        std::stringstream s;
         s << line;
         if (line[0] == '{')
             continue;
@@ -174,18 +184,22 @@ bool DataStorage::Load(std::string filename)
         {
             lastObject = "";
             int i=0;
-            while (i<2048 && line[i] != '\n' && line[i] != '\0')
+            while (i<read_size && line[i] != '\n' && line[i] != '\0' && line[i] != '\r')
             {
                 lastObject += line[i];
                 i++;
             }
             if(lastObject != "")
+            {
+                //qDebug() << lastObject << lineCount << " obj";
                 AddObject(lastObject);
+            }
             continue;
         }
 
         if (lastObject != "NULL")
         {
+            //qDebug() << lastObject << lineCount;
             std::string property;
             std::string value;
 
@@ -200,12 +214,16 @@ bool DataStorage::Load(std::string filename)
                 val = "";
                 s >> val;
             }
-            AddProperty(lastObject, property, value);
+            QString str = property.c_str();
+            QString str2 =  value.c_str();
+            //qDebug() << lastObject << str << str2;
+            AddProperty(lastObject, str, str2);
             continue;
         }
 
 
     }
-
+    f.close();
+    qDebug() <<"exited";
     return true;
 }

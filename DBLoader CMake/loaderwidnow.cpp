@@ -1,4 +1,5 @@
 #include "loaderwidnow.h"
+#include "structuredescriptor.h"
 #include "ui_loaderwidnow.h"
 #include <qbarset.h>
 #include <qclipboard.h>
@@ -98,6 +99,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     ui->stopLoadingQueryButton->hide();
 
 
+    loadWind  = this;
     // graph window init
     gw.Init();
     ui->CodeEditorLayout->addLayout(&gw.graph_layout);
@@ -123,24 +125,32 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     autolaunchTimer.setSingleShot(false);
     autolaunchTimer.start();
 
+    qDebug() << "setupped 1";
 
     // init tabs, first code editor instance, DataConnection
     while (ui->tabWidget->tabBar()->count()>0)
     {
         ui->tabWidget->removeTab(0);
     }
+    qDebug() << "tabs done";
     QWidget* wg = new QWidget();
     wg->setWhatsThis(QVariant(0).toString());
+
+    qDebug() << "QVariant(0).toString()";
+
 
     ui->tabWidget->addTab(wg,"New tab" + QVariant(0).toString());
     ui->tabWidget->setTabWhatsThis(ui->tabWidget->tabBar()->count()-1,QVariant(0).toString());
 
+    qDebug() << "new tabdata()";
     tabDatas.push_back(new tabdata());
     tabDatas.back()->Name = "New tab0";
     tabDatas.back()->Id = "0";
 
+    qDebug() << "reached code editor";
     tabDatas.back()->cd = new CodeEditor();
 
+    qDebug() << "setupped 2";
     cd = tabDatas.back()->cd;
     ui->CodeEditorLayout->layout()->addWidget(cd);
 
@@ -151,6 +161,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 
     // Menubar Actions, additional keyboard shortcuts
 
+    qDebug() << "connecting 1";
     //open new app instance
     connect(ui->actionNew_window,  &QAction::triggered, this, [this]() {
         OpenNewWindow();
@@ -193,6 +204,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
         CommentSelected();
     });
 
+    qDebug() << "connecting 2";
     // copy from tableview
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_C), this, SLOT(CopySelectionFormTable()));
     new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_C), this, SLOT(CopySelectionFormTableSql()));
@@ -233,6 +245,12 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     });
 
 
+    connect(ui->actionDescriber, &QAction::triggered, this, [this]() {
+        openDescriptorWindow();
+    });
+
+
+    qDebug() << "connecting 3";
     //signal binding
     //query states
     connect( dc, SIGNAL(queryBeginCreating()), this, SLOT(onQueryBeginCreating()), Qt::QueuedConnection );
@@ -254,30 +272,35 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     connect( &gw.separateBysb, SIGNAL(valueChanged(int)), this, SLOT(on_graph_separator_change(int)), Qt::QueuedConnection );
     connect( &gw.dataColumnsb, SIGNAL(valueChanged(int)), this, SLOT(on_graph_data_change(int)), Qt::QueuedConnection );
 
+    qDebug() << "connecting 4";
     //maximize code editor
     ui->splitter->setSizes({1,2000,1});
 
 
     // load last database/driver
-    if(userDS.Load((documentsDir + "/userdata.txt").toStdString()))
+    if(userDS.Load((documentsDir + "/userdata.txt")))
     {
         QStringList strl;
         for( auto x : userDS.data["UserDBs"])
         {
-            strl.push_back((x.first + " " +  x.second).c_str());
+            strl.push_back((x.first + " " +  x.second));
             strl.back() = strl.back().trimmed();
         }
         ui->DBNameComboBox->addItems(strl);
-        ui->DBNameComboBox->setCurrentText(userDS.GetProperty("User","lastDBName").c_str());
+        ui->DBNameComboBox->setCurrentText(userDS.GetProperty("User","lastDBName"));
         strl.clear();
         for( auto x : userDS.data["UserDrivers"])
         {
-            strl.push_back((x.second).c_str());
+            strl.push_back((x.second));
             strl.back() = strl.back().trimmed();
         }
         ui->driverComboBox->addItems(strl);
-        ui->driverComboBox->setCurrentText(userDS.GetProperty("User","lastDriver").c_str());
-        userDS.Save("userdata.txt");
+        ui->driverComboBox->setCurrentText(userDS.GetProperty("User","lastDriver"));
+
+        if(QString(userDS.data["UserTheme"]["Workspace_Directory"]).trimmed().size() < 3)
+            userDS.data["UserTheme"]["Workspace_Directory"] = "documents";
+
+        userDS.Save((documentsDir + "/userdata.txt"));
     }
 
     if(!userDS.GetPropertyAsBool("UserTheme","ShowTestButtons"))
@@ -287,6 +310,9 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
         ui->nnTestLearn->hide();
         ui->nnTestRun->hide();
     }
+
+    qDebug() << "userds";
+
 
     // if program was opened from command line with filename to open
     if(launchOpenFile)
@@ -302,7 +328,13 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     {
         if(!LastWorkspaceName.endsWith(".sql"))
             LastWorkspaceName+=".sql";
-        QFile file(documentsDir + "/" +"workspaces/" + LastWorkspaceName);
+
+
+        QString prefix = documentsDir;
+        if(QString(userDS.data["UserTheme"]["Workspace_Directory"]).trimmed() != "documents")
+            prefix = QString(userDS.data["UserTheme"]["Workspace_Directory"]).trimmed();
+
+        QFile file(prefix + "/" +"workspaces/" + LastWorkspaceName);
         if (file.open(QFile::ReadOnly | QFile::Text))
             cd->setPlainText(file.readAll());
 
@@ -311,11 +343,12 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 
         qDebug() << "loading token processor";
         //load tokenprocessor data
-        if(!tokenProcessor.ds.Load((documentsDir + "/" +"FrequencyMaps/test.txt").toStdString()))
-            qDebug() << "failed to load FrequencyMap: " <<  (documentsDir + "/" +"FrequencyMaps/test.txt").toStdString();
+        if(!tokenProcessor.ds.Load((documentsDir + "/" +"FrequencyMaps/test.txt")))
+            qDebug() << "failed to load FrequencyMap: " <<  (documentsDir + "/" +"FrequencyMaps/test.txt");
         qDebug() << "loaded token processor";
     }
 
+    qDebug() << "userds 2";
     // get database from file header
     QString text = cd->toPlainText();
     if(text.startsWith("-- {"))
@@ -355,13 +388,14 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 
         }
     }
-    QString username = userDS.GetObject( ui->DBNameComboBox->currentText().toStdString())["name"].c_str();
-    QString password = userDS.GetObject(ui->DBNameComboBox->currentText().toStdString())["password"].c_str();
+    qDebug() << "userds 3";
+    QString username = userDS.GetObject( ui->DBNameComboBox->currentText())["name"];
+    QString password = userDS.GetObject(ui->DBNameComboBox->currentText())["password"];
 
     // set focus on code editor
     cd->setFocus();
 
-
+    qDebug() << "Connecting";
     // connect to database
     on_ConnectButton_pressed();
 
@@ -369,14 +403,14 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 
     // testing:
 
-    DataStorage tmptokends;
-    // tmptokends.Load((documentsDir + "/FrequencyMaps/tokens.txt").toStdString());
+    //DataStorage tmptokends;
+    // tmptokends.Load((documentsDir + "/FrequencyMaps/tokens.txt"));
 
     // for(auto s : tmptokends.data)
     // {
     //     for(auto a :s.second)
     //     {
-    //         allPosibbleTokens.push_back(QString().fromLocal8Bit(a.second.c_str()).toLower().trimmed());
+    //         allPosibbleTokens.push_back(QString().fromLocal8Bit(a.second).toLower().trimmed());
     //         allPosibbleTokensMap[allPosibbleTokens.back().toLower().trimmed()] = allPosibbleTokens.size()-1;
     //     }
     // }
@@ -423,16 +457,16 @@ LoaderWidnow::~LoaderWidnow()
     delete ui;
 }
 
+inline int _dbconnectcount = 0;
 void LoaderWidnow::on_ConnectButton_pressed()
 {
     qDebug()<<"on_ConnectButton_pressed()";
 
 //tooo slow
-    // if(!tokenProcessor.ds.Load((documentsDir + "/" +"FrequencyMaps/test.txt").toStdString()))
-    //     qDebug() << "failed to load FrequencyMap: " <<  (documentsDir + "/" +"FrequencyMaps/test.txt").toStdString();
+    // if(!tokenProcessor.ds.Load((documentsDir + "/" +"FrequencyMaps/test.txt")))
+    //     qDebug() << "failed to load FrequencyMap: " <<  (documentsDir + "/" +"FrequencyMaps/test.txt");
 
-    QRandomGenerator64 gen;
-    QString conname = QVariant(gen.generate()).toString();
+    QString conname = QVariant(_dbconnectcount++).toString();
     QString driver = ui->driverComboBox->currentText();
     QString dbname = ui->DBNameComboBox->currentText();
     QString usrname = ui->userNameLineEdit->text();
@@ -457,18 +491,18 @@ void LoaderWidnow::on_ConnectButton_pressed()
             QString LastTmpDriverName =  ui->driverComboBox->currentText();
             QString LastTmpDbName = ui->DBNameComboBox->currentText();
 
-            userDS.data[ui->DBNameComboBox->currentText().toStdString()]["name"] = dc->usrname.toStdString();
-            userDS.data[ui->DBNameComboBox->currentText().toStdString()]["password"] = dc->password.toStdString();
-            userDS.data["User"]["lastDriver"] = dc->driver.toStdString();
-            userDS.data["User"]["lastDBName"] = dc->dbname.toStdString();
-            userDS.data["User"]["name"] = dc->usrname.toStdString();
-            userDS.data["User"]["password"] = dc->password.toStdString();
+            userDS.data[ui->DBNameComboBox->currentText()]["name"] = dc->usrname;
+            userDS.data[ui->DBNameComboBox->currentText()]["password"] = dc->password;
+            userDS.data["User"]["lastDriver"] = dc->driver;
+            userDS.data["User"]["lastDBName"] = dc->dbname;
+            userDS.data["User"]["name"] = dc->usrname;
+            userDS.data["User"]["password"] = dc->password;
 
             QStringList strl;
-            userDS.data["UserDBs"][ui->DBNameComboBox->currentText().toStdString()];
+            userDS.data["UserDBs"][ui->DBNameComboBox->currentText()];
             for( auto x : userDS.data["UserDBs"])
             {
-                strl.push_back((x.first + " " + x.second).c_str());
+                strl.push_back((x.first + " " + x.second));
                 strl.back() = strl.back().trimmed();
             }
             ui->DBNameComboBox->clear();
@@ -478,12 +512,12 @@ void LoaderWidnow::on_ConnectButton_pressed()
 
             for( auto x : userDS.data["UserDrivers"])
             {
-                strl.push_back(x.second.c_str());
+                strl.push_back(x.second);
                 strl.back() = strl.back().trimmed();
             }
 
             if(!strl.contains(ui->driverComboBox->currentText()))
-                userDS.data["UserDrivers"][std::to_string(ui->driverComboBox->count())] = ui->driverComboBox->currentText().toStdString();
+                userDS.data["UserDrivers"][QVariant(ui->driverComboBox->count()).toString()] = ui->driverComboBox->currentText();
             ui->driverComboBox->clear();
             ui->driverComboBox->addItems(strl);
 
@@ -491,12 +525,12 @@ void LoaderWidnow::on_ConnectButton_pressed()
             ui->driverComboBox->setCurrentText( LastTmpDriverName );
 
 
-            userDS.data[ui->DBNameComboBox->currentText().toStdString()]["name"] = dc->usrname.toStdString();
-            userDS.data[ui->DBNameComboBox->currentText().toStdString()]["password"] = dc->password.toStdString();
-            userDS.data["User"]["lastDriver"] = dc->driver.toStdString();
-            userDS.data["User"]["lastDBName"] = dc->dbname.toStdString();
-            userDS.data["User"]["name"] = dc->usrname.toStdString();
-            userDS.data["User"]["password"] = dc->password.toStdString();
+            userDS.data[ui->DBNameComboBox->currentText()]["name"] = dc->usrname;
+            userDS.data[ui->DBNameComboBox->currentText()]["password"] = dc->password;
+            userDS.data["User"]["lastDriver"] = dc->driver;
+            userDS.data["User"]["lastDBName"] = dc->dbname;
+            userDS.data["User"]["name"] = dc->usrname;
+            userDS.data["User"]["password"] = dc->password;
 
             userDS.Save("userdata.txt");
             qDebug()<<"Saved usedata.txt";
@@ -546,15 +580,15 @@ void LoaderWidnow::runSqlAsync()
     ui->stopLoadingQueryButton->show();
 
     // save new lastOpenedDb
-    if(userDS.Load((documentsDir + "/userdata.txt").toStdString()))
+    if(userDS.Load((documentsDir + "/userdata.txt")))
     {
-        userDS.data["User"]["lastDriver"] = ui->driverComboBox->currentText().toStdString();
-        userDS.data["User"]["lastDBName"] = ui->DBNameComboBox->currentText().toStdString();
-        userDS.data["User"]["name"] = ui->userNameLineEdit->text().toStdString();
-        userDS.data["User"]["password"] = ui->passwordLineEdit->text().toStdString();
+        userDS.data["User"]["lastDriver"] = ui->driverComboBox->currentText();
+        userDS.data["User"]["lastDBName"] = ui->DBNameComboBox->currentText();
+        userDS.data["User"]["name"] = ui->userNameLineEdit->text();
+        userDS.data["User"]["password"] = ui->passwordLineEdit->text();
 
-        userDS.data[ui->DBNameComboBox->currentText().toStdString()]["name"] = ui->userNameLineEdit->text().toStdString();
-        userDS.data[ui->DBNameComboBox->currentText().toStdString()]["password"] = ui->passwordLineEdit->text().toStdString();
+        userDS.data[ui->DBNameComboBox->currentText()]["name"] = ui->userNameLineEdit->text();
+        userDS.data[ui->DBNameComboBox->currentText()]["password"] = ui->passwordLineEdit->text();
 
         userDS.Save("userdata.txt");
     }
@@ -616,7 +650,7 @@ void LoaderWidnow::runSqlAsync()
     }
     else
     {
-        dc->sqlCode = cd->textCursor().selectedText().toStdString().c_str();
+        dc->sqlCode = cd->textCursor().selectedText();
         dc->sqlCode = dc->sqlCode.replace('\r','\n');
         dc->sqlCode = dc->sqlCode.replace(QChar(0x2029), QChar('\n'));
 
@@ -903,8 +937,8 @@ void LoaderWidnow::onQuerySuccess()
 void LoaderWidnow::UpdateTable()
 {
     // clear tableData, fill tableView with new data up to  25k rows, update info label
-
-    if(dc->executing || dc->dataDownloading || dc->data.tbldata.size() <1 || dc->data.headers.size() <1)
+    qDebug() << "Updating table";
+    if((dc->executing || dc->dataDownloading || dc->data.tbldata.size() <1 || dc->data.headers.size() <1) && !dc->lastLaunchIsError)
     {
         ui->tableWidget->clear();
         ui->tableWidget->setColumnCount(0);
@@ -930,6 +964,7 @@ void LoaderWidnow::UpdateTable()
         tc.setPosition(errpos);
         tc.select(QTextCursor::WordUnderCursor);
         cd->setTextCursor(tc);
+        cd->setFocus();
 
     }
 
@@ -1021,7 +1056,7 @@ void LoaderWidnow::OpenFile()
 {
     qDebug()<<"OpenFile()";
     QString str= documentsDir + "/" +"excel/";
-    str += userDS.data["ExcelPrefixAliases"][cd->highlighter->dbSchemaName.toStdString()];
+    str += userDS.data["ExcelPrefixAliases"][cd->highlighter->dbSchemaName];
     str+= ui->saveLineEdit->text();
     if(!str.endsWith(".xlsx"))
         str+= ".xlsx";
@@ -1118,7 +1153,14 @@ void LoaderWidnow::ShowWorkspacesWindow()
     b_showWorkspaceWindow = !b_showWorkspaceWindow;
     if(b_showWorkspaceWindow)
     {
-        QDir directory(documentsDir + "/workspaces");
+
+        QString prefix = documentsDir;
+        if(QString(userDS.data["UserTheme"]["Workspace_Directory"]).trimmed() != "documents")
+            prefix = QString(userDS.data["UserTheme"]["Workspace_Directory"]).trimmed();
+
+        qDebug()<<prefix ;
+
+        QDir directory(prefix + "/workspaces");
         QStringList strl = directory.entryList();
         SaveWorkspace();
 
@@ -1682,7 +1724,7 @@ void LoaderWidnow::on_SaveXLSXButton_pressed()
     qDebug()<<"on_SaveXLSXButton_pressed()";
     QString str = documentsDir + "/excel/";
 
-    str += userDS.data["ExcelPrefixAliases"][cd->highlighter->dbSchemaName.toStdString()];
+    str += userDS.data["ExcelPrefixAliases"][cd->highlighter->dbSchemaName];
     str += ui->saveLineEdit->text();
     if(str.size() > 200)// backup against too long filenames, cuz windows
         str.resize(200);
@@ -1740,6 +1782,11 @@ void LoaderWidnow::on_importFromExcelButton_pressed()
 void LoaderWidnow::SaveWorkspace()
 {
     qDebug()<<"SaveWorkspace()";
+
+    QString prefix = documentsDir;
+    if(QString(userDS.data["UserTheme"]["Workspace_Directory"]).trimmed() != "documents")
+        prefix = QString(userDS.data["UserTheme"]["Workspace_Directory"]).trimmed();
+
     if(LastWorkspaceName.contains(":"))
     {// saving into global space
         std::ofstream stream2 ((LastWorkspaceName).toLocal8Bit());
@@ -1774,7 +1821,7 @@ void LoaderWidnow::SaveWorkspace()
     }
     else if(!LastWorkspaceName.endsWith(".sql"))
         LastWorkspaceName+=".sql";
-    std::ofstream stream2 ((QString(documentsDir + "/workspaces/") + LastWorkspaceName).toLocal8Bit().toStdString());
+    std::ofstream stream2 ((QString(prefix + "/workspaces/") + LastWorkspaceName).toLocal8Bit());
     QString text = cd->toPlainText();
     stream2.clear();
     QStringList tokens;
@@ -1823,7 +1870,12 @@ void LoaderWidnow::on_listWidget_currentTextChanged(const QString &currentText)
         QString filename = currentText;
         if(b_showWorkspaceWindow)
         {
-            filename = documentsDir + "/workspaces/" + currentText;
+
+            QString prefix = documentsDir;
+            if(QString(userDS.data["UserTheme"]["Workspace_Directory"]).trimmed() != "documents")
+                prefix = QString(userDS.data["UserTheme"]["Workspace_Directory"]).trimmed();
+
+            filename = prefix + "/workspaces/" + currentText;
             LastWorkspaceName = currentText;
             ui->workspaceLineEdit->setText(currentText);
         }
@@ -1879,11 +1931,11 @@ void LoaderWidnow::on_listWidget_currentTextChanged(const QString &currentText)
                     dc->driver = tokens[0].trimmed();
                     dc->dbname = tokens[1].trimmed();
 
-                    if(userDS.Load((documentsDir + "/userdata.txt").toStdString()))
+                    if(userDS.Load((documentsDir + "/userdata.txt")))
                     {
 
-                        dc->usrname = userDS.data[ui->DBNameComboBox->currentText().toStdString()]["name"].c_str();
-                        dc->password = userDS.data[ui->DBNameComboBox->currentText().toStdString()]["password"].c_str();
+                        dc->usrname = userDS.data[ui->DBNameComboBox->currentText()]["name"];
+                        dc->password = userDS.data[ui->DBNameComboBox->currentText()]["password"];
 
                         ui->userNameLineEdit->setText(dc->usrname.trimmed());
                         ui->passwordLineEdit->setText(dc->password.trimmed());
@@ -1905,12 +1957,12 @@ void LoaderWidnow::on_listWidget_currentTextChanged(const QString &currentText)
 }
 void LoaderWidnow::on_DBNameComboBox_currentTextChanged(const QString &arg1)
 {
-    if(!userDS.Load((documentsDir + "/userdata.txt").toStdString()))
+    if(!userDS.Load((documentsDir + "/userdata.txt")))
         return;
-    ui->userNameLineEdit->setText(userDS.GetProperty(ui->DBNameComboBox->currentText().toStdString(),"name").c_str());
-    ui->passwordLineEdit->setText(userDS.GetProperty(ui->DBNameComboBox->currentText().toStdString(),"password").c_str());
+    ui->userNameLineEdit->setText(userDS.GetProperty(ui->DBNameComboBox->currentText(),"name"));
+    ui->passwordLineEdit->setText(userDS.GetProperty(ui->DBNameComboBox->currentText(),"password"));
 
-    userDS.Save((documentsDir + "/userdata.txt").toStdString());
+    userDS.Save((documentsDir + "/userdata.txt"));
 }
 
 //Pause execution
@@ -2239,17 +2291,25 @@ void LoaderWidnow::on_pushButton_2_pressed()
     tokenProcessor.tokens.clear();
     tokenProcessor.uniqueTokens.clear();
     tokenProcessor.ds.data.clear();
-
+    tokenProcessor.freqs.clear();
+    int fileid = 0;
     for(auto x : strl)
     {
         QFile f(documentsDir +"/sqlBackup/" + x);
         f.open(QFile::OpenModeFlag::ReadOnly);
-        text = f.readAll().toStdString().c_str();
-
+        text = f.readAll();
         tokenProcessor.processText(text);
         tokenProcessor.addFrequencies();
+        qDebug() <<fileid++;
     }
-    tokenProcessor.ds.Save((documentsDir + "/" +"FrequencyMaps/test2.txt").toStdString());
+
+    for(auto x : tokenProcessor.freqs)
+        for(auto y : x.second)
+        {
+            tokenProcessor.ds.SetProperty(x.first,y.first,y.second);
+        }
+
+    tokenProcessor.ds.Save((documentsDir + "/" +"FrequencyMaps/test2.txt"));
     QFile fl ((documentsDir + "/" +"FrequencyMaps/tokens.txt"));
     fl.open(QFile::OpenModeFlag::WriteOnly);
     int i =0;
@@ -2393,3 +2453,14 @@ void LoaderWidnow::on_nnTestLearn_pressed()
 }
 
 
+
+
+void LoaderWidnow::openDescriptorWindow()
+{
+    StructureDescriptor* st = new StructureDescriptor();
+
+    if(cd->textCursor().selectedText().size()>0)
+        st->Init(cd->textCursor().selectedText());
+
+    st->show();
+}

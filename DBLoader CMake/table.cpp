@@ -179,19 +179,19 @@ Table::Table(QWidget *parent)
         QStringList strl;
         for( auto x : userDS.data["UserDBs"])
         {
-            strl.push_back((x.first + " " +  x.second).c_str());
+            strl.push_back((x.first + " " +  x.second));
             strl.back() = strl.back().trimmed();
         }
         ui->comboBox->addItems(strl);
-        ui->comboBox->setCurrentText(userDS.GetProperty("User","lastDBName").c_str());
+        ui->comboBox->setCurrentText(userDS.GetProperty("User","lastDBName"));
         strl.clear();
         for( auto x : userDS.data["UserDrivers"])
         {
-            strl.push_back((x.second).c_str());
+            strl.push_back((x.second));
             strl.back() = strl.back().trimmed();
         }
         ui->comboBoxDriver->addItems(strl);
-        ui->comboBoxDriver->setCurrentText(userDS.GetProperty("User","lastDriver").c_str());
+        ui->comboBoxDriver->setCurrentText(userDS.GetProperty("User","lastDriver"));
 
         if((userDS.GetPropertyAsBool("Flags","Script")))
             ui->CheckBoxScript->setCheckState( Qt::CheckState::Checked);
@@ -673,7 +673,7 @@ void Table::exec()
         if(ok)
             qDebug() << "db opened";
         else
-            qDebug() << "nope: "<< tdb.lastError().text().toStdString();
+            qDebug() << "nope: "<< tdb.lastError().text();
     }
     QString str = sqlCode;
     qDebug() << "creating query";
@@ -718,11 +718,11 @@ void Table::exec()
         headers.push_back("Error");
         headers.push_back("db Error");
         headers.push_back("driver Error");
-        qDebug() << "Error in sql query:"<< q.lastError().text().toStdString().c_str();
+        qDebug() << "Error in sql query:"<< q.lastError().text();
         qDebug() << "Error from database:"<< tr(q.lastError().databaseText().toStdString().c_str());
         qDebug() << "Error from driver:"<< q.lastError().driverText();
         qDebug() << sqlCode;
-        tableData.back().push_back(q.lastError().text().toStdString().c_str());
+        tableData.back().push_back(q.lastError().text());
         tableData.back().push_back(q.lastError().databaseText());
         tableData.back().push_back(q.lastError().driverText());
     }
@@ -732,6 +732,8 @@ void Table::exec()
     qDebug() << tableData.size() << "  " << tableData[0].size();
     executing = false;
     emit execdReady();
+
+
 
 }
 
@@ -1029,16 +1031,16 @@ void Table::connectDB(QString conname,QString driver, QString dbname,QString usr
         if(userDS.Load("userdata.txt"))
         {
             userDS.data["Flags"]["Postgre"] = "1";
-            userDS.GetObject(ui->comboBox->currentText().toStdString())["name"] = ui->lineEdit_2->text().toStdString();
-            userDS.GetObject(ui->comboBox->currentText().toStdString())["password"] = ui->lineEdit_3->text().toStdString();
-            userDS.data["User"]["lastDriver"] = ui->comboBoxDriver->currentText().toStdString();
-            userDS.data["User"]["lastDBName"] = ui->comboBox->currentText().toStdString();
+            userDS.GetObject(ui->comboBox->currentText())["name"] = ui->lineEdit_2->text();
+            userDS.GetObject(ui->comboBox->currentText())["password"] = ui->lineEdit_3->text();
+            userDS.data["User"]["lastDriver"] = ui->comboBoxDriver->currentText();
+            userDS.data["User"]["lastDBName"] = ui->comboBox->currentText();
 
             QString LastTmpDriverName =  ui->comboBoxDriver->currentText();
             QString LastTmpDbName = ui->comboBox->currentText();
 
-            userDS.data["User"]["name"] = ui->lineEdit_2->text().toStdString();
-            userDS.data["User"]["password"] = ui->lineEdit_3->text().toStdString();
+            userDS.data["User"]["name"] = ui->lineEdit_2->text();
+            userDS.data["User"]["password"] = ui->lineEdit_3->text();
 
 
             //if(ui->checkBox->checkState()== Qt::Checked)
@@ -1057,10 +1059,10 @@ void Table::connectDB(QString conname,QString driver, QString dbname,QString usr
 
 
             QStringList strl;
-            userDS.data["UserDBs"][ui->comboBox->currentText().toStdString()];
+            userDS.data["UserDBs"][ui->comboBox->currentText()];
             for( auto x : userDS.data["UserDBs"])
             {
-                strl.push_back((x.first + " " + x.second).c_str());
+                strl.push_back((x.first + " " + x.second));
                 strl.back() = strl.back().trimmed();
             }
             ui->comboBox->clear();
@@ -1070,12 +1072,12 @@ void Table::connectDB(QString conname,QString driver, QString dbname,QString usr
 
             for( auto x : userDS.data["UserDrivers"])
             {
-                strl.push_back(x.second.c_str());
+                strl.push_back(x.second);
                 strl.back() = strl.back().trimmed();
             }
 
             if(!strl.contains(ui->comboBoxDriver->currentText()))
-                userDS.data["UserDrivers"][std::to_string(ui->comboBoxDriver->count())] = ui->comboBoxDriver->currentText().toStdString();
+                userDS.data["UserDrivers"][QVariant(ui->comboBoxDriver->count()).toString()] = ui->comboBoxDriver->currentText();
             ui->comboBoxDriver->clear();
             ui->comboBoxDriver->addItems(strl);
 
@@ -1104,7 +1106,7 @@ void Table::connectDB(QString conname,QString driver, QString dbname,QString usr
         }
     }
     else
-        qDebug() << "nope: "<< tdb.lastError().text().toStdString();
+        qDebug() << "nope: "<< tdb.lastError().text();
 }
 
 void Table::on_pushButton_clicked()
@@ -1125,13 +1127,13 @@ void Table::runSqlAsync(QString conname,QString driver,QString dbname,QString us
 
     if(userDS.Load("userdata.txt"))
     {
-        userDS.GetObject("User")["lastDriver"] = ui->comboBoxDriver->currentText().toStdString();
-        userDS.GetObject("User")["lastDBName"] = ui->comboBox->currentText().toStdString();
-        userDS.GetObject("User")["name"] = ui->lineEdit_2->text().toStdString();
-        userDS.GetObject("User")["password"] = ui->lineEdit_3->text().toStdString();
+        userDS.GetObject("User")["lastDriver"] = ui->comboBoxDriver->currentText();
+        userDS.GetObject("User")["lastDBName"] = ui->comboBox->currentText();
+        userDS.GetObject("User")["name"] = ui->lineEdit_2->text();
+        userDS.GetObject("User")["password"] = ui->lineEdit_3->text();
 
-        userDS.GetObject(ui->comboBox->currentText().toStdString())["name"] = ui->lineEdit_2->text().toStdString();
-        userDS.GetObject(ui->comboBox->currentText().toStdString())["password"] = ui->lineEdit_3->text().toStdString();
+        userDS.GetObject(ui->comboBox->currentText())["name"] = ui->lineEdit_2->text();
+        userDS.GetObject(ui->comboBox->currentText())["password"] = ui->lineEdit_3->text();
 
         if(cd->highlighter->PostgresStyle)
             userDS.data["Flags"]["Postgre"] = "1";
@@ -1345,7 +1347,7 @@ void Table::runSqlAsync(QString conname,QString driver,QString dbname,QString us
 
         if(historyDS.Load("sqlHistoryList.txt"))
         {
-            historyDS.data["wSQL_BACKUP_LIST"][str.toStdString()] = str.toStdString();
+            historyDS.data["wSQL_BACKUP_LIST"][str] = str;
             historyDS.Save("sqlHistoryList.txt");
         }
 
@@ -1413,7 +1415,7 @@ void Table::runSqlAsync(QString conname,QString driver,QString dbname,QString us
 
         if(historyDS.Load("sqlHistoryList.txt"))
         {
-            historyDS.data["wSQL_BACKUP_LIST"][str.toStdString()] = str.toStdString();
+            historyDS.data["wSQL_BACKUP_LIST"][str] = str;
             historyDS.Save("sqlHistoryList.txt");
         }
 
@@ -1431,8 +1433,8 @@ void Table::on_comboBox_currentTextChanged(const QString &arg1)
 {
     if(!userDS.Load("userdata.txt"))
         return;
-    ui->lineEdit_2->setText(userDS.GetProperty(ui->comboBox->currentText().toStdString(),"name").c_str());
-    ui->lineEdit_3->setText(userDS.GetProperty(ui->comboBox->currentText().toStdString(),"password").c_str());
+    ui->lineEdit_2->setText(userDS.GetProperty(ui->comboBox->currentText(),"name"));
+    ui->lineEdit_3->setText(userDS.GetProperty(ui->comboBox->currentText(),"password"));
 
     userDS.Save("userdata.txt");
 }
@@ -1673,7 +1675,7 @@ void Table::ShowHistoryWindow()
             ui->listWidget->addItem("tmp");
             for(auto x : sqlbackupmap)
             {
-                ui->listWidget->addItem(x.first.c_str());
+                ui->listWidget->addItem(x.first);
             }
             ui->listWidget->sortItems(Qt::DescendingOrder);
             historyDS.Save("sqlHistoryList.txt");
@@ -1692,7 +1694,7 @@ void Table::SaveWorkspace()
 {
     if(!LastWorkspaceName.endsWith(".sql"))
         LastWorkspaceName+=".sql";
-    std::ofstream stream2 ((QString("workspaces/") + LastWorkspaceName).toLocal8Bit().toStdString());
+    std::ofstream stream2 ((QString("workspaces/") + LastWorkspaceName).toLocal8Bit());
     QString text = cd->toPlainText();
     stream2.clear();
     QStringList tokens;
