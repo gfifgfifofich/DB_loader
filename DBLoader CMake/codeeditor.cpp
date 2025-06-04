@@ -257,10 +257,10 @@ CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent)
     lineNumberArea = new LineNumberArea(this);
     codePreview = new LineNumberArea(this);
     ((LineNumberArea*) codePreview)->id = 1;
-    qDebug() << "reached Highlighter";
+
     highlighter = new Highlighter(document());
 
-    qDebug() << "news done";
+
     updateLineNumberAreaWidth(0);
 
 

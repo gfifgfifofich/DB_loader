@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(untitled VERSION 0.1 LANGUAGES CXX)
+project(untitled VERSION 0.1 LANGUAGES CXX C)
 
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
@@ -18,15 +18,27 @@ find_package(Qt6 REQUIRED COMPONENTS Quick)
 find_package(Qt6 REQUIRED COMPONENTS QuickControls2)
 add_subdirectory(QXlsx-master/QXlsx)
 
-
+#oracle
 if(Oracle_OCI_Driver)
     add_compile_definitions(Oracle_OCI_Driver)
     LINK_DIRECTORIES(${Oracle_OCI_Lib_Directory})
     include_directories(${Oracle_OCI_Include_Directory})
 endif()
 
+#oracle
+if(Postgres_PSQL_Driver)
+    add_compile_definitions(Postgres_PSQL_Driver)
+    LINK_DIRECTORIES(${Postgres_PSQL_Lib_Directory})
+    include_directories(${Postgres_PSQL_Include_Directory})
+endif()
+#SimpleMail for mail automation
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/SimpleMail)
 LINK_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/lib)
+
+
+# add sqlite source directly
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/sqlite_amalgamation)
+
 
 
 
@@ -63,6 +75,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         settingswindow.h settingswindow.cpp settingswindow.ui
         colorbutton.h colorbutton.cpp
         structuredescriptor.h structuredescriptor.cpp structuredescriptor.ui
+        sqlite_amalgamation/sqlite3.c
 
     )
 # Define target properties for Android with Qt 6 as:
@@ -97,6 +110,11 @@ target_link_libraries(untitled PRIVATE Qt6::QuickControls2)
 if(Oracle_OCI_Driver)
     target_link_libraries(untitled PRIVATE oci oraocci12)
 endif()
+
+if(Postgres_PSQL_Driver)
+    target_link_libraries(untitled PRIVATE libpq libssl postgres pgevent)
+endif()
+
 
 target_link_libraries(untitled PRIVATE SimpleMail3Qt6)
 

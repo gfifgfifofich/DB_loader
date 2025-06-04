@@ -17,6 +17,9 @@ StructureDescriptor::StructureDescriptor(QWidget *parent)
     new QShortcut(QKeySequence(Qt::Key_Escape), this, [this]() {
         close();
     });
+    new QShortcut(QKeySequence(Qt::Key_Control | Qt::Key_D), this, [this]() {
+        close();
+    });
 
 
     ui->verticalLayout_3->addWidget(cd);
@@ -24,24 +27,24 @@ StructureDescriptor::StructureDescriptor(QWidget *parent)
     cd->b_codePreview = false;
 
     cd->setPlainText(
-    "SELECT distinct lower(table_name), lower(column_name )  -- oracle\n"
-    "FROM ALL_TAB_COLUMNS       \n"
-    "inner join   (SELECT DISTINCT  OBJECT_NAME       \n"
-    "    FROM ALL_OBJECTS           \n"
-    "    WHERE OBJECT_TYPE = 'TABLE' or OBJECT_TYPE like '%VIEW%'  AND\n"
-    "    (upper(OWNER) != 'SYSTEM' AND upper(OWNER) != 'SYS' AND upper(OWNER) != 'ADMIN' )\n"
-    ") tables on tables.OBJECT_NAME = table_name      \n"
-    "order by lower(table_name)"
-    "\n"
-    "\n"
-    "\n"
-    "--SELECT table_name, column_name -- Postgres\n"
-    "--  FROM information_schema.columns\n"
-    "-- WHERE table_schema = 'public';    \n"
+        "SELECT distinct lower(table_name), lower(column_name )  -- oracle\n"
+        "FROM ALL_TAB_COLUMNS       \n"
+        "inner join   (SELECT DISTINCT  OBJECT_NAME       \n"
+        "    FROM ALL_OBJECTS           \n"
+        "    WHERE OBJECT_TYPE = 'TABLE' or OBJECT_TYPE like '%VIEW%'  AND\n"
+        "    (upper(OWNER) != 'SYSTEM' AND upper(OWNER) != 'SYS' AND upper(OWNER) != 'ADMIN' )\n"
+        ") tables on tables.OBJECT_NAME = table_name      \n"
+        "order by lower(table_name)"
         "\n"
         "\n"
         "\n"
-    "--SQLite is automatic, just press connect again\n"
+        "--SELECT table_name, column_name -- Postgres\n"
+        "--  FROM information_schema.columns\n"
+        "-- WHERE table_schema = 'public';    \n"
+            "\n"
+            "\n"
+            "\n"
+        "--SQLite is automatic, just press connect again\n"
         );
 
 

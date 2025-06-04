@@ -50,21 +50,29 @@ std::vector<QString> DataStorage::GetProperties(QString ObjectName)
 
 QString DataStorage::GetProperty(QString ObjectName, QString Property)
 {
-    QString prop = data[ObjectName][Property];
+    QString prop = "";
+    //if(data.count(ObjectName) > 0 && data[ObjectName].count(Property) > 0)
+        prop = data[ObjectName][Property];
     return prop.trimmed();
 }
 
 int DataStorage::GetPropertyAsInt(QString ObjectName, QString Property)
 {
-    return QVariant(data[ObjectName][Property]).toInt();
+    //if(data.count(ObjectName) > 0 && data[ObjectName].count(Property) > 0)
+        return QVariant(data[ObjectName][Property]).toInt();
+    //else return 0;
 }
 float DataStorage::GetPropertyAsFloat(QString ObjectName, QString Property)
 {
-    return QVariant(data[ObjectName][Property]).toFloat();
+    ///if(data.count(ObjectName) > 0 && data[ObjectName].count(Property) > 0)
+        return QVariant(data[ObjectName][Property]).toFloat();
+    //else return 0;
 }
 bool DataStorage::GetPropertyAsBool(QString ObjectName, QString Property)
 {
-    return QVariant(data[ObjectName][Property]).toBool();
+    //if(data.count(ObjectName) > 0 && data[ObjectName].count(Property) > 0)
+        return QVariant(data[ObjectName][Property]).toBool();
+    //else return 0;
 }
 
 void DataStorage::SetProperty(QString ObjectName, QString Property, QString value)
@@ -90,7 +98,6 @@ void DataStorage::SetProperty(QString ObjectName,QString Property, float value)
 
 void DataStorage::Save(QString filename)
 {
-    qDebug() << "entered save";
     QFile File(filename);
 
     if(!File.open(QFile::OpenModeFlag::ReadWrite))
@@ -98,7 +105,6 @@ void DataStorage::Save(QString filename)
         qDebug() << "Failed to write";
         return;
     }
-    qDebug() << "data iter";
     for (auto i : data)
     {
         //qDebug() << "   " << i.first;
@@ -117,7 +123,6 @@ void DataStorage::Save(QString filename)
 
         File.write("\n}\n");
     }
-    qDebug() << "closing";
     //File.close();
 }
 
@@ -146,23 +151,19 @@ QString DataStorage::ToString()
 
 bool DataStorage::Load(QString filename)
 {
-    qDebug() << "ds.load " << filename;
     for(auto d :data)
         d.second.clear();
     data.clear();
-    qDebug() << "cleared ";
     QFile f(filename);
     if (!f.open(QFile::OpenModeFlag::ReadOnly))
     {
         qDebug() << "ERROR LOADING SaveFile: Unable to load " << filename;
         return false;
     }
-    qDebug() << "opened file";
     QString lastObject = "NULL";
     int lineCount = 0;
     char junk;
     char line[10256];
-    qDebug() << "entering";
     while (!f.atEnd())
     {
         lineCount++;
@@ -224,6 +225,5 @@ bool DataStorage::Load(QString filename)
 
     }
     f.close();
-    qDebug() <<"exited";
     return true;
 }

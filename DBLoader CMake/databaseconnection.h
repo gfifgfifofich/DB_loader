@@ -16,10 +16,11 @@ class DatabaseConnection : public QObject
 public:
     explicit DatabaseConnection(QObject *parent = nullptr);
 
+    ~DatabaseConnection();
 
-    void* OCI_lastenv = nullptr;
-    void* OCI_lastcon = nullptr;
-    void* OCI_laststmt = nullptr;
+    bool nodebug = false;
+    bool rawquery = false;
+
     int queryExecutionState = 0;
 
     QSqlDatabase db;
@@ -40,6 +41,7 @@ public:
     QString LastDBName = "";
     int savefilecount = 0;
 
+
     //Options on data downloading
     bool stopAt500Lines = false;
     bool stopNow = false;
@@ -49,7 +51,22 @@ public:
     bool oracle = false;
     bool postgre = false;
     bool ODBC = false;
+
+    // Stuff for oracle OCI
     bool customOracle = false;
+    void* OCI_lastenv = nullptr;// including occi.h just breaks a lot of stuff, so store it in void*, include is only in databaseconnection.cpp
+    void* OCI_lastcon = nullptr;
+    void* OCI_laststmt = nullptr;
+
+    // Stuff for SQLite
+    bool customSQlite = false;
+    void* sqlite3DBConnection = nullptr;//Still dont want to include any headers for db drivers here, so void* it is. Inlude SQLite would'he been fine, probably
+    bool sqlite3DBConnectionIsOpen = false;
+
+    // Stuff for postgreSQL
+    bool customPSQL = false;
+    void* ptr_PGconn = nullptr;
+    bool pg_connected = false;
 
     //Current Executin query info
     bool dataDownloading = false;

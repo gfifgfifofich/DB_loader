@@ -540,7 +540,6 @@ QVariant Worksheet::read(int row, int column) const
 
     if (cell->isDateTime()) {
         QVariant vDateTime = cell->dateTime();
-        qDebug() << "vDateTime  " << vDateTime ;
         return vDateTime;
     }
 

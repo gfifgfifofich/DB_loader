@@ -88,19 +88,20 @@ int main(int argc, char *argv[])
     QDir::setCurrent(usrDir); // set fixed area for .dll's & shit to open .sql files using this app
     qDebug()<< usrDir;
     bool darktheme = false;
-    qDebug() << "reached if(userDS.Load((documentsDir + /userdata.txt).toStdString()))" << (documentsDir + "/userdata.txt");
+
     if(userDS.Load((documentsDir + "/userdata.txt")))
     {
         if(argc >= 2)
         {
-            usrDir = userDS.data["user"]["appdir"];
+            usrDir = userDS.data["User"]["appdir"];
         }
 
 
-        userDS.data["user"]["appdir"] = usrDir;
+        userDS.data["User"]["appdir"] = usrDir;
+        userDS.Save((documentsDir + "/userdata.txt"));
     }
 
-    qDebug() << "if(userDS.Load((documentsDir + /userdata.txt)))";
+
 
     QApplication::setDesktopSettingsAware(true);
 
@@ -116,14 +117,14 @@ int main(int argc, char *argv[])
         qputenv("QT_QPA_PLATFORM", "windows:darkmode=1");
         QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Light);
     }
-    qDebug() << "reached app";
+
     QApplication app(argc, argv);
     app.setStyle("fusion");
 
     if(argc > 0)
     {
         appfilename = argv[0];
-        qDebug()<<"appname is "<< argv[0];
+
     }
     if(argc>1)
     {
@@ -150,7 +151,6 @@ int main(int argc, char *argv[])
     }
 
 
-    qDebug() << "QQmlApplicationEngine";
     QQmlApplicationEngine eng;
     TestqmlEngine = &eng;
     QObject::connect(
@@ -167,7 +167,8 @@ int main(int argc, char *argv[])
     qmlRegisterType<DatabaseConnection>("SourceApplication", 1, 0, "DatabaseConnection");
 
 
-    qDebug() << "LoaderWidnow w;";
+
+
     LoaderWidnow w;
 
     if(QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark)
@@ -181,10 +182,11 @@ int main(int argc, char *argv[])
     }
 
 
-    qDebug() << "LoaderWidnow w.showMaximized();";
+
     w.showMaximized();
 
-    qDebug() << "LoaderWidnow w.showedMaximized();";
+
+
     return app.exec();
 }
 

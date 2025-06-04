@@ -30,47 +30,17 @@
 +                                          Replace window - replaces every "string" with other "string", yea
 +                                          Highlight from bracket to bracket with codeEditor HighLight selection (will highlight background from bracket to bracket)
 +                                          Highlighting of selected token
-+ testing                                  fix subtables
++-                                         fix subtables
 + constant correction                      datatypes
 +                                          tab press reg
 +                                          Timer
 +- reimplement Patterns compleatly through .ds files
 
 + open files through cmd
-- Scroll code preview
-
-
-+ SubexecToArray{
-        --{driver} {database}
-        select * from stufff
-        }
-+ SubexecToMagic{
-        --{driver} {database}
-        select * from stufff
-        }
-+ SubexecToUnionAllTable{
-        --{driver} {database}
-        select * from stufff
-        }
++ Scroll code preview
 
 
 +- Iterate magic/arrays by 10k each -- possible through regular forloops
-
-+ ForLoop{
-        --{value} {opt1,opt2,opt3}
-        select * from stufff where value
-        }
-+ ForLoop{
-        --{value} {from} {to} {optional_step = 1}
-        select * from stufff where value
-        }
-+ SubexecTo{Silent}{SqliteTable, ExcelTable, CSV} some method of updating sqlite tables in sqlite query
-
-
-- add special highlighting for unaccessible tables?
-    select * from dba_tables where lower(owner) like '%%';
-    select * from dba_TAB_COLUMNS where lower(table_name) like '%%';
-    dba_ - all, all_ - user has access
 
 
 
@@ -99,13 +69,18 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     ui->stopLoadingQueryButton->hide();
 
 
+
+
     loadWind  = this;
+
     // graph window init
     gw.Init();
     ui->CodeEditorLayout->addLayout(&gw.graph_layout);
+
+    // hide workspaces/history
     ui->listWidget->hide();
 
-
+    //hide autolauncher/automation
     ui->timerdayMonthly->hide();
     ui->timerDayWeekly->hide();
     ui->timerHourWeekly->hide();
@@ -125,32 +100,27 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     autolaunchTimer.setSingleShot(false);
     autolaunchTimer.start();
 
-    qDebug() << "setupped 1";
 
     // init tabs, first code editor instance, DataConnection
     while (ui->tabWidget->tabBar()->count()>0)
     {
         ui->tabWidget->removeTab(0);
     }
-    qDebug() << "tabs done";
+
     QWidget* wg = new QWidget();
     wg->setWhatsThis(QVariant(0).toString());
 
-    qDebug() << "QVariant(0).toString()";
 
 
     ui->tabWidget->addTab(wg,"New tab" + QVariant(0).toString());
     ui->tabWidget->setTabWhatsThis(ui->tabWidget->tabBar()->count()-1,QVariant(0).toString());
 
-    qDebug() << "new tabdata()";
     tabDatas.push_back(new tabdata());
     tabDatas.back()->Name = "New tab0";
     tabDatas.back()->Id = "0";
 
-    qDebug() << "reached code editor";
     tabDatas.back()->cd = new CodeEditor();
 
-    qDebug() << "setupped 2";
     cd = tabDatas.back()->cd;
     ui->CodeEditorLayout->layout()->addWidget(cd);
 
@@ -159,9 +129,11 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 
 
 
-    // Menubar Actions, additional keyboard shortcuts
 
-    qDebug() << "connecting 1";
+
+    //// Menubar Actions, additional keyboard shortcuts
+
+
     //open new app instance
     connect(ui->actionNew_window,  &QAction::triggered, this, [this]() {
         OpenNewWindow();
@@ -204,7 +176,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
         CommentSelected();
     });
 
-    qDebug() << "connecting 2";
+
     // copy from tableview
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_C), this, SLOT(CopySelectionFormTable()));
     new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_C), this, SLOT(CopySelectionFormTableSql()));
@@ -250,7 +222,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     });
 
 
-    qDebug() << "connecting 3";
+
     //signal binding
     //query states
     connect( dc, SIGNAL(queryBeginCreating()), this, SLOT(onQueryBeginCreating()), Qt::QueuedConnection );
@@ -272,7 +244,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     connect( &gw.separateBysb, SIGNAL(valueChanged(int)), this, SLOT(on_graph_separator_change(int)), Qt::QueuedConnection );
     connect( &gw.dataColumnsb, SIGNAL(valueChanged(int)), this, SLOT(on_graph_data_change(int)), Qt::QueuedConnection );
 
-    qDebug() << "connecting 4";
+
     //maximize code editor
     ui->splitter->setSizes({1,2000,1});
 
@@ -311,7 +283,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
         ui->nnTestRun->hide();
     }
 
-    qDebug() << "userds";
+
 
 
     // if program was opened from command line with filename to open
@@ -324,7 +296,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
         ui->workspaceLineEdit->setText(LastWorkspaceName);
         ui->splitter->setSizes({0,2000,0});
     }
-    else
+    else // open with all the slow stuff, in full edit mode
     {
         if(!LastWorkspaceName.endsWith(".sql"))
             LastWorkspaceName+=".sql";
@@ -348,7 +320,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
         qDebug() << "loaded token processor";
     }
 
-    qDebug() << "userds 2";
+
     // get database from file header
     QString text = cd->toPlainText();
     if(text.startsWith("-- {"))
@@ -388,35 +360,21 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 
         }
     }
-    qDebug() << "userds 3";
+
+    // grep name/password
     QString username = userDS.GetObject( ui->DBNameComboBox->currentText())["name"];
     QString password = userDS.GetObject(ui->DBNameComboBox->currentText())["password"];
 
     // set focus on code editor
     cd->setFocus();
 
-    qDebug() << "Connecting";
+
     // connect to database
     on_ConnectButton_pressed();
 
 
 
-    // testing:
-
-    //DataStorage tmptokends;
-    // tmptokends.Load((documentsDir + "/FrequencyMaps/tokens.txt"));
-
-    // for(auto s : tmptokends.data)
-    // {
-    //     for(auto a :s.second)
-    //     {
-    //         allPosibbleTokens.push_back(QString().fromLocal8Bit(a.second).toLower().trimmed());
-    //         allPosibbleTokensMap[allPosibbleTokens.back().toLower().trimmed()] = allPosibbleTokens.size()-1;
-    //     }
-    // }
-    // qDebug()<<"loaded " << allPosibbleTokens.size() << " distinct tokens";
-
-    // nn setup
+    // nn setup. Currently used to learn first column of data, repeat + extrapolate on run
     int arch[4] = {1,50,50,1};
     nn.Create(arch,4);
     nn.Randomize();
@@ -430,28 +388,42 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 LoaderWidnow::~LoaderWidnow()
 {
     qDebug()<<"closing window";
-    dc->stopRunning();
-    dc->db.close();
-    if((*sqlexecThread) != nullptr)
+    // a mess to have more chances of actually terminating all db connections
+    for(int i=0;i < tabDatas.size();i++)
     {
-        // a mess to have more chances of clearing db connection
-        try
+        dc = &tabDatas[i]->dc;
+        sqlexecThread = &tabDatas[i]->sqlexecThread;
+        if(dc!=nullptr)
         {
-            dc->stopNow = true;
-            // stop query if loading.
-            // if query is executing, thead will be left alive untill executed
-            // still cant cancel query propperly
-            dc->db.driver()->cancelQuery(); // in case it will be possible some day...
+            dc->stopRunning();
             dc->db.close();
-            dc->db.driver()->close();
-            if(dc->query != nullptr)
-                dc->query->finish();
-            (*sqlexecThread)->terminate();
-
-        } catch (...)
+        }
+        if((*sqlexecThread) != nullptr)
         {
+            try
+            {
+                dc->stopNow = true;
+                // stop query if loading.
+                // if query is executing, thead will be left alive untill executed
+                // still cant cancel query propperly
+                dc->db.driver()->cancelQuery(); // in case it will be possible some day...
+                dc->db.close();
+                dc->db.driver()->close();
+                if(dc->query != nullptr)
+                    dc->query->finish();
+                (*sqlexecThread)->terminate();
 
-            (*sqlexecThread)->terminate();
+                delete dc;
+                delete sqlexecThread;
+
+            } catch (...)
+            {
+
+                try
+                {
+                    (*sqlexecThread)->terminate();
+                }catch (...){}
+            }
         }
     }
     delete ui;
@@ -462,22 +434,38 @@ void LoaderWidnow::on_ConnectButton_pressed()
 {
     qDebug()<<"on_ConnectButton_pressed()";
 
-//tooo slow
+    //tooo slow and absolutely pointless to do on every reconnect
     // if(!tokenProcessor.ds.Load((documentsDir + "/" +"FrequencyMaps/test.txt")))
     //     qDebug() << "failed to load FrequencyMap: " <<  (documentsDir + "/" +"FrequencyMaps/test.txt");
 
+
+    // get data from fields
     QString conname = QVariant(_dbconnectcount++).toString();
     QString driver = ui->driverComboBox->currentText();
     QString dbname = ui->DBNameComboBox->currentText();
     QString usrname = ui->userNameLineEdit->text();
     QString password = ui->passwordLineEdit->text();
-    dc->connectionName = conname;
-    bool differentDB = false;
-    if(dc->dbname != dbname ||dc->LastDBName != dbname || (driver == "LOCAL_SQLITE_DB"))
-        differentDB = true;
+
+    //if local db selected, swap all data for local database, in which the save goes
+    if(driver.trimmed() == "LOCAL" || dbname.trimmed() == "LOCAL")
+    {
+        driver = userDS.data["UserTheme"]["db_drv_Save_table_driver"];
+        dbname = userDS.data["UserTheme"]["db_drv_Save_table_Connection"];
+        dbname = dbname.replace("documentsDir",documentsDir);
+
+        driver = driver.trimmed();
+        dbname = dbname.trimmed();
+
+        usrname = userDS.data[dbname]["name"];
+        password = userDS.data[dbname]["password"];
+        usrname = usrname.trimmed();
+        password = password.trimmed();
+    }
 
 
-    if(dc->Create(driver, dbname, usrname, password))
+    dc->connectionName = conname;// set new connection name for all the QT 'native' drivers.
+
+    if(!dc->executing && dc->Create(driver, dbname, usrname, password))
     {
 
         ui->driverComboBox->setCurrentText(dc->driver);
@@ -527,31 +515,30 @@ void LoaderWidnow::on_ConnectButton_pressed()
 
             userDS.data[ui->DBNameComboBox->currentText()]["name"] = dc->usrname;
             userDS.data[ui->DBNameComboBox->currentText()]["password"] = dc->password;
-            userDS.data["User"]["lastDriver"] = dc->driver;
+            userDS.data["User"]["lastDriver"] = driver;
             userDS.data["User"]["lastDBName"] = dc->dbname;
             userDS.data["User"]["name"] = dc->usrname;
             userDS.data["User"]["password"] = dc->password;
+            userDS.data["UserDBs"][ui->DBNameComboBox->currentText()] = "";
 
             userDS.Save("userdata.txt");
             qDebug()<<"Saved usedata.txt";
         }
         else
             qDebug()<<"Failed to open usedata.txt";
-        if(differentDB)
-        {
-            QString str = "";
-            if(dbname.split('/').size()>1)
-                str = dbname.split('/')[1];
-            else str =dbname.split('/')[0];
 
-            cd->highlighter->QSLiteStyle = dc->sqlite;//(driver == "QSQLite") || (driver == "LOCAL_SQLITE_DB");
-            cd->highlighter->PostgresStyle = dc->postgre;//(driver == "QPSQL");
-            cd->highlighter->UpdateTableColumns(&dc->db,str);
+        QString str = "";
+        if(dbname.split('/').size()>1)
+            str = dbname.split('/')[1];
+        else str =dbname.split('/')[0];
 
-            cd->updateMisc();
-            cd->highlighter->rehighlight();
+        cd->highlighter->QSLiteStyle = dc->sqlite || driver == "SQLite";//(driver == "QSQLite") || (driver == "LOCAL_SQLITE_DB");
+        cd->highlighter->PostgresStyle = dc->postgre || dc->customPSQL;//(driver == "QPSQL");
+        cd->highlighter->UpdateTableColumns(&dc->db,str);
 
-        }
+        cd->updateMisc();
+        cd->highlighter->rehighlight();
+
         ui->driverComboBox->setCurrentText(dc->driver);
         ui->DBNameComboBox->setCurrentText(dc->dbname);
         ui->userNameLineEdit->setText(dc->usrname);
@@ -576,7 +563,7 @@ void LoaderWidnow::on_pushButton_3_pressed()
 void LoaderWidnow::runSqlAsync()
 {
     qDebug()<<"RunSqlAsync()";
-
+    cd->setFocus();
     ui->stopLoadingQueryButton->show();
 
     // save new lastOpenedDb
@@ -593,16 +580,19 @@ void LoaderWidnow::runSqlAsync()
         userDS.Save("userdata.txt");
     }
 
+    // return if executing
     if(dc->executing)
     {
 
         qDebug() << dc->db.driver()->cancelQuery();
         return;
     }
+
+    // hide run button
     ui->pushButton_3->hide();
     queryExecutionState = 0;
     dc->queryExecutionState = 0;
-    QRandomGenerator64 gen; // random 64 bit connection name, to not close previous connections with 99.9% chance.
+    QRandomGenerator64 gen; // random 64 bit connection name, to not close previous connections with 99.9% chance. used in QT native drivers, to not crash the app
     QString conname = QVariant(gen.generate()).toString();
     QString driver = ui->driverComboBox->currentText();
     QString dbname = ui->DBNameComboBox->currentText();
@@ -695,14 +685,15 @@ void LoaderWidnow::runSqlAsync()
     if((*sqlexecThread)!=nullptr)
         (*sqlexecThread)->terminate();
 
-    if((!dc->db.isOpen() && !dc->customOracle) || dc->driver != ui->driverComboBox->currentText() ||dc->dbname != ui->DBNameComboBox->currentText())
+    // reconnect if needed
+    if((!dc->db.isOpen() && !dc->customOracle && !dc->customSQlite && !dc->customPSQL) || dc->driver != ui->driverComboBox->currentText() || dc->dbname != ui->DBNameComboBox->currentText())
     {
         qDebug() << "autocreating connection";
         on_ConnectButton_pressed();
         qDebug() << "autocreated connection";
     }
 
-
+    //launch thread with query
     ui->miscStatusLabel->setText("running sql...");
     (*sqlexecThread) = QThread::create(_AsyncFunc,this);
     (*sqlexecThread)->start();
@@ -714,6 +705,8 @@ void LoaderWidnow::runSqlAsync()
     executionTimer.start();
 
 }
+
+//timer for autolaunching queries
 void LoaderWidnow::autolaunchCheck()
 {
 
@@ -865,6 +858,8 @@ void LoaderWidnow::autolaunchCheck()
 void LoaderWidnow::executionTimerTimeout()
 {// update label
 
+
+
     QString msg = "";
     if(dc->queryExecutionState >=3)
     {
@@ -875,6 +870,9 @@ void LoaderWidnow::executionTimerTimeout()
         else
             msg += "0";
     }
+
+    if(!dc->executing)
+        msg+= " data connection is not executing! ";
     dc->executionTime = QDateTime::currentSecsSinceEpoch() - dc->executionStart.toSecsSinceEpoch();
     dc->executionEnd = QDateTime::currentDateTime();
     QString hours =  QVariant((dc->executionTime / 3600)).toString();
@@ -1068,12 +1066,47 @@ void LoaderWidnow::OpenFile()
 }
 void LoaderWidnow::OpenNewWindow()
 {
-    qDebug()<<"OpenNewWindow()";
+    qDebug()<<"OpenNewWindow() ";
     QString str= appfilename;
-    qDebug()<<"opening:" << str;
+    qDebug()<<"opening: " << str;
     QDesktopServices::openUrl(QUrl::fromLocalFile(str));
 }
+void LoaderWidnow::openDescriptorWindow()
+{
+    StructureDescriptor* st = new StructureDescriptor();
 
+    if(dc->postgre || dc->customPSQL)
+    {
+
+        st->cd->setPlainText(
+            "--SELECT distinct lower(table_name), lower(column_name )  -- oracle\n"
+            "--FROM ALL_TAB_COLUMNS       \n"
+            "--inner join   (SELECT DISTINCT  OBJECT_NAME       \n"
+            "--    FROM ALL_OBJECTS           \n"
+            "--    WHERE OBJECT_TYPE = 'TABLE' or OBJECT_TYPE like '%VIEW%'  AND\n"
+            "--    (upper(OWNER) != 'SYSTEM' AND upper(OWNER) != 'SYS' AND upper(OWNER) != 'ADMIN' )\n"
+            "--) tables on tables.OBJECT_NAME = table_name      \n"
+            "--order by lower(table_name)"
+            "\n"
+            "\n"
+            "\n"
+            "SELECT table_name, column_name -- Postgres\n"
+            "FROM information_schema.columns\n"
+            "WHERE table_schema = 'public';    \n"
+            "\n"
+            "\n"
+            "\n"
+            "--SQLite is automatic, just press connect again\n"
+            );
+    }
+    if(cd->textCursor().selectedText().size()>0)
+        st->Init(cd->textCursor().selectedText());
+
+    st->show();
+}
+
+
+//giant show() hide() walls to show/hide certan parts
 void LoaderWidnow::ShowGraph()
 {
     if(gw.groupBysb.isVisible())
@@ -1617,7 +1650,7 @@ void LoaderWidnow::saveGraphAsPDF()
     painter.end();
 }
 
-// Table widget
+// Table widget copying
 void LoaderWidnow::CopySelectionFormTable()
 {
     qDebug()<<"CopySelectionFormTable()";
@@ -1760,7 +1793,7 @@ void LoaderWidnow::on_SaveSQLiteButton_pressed()
 {
     qDebug()<<"on_SaveSQLiteButton_pressed()";
     if(dc->data.ExportToSQLiteTable(ui->saveLineEdit->text()))
-        ui->miscStatusLabel->setText(QString("Saved to SQLite table") + ui->saveLineEdit->text());
+        ui->miscStatusLabel->setText(QString("Saved to SQLite table ") + ui->saveLineEdit->text());
     else
         ui->miscStatusLabel->setText(QString("Failed to save to SQLite, check colomn names / repetitions") + ui->saveLineEdit->text());
 }
@@ -1961,6 +1994,7 @@ void LoaderWidnow::on_DBNameComboBox_currentTextChanged(const QString &arg1)
         return;
     ui->userNameLineEdit->setText(userDS.GetProperty(ui->DBNameComboBox->currentText(),"name"));
     ui->passwordLineEdit->setText(userDS.GetProperty(ui->DBNameComboBox->currentText(),"password"));
+    ui->driverComboBox->setCurrentText(userDS.GetProperty(ui->DBNameComboBox->currentText(),"lastDriver"));
 
     userDS.Save((documentsDir + "/userdata.txt"));
 }
@@ -2269,6 +2303,8 @@ void LoaderWidnow::sendMail(QString host, QString Sender, QString SenderName, QS
         reply->deleteLater();// Don't forget to delete it
 
     });
+
+    qDebug() << "Message sent";
 }
 
 
@@ -2450,17 +2486,4 @@ void LoaderWidnow::on_nnTestLearn_pressed()
         qDebug() << "end cost " <<  cst;
     }
 
-}
-
-
-
-
-void LoaderWidnow::openDescriptorWindow()
-{
-    StructureDescriptor* st = new StructureDescriptor();
-
-    if(cd->textCursor().selectedText().size()>0)
-        st->Init(cd->textCursor().selectedText());
-
-    st->show();
 }

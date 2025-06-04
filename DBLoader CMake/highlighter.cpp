@@ -712,17 +712,13 @@ void Highlighter::highlightBlock(const QString &text)
 
 }
 
-// static QStringList strl;
-// static QStringList strl2;
-// static QStringList strl3;
-// static QStringList strl4;
-// static QStringList strl5;
+
 void Highlighter::updateMisc()
 {
     // load user theme
-    qDebug() << "highlighter updating misc";
 
-    qDebug() <<documentsDir +"/userdata.txt";
+
+
     if(userDS.Load(documentsDir +"/userdata.txt"))
     {
 
@@ -742,7 +738,7 @@ void Highlighter::updateMisc()
 
         //strl = QString(userDS.data["UserTheme"]["Color_KeyWord"]).split(',');
         QColor col = QColor::fromRgbF(0.25f,0.55f,0.95f,1.0f);
-        qDebug() << "strling";
+
         for(int i=0;i<QString(userDS.data["UserTheme"]["Color_KeyWord"]).split(',').size();i++)
         {
             if(i==0) col.setRed(QVariant(QString(userDS.data["UserTheme"]["Color_KeyWord"]).split(',')[i]).toInt());
@@ -750,7 +746,7 @@ void Highlighter::updateMisc()
             if(i==2) col.setBlue(QVariant(QString(userDS.data["UserTheme"]["Color_KeyWord"]).split(',')[i]).toInt());
             if(i==3) col.setAlpha(QVariant(QString(userDS.data["UserTheme"]["Color_KeyWord"]).split(',')[i]).toInt());
         }
-        qDebug() << "strlinged";
+
         keywordFormat.setForeground( col);
         keywordFormat.setFontPointSize(fnt_size);
         if(userDS.data["UserTheme"]["Font"].size()>2)
@@ -953,13 +949,13 @@ void Highlighter::UpdateTableColumns(QSqlDatabase* db, QString dbname)
         {
             TableColumnDS.Load(filename);
         }
-        //strl.clear();
+
     }
     else
     {// if sqlite, load directly from it
 
         db->open();
-        //strl = db->driver()->tables(QSql::AllTables);
+
         for(auto tbl : db->driver()->tables(QSql::AllTables))
         {
             TableColumnDS.data[tbl.toLower()];
@@ -973,7 +969,7 @@ void Highlighter::UpdateTableColumns(QSqlDatabase* db, QString dbname)
                 TableColumnDS.data[tbn.toLower()][rec.fieldName(a).toLower()];
             }
         }
-        //strl.clear();
+
     }
 
     for(auto x : TableColumnDS.data)

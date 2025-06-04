@@ -1,4 +1,5 @@
 #include "tabledata.h"
+#include "datastorage.h"
 #include "sqlSubfunctions.h"
 
 #include <QSqlDatabase>
@@ -9,8 +10,12 @@
 #include <QSqlRecord>
 #include <fstream>
 #include <qdir.h>
+#include "databaseconnection.h"
+
 
 inline QString documentsDir;
+inline DataStorage userDS;
+
 /*
 QDateTime 16
 double 6
@@ -279,21 +284,47 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                     if(maxVarTypes[i] == 16)
                         xlsxR3.write(row,column,tbldata[i][a]);
                     else if(maxVarTypes[i] == 10)
-                        xlsxR3.write(row,column,tbldata[i][a].toString());
+                    {
+                        QString str = tbldata[i][a].toString();
+                        if(str.size() == 23 || str.size() == 19|| str.size() == 10)
+                        {
+                            QDateTime dt = tbldata[i][a].toDateTime();
+
+                            if(dt.isValid() && !dt.isNull())
+                                xlsxR3.write(row,column,dt);
+                            else
+                                xlsxR3.write(row,column,tbldata[i][a].toString());
+                        }
+                        else
+                            xlsxR3.write(row,column,tbldata[i][a].toString());
+                    }
                     else if(maxVarTypes[i] == 6)
                     {
                         bool ok = false;
                         QVariant vardoubl = tbldata[i][a].toDouble(&ok);
-                        if(!ok)
-                            vardoubl = 0.0;
-                        xlsxR3.write(row,column,vardoubl);
-
+                        if(ok)
+                            xlsxR3.write(row,column,vardoubl);
                     }
                     else
-                        xlsxR3.write(row,column,tbldata[i][a].toString());
+                    {
+                        xlsxR3.write(row,column,tbldata[i][a]);
+                    }
                 }
                 else
-                    xlsxR3.write(row,column,tbldata[i][a]);
+                {
+                    QString str = tbldata[i][a].toString();
+                    if(str.size() == 23 ||str.size() == 19 || str.size() == 10)
+                    {
+                        QDateTime dt = tbldata[i][a].toDateTime();
+
+                        if(dt.isValid() && !dt.isNull())
+                            xlsxR3.write(row,column,dt);
+                        else
+                            xlsxR3.write(row,column,tbldata[i][a]);
+                    }
+                    else
+                        xlsxR3.write(row,column,tbldata[i][a]);
+                }
 
             }
         }
@@ -319,21 +350,49 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                         if(maxVarTypes[i] == 16)
                             xlsxR3.write(row,column,tbldata[i][a].toDateTime());
                         else if(maxVarTypes[i] == 10)
-                            xlsxR3.write(row,column,tbldata[i][a].toString());
+                        {
+
+
+                            QString str = tbldata[i][a].toString();
+                            if(str.size() == 23 ||str.size() == 19|| str.size() == 10)
+                            {
+                                QDateTime dt = tbldata[i][a].toDateTime();
+
+                                if(dt.isValid() && !dt.isNull())
+                                    xlsxR3.write(row,column,dt);
+                                else
+                                    xlsxR3.write(row,column,tbldata[i][a].toString());
+                            }
+                            else
+                                xlsxR3.write(row,column,tbldata[i][a].toString());
+                        }
                         else if(maxVarTypes[i] == 6)
                         {
                             bool ok = false;
                             QVariant vardoubl = tbldata[i][a].toDouble(&ok);
-                            if(!ok)
-                                vardoubl = 0.0;
-                            xlsxR3.write(row,column,vardoubl);
+                            if(ok)
+                                xlsxR3.write(row,column,vardoubl);
 
                         }
                         else
-                            xlsxR3.write(row,column,tbldata[i][a].toString());
+                            xlsxR3.write(row,column,tbldata[i][a]);
                     }
                     else
-                        xlsxR3.write(row,column,tbldata[i][a]);
+                    {
+
+                        QString str = tbldata[i][a].toString();
+                        if(str.size() == 23 || str.size() == 19 || str.size() == 10)
+                        {
+                            QDateTime dt = tbldata[i][a].toDateTime();
+
+                            if(dt.isValid() && !dt.isNull())
+                                xlsxR3.write(row,column,dt);
+                            else
+                                xlsxR3.write(row,column,tbldata[i][a]);
+                        }
+                        else
+                            xlsxR3.write(row,column,tbldata[i][a]);
+                    }
                 }
             }
 
@@ -375,21 +434,37 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
         return false;
     }
 }
+
 bool TableData::ExportToSQLiteTable(QString tableName)
 {
-    QSqlDatabase tmpdb = QSqlDatabase::addDatabase("QSQLITE","SQLITE db connection");
-    tmpdb.setDatabaseName(documentsDir + "/SQLiteDB.db");
-    tmpdb.open();
-    QSqlQuery SQLITE_q(tmpdb);
+
+
+    DatabaseConnection dc;
+    dc.nodebug = true;
+    dc.rawquery = true;
+
+    QString driver = userDS.data["UserTheme"]["db_drv_Save_table_driver"];
+    QString conection = userDS.data["UserTheme"]["db_drv_Save_table_Connection"];
+    conection.replace("documentsDir",documentsDir);
+
+    dc.Create(driver.trimmed(), conection.trimmed());
+
 
 
     QString SQLITE_sql = "Drop table ";
+
+    if(!dc.sqlite)
+        SQLITE_sql = "Drop table if exists ";
+
     SQLITE_sql += tableName;
     SQLITE_sql += ";";
-    if(SQLITE_q.exec(SQLITE_sql))
+    if(dc.execSql(SQLITE_sql))
         qDebug()<< "Dropped sqlite table";
 
     SQLITE_sql = "Create table ";
+    if(!dc.sqlite)
+        SQLITE_sql = "Create table if not exists ";
+
     SQLITE_sql += tableName;
     SQLITE_sql += " ( ";
     for(int i=0;i<headers.size();i++)
@@ -407,11 +482,11 @@ bool TableData::ExportToSQLiteTable(QString tableName)
     SQLITE_sql += " ); ";
     qDebug()<< SQLITE_sql;
 
-    if(SQLITE_q.exec(SQLITE_sql))
+    if(dc.execSql(SQLITE_sql))
         qDebug()<< "Created sqlite table";
     else
     {
-        qDebug()<< "Failed to create sqlite table: " <<SQLITE_q.lastError().text();
+        qDebug()<< "Failed to create sqlite table";
         return false;
     }
 
@@ -443,14 +518,18 @@ bool TableData::ExportToSQLiteTable(QString tableName)
             first = false;
             int row =i+2;
             int column =a+1;
-            bool is_text = false;
-            tbldata[a][i].toDouble(&is_text);
-            is_text = !is_text;
 
 
-                SQLITE_sql += " '";
-            SQLITE_sql += tbldata[a][i].toString();
-                SQLITE_sql += "' ";
+            SQLITE_sql += " '";
+            if(tbldata[a][i].typeId()!= 16)// qDateTime
+                SQLITE_sql += tbldata[a][i].toString();
+            else
+            {
+                QString str = tbldata[a][i].toString().replace('T',' ');
+                str.resize(19);
+                SQLITE_sql += str;
+            }
+            SQLITE_sql += "' ";
 
         }
         SQLITE_sql += " )";
@@ -458,37 +537,17 @@ bool TableData::ExportToSQLiteTable(QString tableName)
         {
             firstVal=true;
             lasti = i;
-            if(!SQLITE_q.exec (SQLITE_sql))
-                qDebug()<< "Failed to save to sqlite: " <<SQLITE_q.lastError().text();
+            if(!dc.execSql(SQLITE_sql))
+                qDebug()<< "Failed to save to sqlite" ;
 
             SQLITE_sql = "Insert into ";
             SQLITE_sql += tableName;
             SQLITE_sql += " values ";
-            //SQLITE_sql += " Select ";
-
-
-            //if(tbldata[0].size()>lasti)
-            //{
-            //    bool first = true;
-            //    for(int a=0;a<tbldata.size();a++)
-            //    {
-            //        if(!first)
-            //            SQLITE_sql += ",";
-            //        first = false;
-            //            SQLITE_sql += " '";
-            //        SQLITE_sql += tbldata[a][lasti].toString();
-            //            SQLITE_sql += "' ";
-            //        SQLITE_sql += " as ";
-            //            SQLITE_sql += " '";
-            //        SQLITE_sql += headers[a];
-            //            SQLITE_sql += "' ";
-            //    }
-            //}
 
         }
     }
-    if(!SQLITE_q.exec (SQLITE_sql))
-        qDebug()<< "Failed to save to sqlite: " <<SQLITE_q.lastError().text();
+    if(!dc.execSql(SQLITE_sql))
+        qDebug()<< "Failed to save to sqlite";
     return true;
 }
 
