@@ -29,3 +29,11 @@ Set Oracle_OCI_Lib_Directory to directory, containing all libs from Oracle OCI S
 Set Oracle_OCI_Include_Directory to same diractory from Oracle OCI SDK
 
 After build add all .dll's to same directory as executable (or whatever your OS is using). Or use any other method to inform program of their existance, like env Paths. 
+##Postgres
+Set Postgres_PSQL_Driver to ON 
+
+Set Postgres_PSQL_Include_Directory to psql inlude directory
+
+Set Postgres_PSQL_Lib_Directory to psql lib directory
+
+add .dll's from psql near .exe. Or use any other method to inform program of their existance, like env Paths. 
