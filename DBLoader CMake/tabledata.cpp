@@ -49,6 +49,7 @@ void TableData::ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHe
     tbldata.clear();
     headers.clear();
     maxVarTypes.clear();
+    typecount.clear();
     QFile file(fileName);
     bool first = true;
     if(file.open(QFile::OpenModeFlag::ReadOnly))
@@ -62,6 +63,7 @@ void TableData::ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHe
                 str.resize(str.size()-1);
             headers = str.split(delimeter);
             tbldata.resize(headers.size());
+            typecount.resize(headers.size());
         }
 
         while(!file.atEnd())
@@ -88,10 +90,29 @@ void TableData::ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHe
 
             for(int i=0;i<tbldata.size();i++)
             {
-                QVariant var = strl[i];
-                tbldata[i].push_back(fixQVariantTypeFormat(var));
+                tbldata[i].push_back(fixQStringType(strl[i]));
+
+                while(typecount[i].size() <= fixQStringType_lasttype)
+                    typecount[i].emplace_back();
+
+                typecount[i][fixQStringType_lasttype]++;
             }
 
+            maxVarTypes.clear();
+            maxVarTypes.resize( typecount.size());
+
+            for(int i=0;i < typecount.size();i++)
+            {
+                int maxvt = 0;
+                for(int a  = 0; a < typecount[i].size();a++)
+                {
+                    if(a == 0 || maxvt <= typecount[i][a])
+                    {
+                        maxVarTypes[i] = a;
+                        maxvt = typecount[i][a];
+                    }
+                }
+            }
 
         }
 
@@ -111,6 +132,7 @@ void TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_st
 
     tbldata.clear();
     headers.clear();
+    typecount.clear();
     maxVarTypes.clear();
     QXlsx::Document xlsxR3(fileName);
     qDebug() << "importing excel table from " << fileName;
@@ -131,10 +153,13 @@ void TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_st
     while(lastcellval.toString().size()>0)
     {
         headers.push_back(lastcellval.toString());
+
+
         column++;
         lastcellval = xlsxR3.read(1,column);
     }
     tbldata.resize(headers.size());
+    typecount.resize(headers.size());
     int row = 1;
     bool allzeros = false;
     while (row <= 1'001'001 && !allzeros)
@@ -143,7 +168,14 @@ void TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_st
         for(int i=0;i<tbldata.size();i++)
         {
             lastcellval = xlsxR3.read(row+1,i+1);
-            tbldata[i].push_back(lastcellval);
+            tbldata[i].push_back(fixQStringType(lastcellval.toString()));
+
+            // force text due to dirty excel tables
+            while(typecount[i].size() <= 10)
+                typecount[i].emplace_back();
+
+            typecount[i][10]++;
+
             if(lastcellval.toString().size()>0)
             {
                 hasnonzero = true;
@@ -160,10 +192,27 @@ void TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_st
 
         row++;
     }
+
+    maxVarTypes.clear();
+    maxVarTypes.resize( typecount.size());
+
+    for(int i=0;i < typecount.size();i++)
+    {
+        int maxvt = 0;
+        for(int a  = 0; a < typecount[i].size();a++)
+        {
+            if(a == 0 || maxvt <= typecount[i][a])
+            {
+                maxVarTypes[i] = a;
+                maxvt = typecount[i][a];
+            }
+        }
+    }
+
     for(int i=0;i<headers.size();i++)
     {
         setHeaderData(i,Qt::Horizontal,headers[i]);
-        qDebug()<<headerData(0,Qt::Horizontal);
+        //qDebug()<<headerData(0,Qt::Horizontal);
     }
 }
 void TableData::ImportFromSQLiteTable(QString fileName, QString tableName)
@@ -190,7 +239,7 @@ bool TableData::ExportToCSV(QString fileName, char delimeter, bool firstRowHeade
             {
                 for(int i=0;i<tbldata.size();i++)
                 {
-                    QString str = tbldata[i][a].toString();
+                    QString str = tbldata[i][a];
 
                     if(str.contains(delimeter))
                     {
@@ -199,14 +248,14 @@ bool TableData::ExportToCSV(QString fileName, char delimeter, bool firstRowHeade
                         else
                             str = str.replace(delimeter,";");
                     }
-                    if(tbldata[i][a].typeId() == 16)
+                    if(maxVarTypes[i] == 16)
                     {
 
                         str.resize(19);
                         str = str.replace("T"," ");
                         fl.write(str.toUtf8().constData());
                     }
-                    else if(tbldata[i][a].typeId() == 6)
+                    else if(maxVarTypes[i] == 6)
                     {
                         str = str.replace(".",",");
                         fl.write(str.toUtf8());
@@ -279,24 +328,22 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                 int column = i + 1 + column_offset;
 
                 //6 = double, 10 = QString, 16 = DateTime
-                if(maxVarTypes.size() == tbldata.size()+1)
+                if(maxVarTypes.size() == tbldata.size())
                 {
-                    if(maxVarTypes[i] == 16)
-                        xlsxR3.write(row,column,tbldata[i][a]);
-                    else if(maxVarTypes[i] == 10)
+                    if(maxVarTypes[i] == 10 || maxVarTypes[i] == 16)
                     {
-                        QString str = tbldata[i][a].toString();
+                        QString str = tbldata[i][a];
                         if(str.size() == 23 || str.size() == 19|| str.size() == 10)
                         {
-                            QDateTime dt = tbldata[i][a].toDateTime();
+                            QDateTime dt = QVariant(tbldata[i][a]).toDateTime();
 
                             if(dt.isValid() && !dt.isNull())
                                 xlsxR3.write(row,column,dt);
                             else
-                                xlsxR3.write(row,column,tbldata[i][a].toString());
+                                xlsxR3.write(row,column,tbldata[i][a]);
                         }
                         else
-                            xlsxR3.write(row,column,tbldata[i][a].toString());
+                            xlsxR3.write(row,column,tbldata[i][a]);
                     }
                     else if(maxVarTypes[i] == 6)
                     {
@@ -304,18 +351,37 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                         QVariant vardoubl = tbldata[i][a].toDouble(&ok);
                         if(ok)
                             xlsxR3.write(row,column,vardoubl);
+                        else {
+                            QVariant varint = tbldata[i][a].toLongLong(&ok);
+                            if(ok)
+                                xlsxR3.write(row,column,varint);
+                            else {
+                                xlsxR3.write(row,column,tbldata[i][a]);
+                            }
+                        }
                     }
                     else
                     {
-                        xlsxR3.write(row,column,tbldata[i][a]);
+                        QString str = tbldata[i][a];
+                        if(str.size() == 23 || str.size() == 19|| str.size() == 10)
+                        {
+                            QDateTime dt = QVariant(tbldata[i][a]).toDateTime();
+
+                            if(dt.isValid() && !dt.isNull())
+                                xlsxR3.write(row,column,dt);
+                            else
+                                xlsxR3.write(row,column,tbldata[i][a]);
+                        }
+                        else
+                            xlsxR3.write(row,column,tbldata[i][a]);
                     }
                 }
                 else
                 {
-                    QString str = tbldata[i][a].toString();
+                    QString str = tbldata[i][a];
                     if(str.size() == 23 ||str.size() == 19 || str.size() == 10)
                     {
-                        QDateTime dt = tbldata[i][a].toDateTime();
+                        QDateTime dt = QVariant(tbldata[i][a]).toDateTime();
 
                         if(dt.isValid() && !dt.isNull())
                             xlsxR3.write(row,column,dt);
@@ -345,26 +411,22 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                     int column = i + 1;
 
                     //6 = double, 10 = QString, 16 = DateTime
-                    if(maxVarTypes.size() == tbldata.size()+1)
+                    if(maxVarTypes.size() == tbldata.size())
                     {
-                        if(maxVarTypes[i] == 16)
-                            xlsxR3.write(row,column,tbldata[i][a].toDateTime());
-                        else if(maxVarTypes[i] == 10)
+                        if(maxVarTypes[i] == 10 || maxVarTypes[i] == 16)
                         {
-
-
-                            QString str = tbldata[i][a].toString();
-                            if(str.size() == 23 ||str.size() == 19|| str.size() == 10)
+                            QString str = tbldata[i][a];
+                            if(str.size() == 23 || str.size() == 19|| str.size() == 10)
                             {
-                                QDateTime dt = tbldata[i][a].toDateTime();
+                                QDateTime dt = QVariant(tbldata[i][a]).toDateTime();
 
                                 if(dt.isValid() && !dt.isNull())
                                     xlsxR3.write(row,column,dt);
                                 else
-                                    xlsxR3.write(row,column,tbldata[i][a].toString());
+                                    xlsxR3.write(row,column,tbldata[i][a]);
                             }
                             else
-                                xlsxR3.write(row,column,tbldata[i][a].toString());
+                                xlsxR3.write(row,column,tbldata[i][a]);
                         }
                         else if(maxVarTypes[i] == 6)
                         {
@@ -372,18 +434,37 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                             QVariant vardoubl = tbldata[i][a].toDouble(&ok);
                             if(ok)
                                 xlsxR3.write(row,column,vardoubl);
-
+                            else {
+                                QVariant varint = tbldata[i][a].toLongLong(&ok);
+                                if(ok)
+                                    xlsxR3.write(row,column,varint);
+                                else {
+                                    xlsxR3.write(row,column,tbldata[i][a]);
+                                }
+                            }
                         }
                         else
-                            xlsxR3.write(row,column,tbldata[i][a]);
+                        {
+                            QString str = tbldata[i][a];
+                            if(str.size() == 23 || str.size() == 19|| str.size() == 10)
+                            {
+                                QDateTime dt = QVariant(tbldata[i][a]).toDateTime();
+
+                                if(dt.isValid() && !dt.isNull())
+                                    xlsxR3.write(row,column,dt);
+                                else
+                                    xlsxR3.write(row,column,tbldata[i][a]);
+                            }
+                            else
+                                xlsxR3.write(row,column,tbldata[i][a]);
+                        }
                     }
                     else
                     {
-
-                        QString str = tbldata[i][a].toString();
-                        if(str.size() == 23 || str.size() == 19 || str.size() == 10)
+                        QString str = tbldata[i][a];
+                        if(str.size() == 23 ||str.size() == 19 || str.size() == 10)
                         {
-                            QDateTime dt = tbldata[i][a].toDateTime();
+                            QDateTime dt = QVariant(tbldata[i][a]).toDateTime();
 
                             if(dt.isValid() && !dt.isNull())
                                 xlsxR3.write(row,column,dt);
@@ -451,6 +532,7 @@ bool TableData::ExportToSQLiteTable(QString tableName)
 
 
 
+
     QString SQLITE_sql = "Drop table ";
 
     if(!dc.sqlite)
@@ -474,12 +556,30 @@ bool TableData::ExportToSQLiteTable(QString tableName)
         int doublecnt = 0;
         int othercnt = 0;
 
+        bool typecountHasString = false;
 
+        if(typecount.size() > i && typecount[i].size() >10 && typecount[i][10] >0)
+            typecountHasString = true;
+
+        if(!dc.postgre || typecountHasString)
+        {
             SQLITE_sql += " text ";
+
+        }
+        else
+        {// numeric, timestamp, text
+            if(maxVarTypes[i] == 6)
+                SQLITE_sql += " numeric ";
+            else if (maxVarTypes[i] == 16)
+                SQLITE_sql += " timestamp ";
+            else
+                SQLITE_sql += " text ";
+        }
+
         if(i+1<headers.size())
             SQLITE_sql += ", ";
     }
-    SQLITE_sql += " ); ";
+    SQLITE_sql += " )";
     qDebug()<< SQLITE_sql;
 
     if(dc.execSql(SQLITE_sql))
@@ -519,27 +619,45 @@ bool TableData::ExportToSQLiteTable(QString tableName)
             int row =i+2;
             int column =a+1;
 
+            //QVariant var = fixQVariantTypeFormat(tbldata[a][i]);
 
-            SQLITE_sql += " '";
-            if(tbldata[a][i].typeId()!= 16)// qDateTime
-                SQLITE_sql += tbldata[a][i].toString();
+
+            if(dc.postgre  && !(typecount.size() > i && typecount[i].size() >10 && typecount[i][10] >0))
+            {
+                //fixQStringType_lasttype
+
+                if(tbldata[a][i].size() >0)
+                {
+                    if(maxVarTypes[a] != 6)
+                        SQLITE_sql += " '";
+                    SQLITE_sql += tbldata[a][i];
+                    if(maxVarTypes[a] != 6)
+                        SQLITE_sql += "' ";
+                }
+                else
+                    SQLITE_sql += "null";
+
+            }
             else
             {
-                QString str = tbldata[a][i].toString().replace('T',' ');
-                str.resize(19);
-                SQLITE_sql += str;
-            }
-            SQLITE_sql += "' ";
+                SQLITE_sql += " '";
 
+                SQLITE_sql += tbldata[a][i];
+
+                SQLITE_sql += "' ";
+
+            }
         }
         SQLITE_sql += " )";
-        if(i - lasti > 500)
+        if(i - lasti > 400)
         {
             firstVal=true;
             lasti = i;
             if(!dc.execSql(SQLITE_sql))
-                qDebug()<< "Failed to save to sqlite" ;
-
+            {
+                qDebug()<< "Failed to save to LOCAL: " << SQLITE_sql ;
+                return false;
+            }
             SQLITE_sql = "Insert into ";
             SQLITE_sql += tableName;
             SQLITE_sql += " values ";
@@ -547,7 +665,7 @@ bool TableData::ExportToSQLiteTable(QString tableName)
         }
     }
     if(!dc.execSql(SQLITE_sql))
-        qDebug()<< "Failed to save to sqlite";
+        qDebug()<< "Failed to save to LOCAL: " << SQLITE_sql ;
     return true;
 }
 
@@ -563,7 +681,7 @@ bool TableData::AppendToCSV(QString fileName, char delimeter)
             {
                 for(int i=0;i<tbldata.size();i++)
                 {
-                    QString str = tbldata[i][a].toString();
+                    QString str = tbldata[i][a];
 
                     if(str.contains(delimeter))
                     {
@@ -572,14 +690,15 @@ bool TableData::AppendToCSV(QString fileName, char delimeter)
                         else
                             str = str.replace(delimeter,";");
                     }
-                    if(tbldata[i][a].typeId() == 16)
+                    QVariant var = fixQVariantTypeFormat(tbldata[i][a]);
+                    if(var.typeId() == 16)
                     {
 
                         str.resize(19);
                         str = str.replace("T"," ");
                         fl.write(str.toUtf8().constData());
                     }
-                    else if(tbldata[i][a].typeId() == 6)
+                    else if(var.typeId() == 6)
                     {
                         str = str.replace(".",",");
                         fl.write(str.toUtf8());

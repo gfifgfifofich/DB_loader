@@ -62,16 +62,16 @@ bool OracleDriver::runSelect (std::string sqlStmt, TableData* output)
                 if(types[i]!=16)
                 {
                     //qDebug() << QString().fromStdString(rset->getString(i+1));
-                    output->tbldata[i].push_back(fixQVariantTypeFormat(QString().fromStdString(rset->getString(i+1))));
+                    output->tbldata[i].push_back(fixQVariantTypeFormat(QString().fromStdString(rset->getString(i+1))).toString());
                 }
                 else
                     if(!rset->isNull(i + 1))
                     {
-                        output->tbldata[i].push_back(fixQVariantTypeFormat(fromOCIDateTime(rset->getDate(i+1))));
+                        output->tbldata[i].push_back(fixQVariantTypeFormat(fromOCIDateTime(rset->getDate(i+1))).toString());
                     }
                     else
                     {
-                        output->tbldata[i].push_back(fixQVariantTypeFormat(QDateTime()));
+                        output->tbldata[i].push_back(fixQVariantTypeFormat(QDateTime()).toString());
                     }
         }
 

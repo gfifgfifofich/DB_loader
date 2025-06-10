@@ -732,6 +732,7 @@ bool DatabaseConnection::execSql(QString sql)
                                 if(!nodebug) qDebug()<< "subscriptDriver: " << subscriptDriver;
                                 if(!nodebug) qDebug()<< "subscriptDBname: " << subscriptDBname;
                                 subscriptConnesction = new DatabaseConnection();
+                                if(!nodebug) qDebug()<< "created DatabaseConnection";
 
 
                                 // subCommandPatterns.push_back("ExcelToMagic");
@@ -743,11 +744,15 @@ bool DatabaseConnection::execSql(QString sql)
                                     QString password = userDS.GetObject(subscriptDBname)["password"];
                                     if(!nodebug) qDebug()<< subscriptDriver << subscriptDBname << username.trimmed() << password.trimmed();
                                     subscriptConnesction->connectionName = connectionName + QVariant(a).toString();
+                                    if(!nodebug) qDebug()<< "createding actual Connection";
                                     subscriptConnesction->Create(subscriptDriver.trimmed(),subscriptDBname.trimmed(),username.trimmed(),password.trimmed());
+                                    if(!nodebug) qDebug()<< "createded";
                                     while(scriptCommand.endsWith(' ') ||scriptCommand.endsWith('\t') ||scriptCommand.endsWith('\n') || scriptCommand.endsWith('\r'))
                                         scriptCommand.resize(scriptCommand.size()-1);
 
+                                    if(!nodebug) qDebug()<< "executing sql";
                                     subscriptConnesction->execSql(scriptCommand.trimmed());
+                                    if(!nodebug) qDebug()<< "sql execd";
                                 }
                                 int neededMagicColumn = -1;
 
@@ -907,7 +912,7 @@ bool DatabaseConnection::execSql(QString sql)
                                         {
                                             formatedSql += "'";
                                             if(subscriptConnesction->data.tbldata.size() > 0 && subscriptConnesction->data.tbldata[0].size()>0)
-                                                formatedSql += subscriptConnesction->data.tbldata[0][0].toString();
+                                                formatedSql += subscriptConnesction->data.tbldata[0][0];
                                             formatedSql += "'";
                                             formatedSql += " as \"Error message\", ";
                                         }
@@ -956,7 +961,7 @@ bool DatabaseConnection::execSql(QString sql)
                                     {
                                         formatedSql += "'";
                                         if(subscriptConnesction->data.tbldata.size() > 0 && subscriptConnesction->data.tbldata[0].size()>0)
-                                            formatedSql += subscriptConnesction->data.tbldata[0][0].toString();
+                                            formatedSql += subscriptConnesction->data.tbldata[0][0];
                                         formatedSql += "'";
                                         formatedSql += " as \"Error message\", ";
                                     }
@@ -994,7 +999,7 @@ bool DatabaseConnection::execSql(QString sql)
                                     if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
                                     {
                                         formatedSql += "'";
-                                        formatedSql += subscriptConnesction->data.tbldata[0][0].toString();
+                                        formatedSql += subscriptConnesction->data.tbldata[0][0];
                                         formatedSql += "'";
                                         formatedSql += " as \"Error message\", ";
                                     }
@@ -1035,7 +1040,7 @@ bool DatabaseConnection::execSql(QString sql)
                                     if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
                                     {
                                         formatedSql += "'";
-                                        formatedSql += subscriptConnesction->data.tbldata[0][0].toString();
+                                        formatedSql += subscriptConnesction->data.tbldata[0][0];
                                         formatedSql += "'";
                                         formatedSql += " as \"Error message\", ";
                                     }
@@ -1075,7 +1080,7 @@ bool DatabaseConnection::execSql(QString sql)
                                             for(int t=0;t<subscriptConnesction->data.tbldata.size();t++)
                                             {
                                                 formatedSql += "'";
-                                                formatedSql += subscriptConnesction->data.tbldata[t][0].toString();
+                                                formatedSql += subscriptConnesction->data.tbldata[t][0];
                                                 formatedSql += "'";
                                                 formatedSql += " as \"";
                                                 formatedSql += subscriptConnesction->data.headers[t];
@@ -1092,7 +1097,7 @@ bool DatabaseConnection::execSql(QString sql)
                                                 for(int t=0;t<subscriptConnesction->data.tbldata.size();t++)
                                                 {
                                                     formatedSql += "'";
-                                                    formatedSql += subscriptConnesction->data.tbldata[t][j].toString();
+                                                    formatedSql += subscriptConnesction->data.tbldata[t][j];
                                                     formatedSql += "'";
 
                                                     if(t + 1 <subscriptConnesction->data.tbldata.size()) // there will be next
@@ -1145,7 +1150,7 @@ bool DatabaseConnection::execSql(QString sql)
                                                 {
                                                     formatedSql += "('magic',";
                                                     formatedSql += "'";
-                                                    formatedSql += subscriptConnesction->data.tbldata[t][j].toString();
+                                                    formatedSql += subscriptConnesction->data.tbldata[t][j];
                                                     formatedSql += "'";
                                                     formatedSql += ")";
                                                     if(((TableCutoffEnd>=0 && TableCutoffStart>=0  && j+1 <= TableCutoffEnd && j + 1 <subscriptConnesction->data.tbldata[0].size()) || (TableCutoffEnd<0 && TableCutoffStart<0 && j + 1 <subscriptConnesction->data.tbldata[0].size())) || (t + 1 <subscriptConnesction->data.tbldata.size() && neededMagicColumn == -1)) // there will be next
@@ -1172,7 +1177,7 @@ bool DatabaseConnection::execSql(QString sql)
                                                 if(t == neededMagicColumn || neededMagicColumn == -1)
                                                 {
                                                     formatedSql += "'";
-                                                    formatedSql += subscriptConnesction->data.tbldata[t][j].toString();
+                                                    formatedSql += subscriptConnesction->data.tbldata[t][j];
                                                     formatedSql += "' ";
                                                     if(((TableCutoffEnd>=0 && TableCutoffStart>=0  && j+1 <= TableCutoffEnd && j + 1 <subscriptConnesction->data.tbldata[0].size()) || (TableCutoffEnd<0 && TableCutoffStart<0 && j + 1 <subscriptConnesction->data.tbldata[0].size())) || (t + 1 <subscriptConnesction->data.tbldata.size() && neededMagicColumn == -1)) // there will be next
                                                         formatedSql += ",";
@@ -1479,11 +1484,11 @@ bool DatabaseConnection::execSql(QString sql)
 
                 data.tbldata[i].push_back(fixQStringType(str));//
 
-                if(data.tbldata[i].back().toString().size()>0)
+                if(data.tbldata[i].back().size()>0)
                 {
-                    while(data.typecount[i].size() <= data.tbldata[i].back().typeId())
+                    while(data.typecount[i].size() <= fixQStringType_lasttype)
                         data.typecount[i].emplace_back();
-                    data.typecount[i][data.tbldata[i].back().typeId()]++;
+                    data.typecount[i][fixQStringType_lasttype]++;
                 }
 
             }
@@ -1557,16 +1562,18 @@ bool DatabaseConnection::execSql(QString sql)
 
     if(customPSQL && pg_connected && ptr_PGconn != nullptr)
     {
-        qDebug() << "in postgres";
-        std::string stdstr = str.toStdString();
-        const char *sql = str.toLocal8Bit().constData();
+        if(!nodebug) qDebug() << "in postgres";
+        std::string stdstr = str.toLocal8Bit().toStdString();
+        const char *sql = stdstr.c_str();
+
+
 
         emit queryBeginExecuting();
         queryExecutionState = 2;
-        qDebug() << "PQexec";
+        if(!nodebug) qDebug() << "PQexec";
         PGresult* res = PQexec((PGconn*) ptr_PGconn, sql);
 
-        qDebug() << "PQexec checks";
+        if(!nodebug) qDebug() << "PQexec checks";
         if (PQresultStatus(res) != PGRES_TUPLES_OK && PQresultStatus(res) != PGRES_COMMAND_OK) {
 
 
@@ -1623,7 +1630,7 @@ bool DatabaseConnection::execSql(QString sql)
         int rows = PQntuples(res);
         int cols = PQnfields(res);
 
-        qDebug() << rows << cols << "rows << cols";
+        if(!nodebug) qDebug() << rows << cols << "rows << cols";
 
         if(cols <=0)
         {
@@ -1656,12 +1663,20 @@ bool DatabaseConnection::execSql(QString sql)
         for (int j = 0; j < cols; ++j)
         {
             data.headers << QString().fromLocal8Bit(PQfname(res,j));
+
         }
         data.tbldata.clear();
         data.tbldata.resize(data.headers.size());
         data.typecount.clear();
         data.typecount.resize(data.tbldata.size());
         dataDownloading = true;
+
+        for (int j = 0; j < cols; ++j)
+        {
+            data.tbldata[j].reserve(rows);
+        }
+
+
         for (int j = 0; j < rows; j++)
         {
 
@@ -1675,22 +1690,19 @@ bool DatabaseConnection::execSql(QString sql)
             for (int i = 0; i < cols; i++)
             {
 
-                QString str = QString().fromLocal8Bit(PQgetvalue(res, j, i));
 
-                data.tbldata[i].push_back(fixQStringType(str));
+                data.tbldata[i].emplaceBack(fixQStringType(QString().fromLocal8Bit(PQgetvalue(res, j, i))));
 
-                if(data.tbldata[i].back().toString().size()>0)
-                {
-                    while(data.typecount[i].size() <= data.tbldata[i].back().typeId())
-                        data.typecount[i].emplace_back();
-                    data.typecount[i][data.tbldata[i].back().typeId()]++;
-                }
+
+                while(data.typecount[i].size() <= fixQStringType_lasttype)
+                    data.typecount[i].emplace_back();
+
+                data.typecount[i][fixQStringType_lasttype]++;
+
             }
 
         }
         dataDownloading = false;
-
-
 
 
 
@@ -1768,8 +1780,31 @@ bool DatabaseConnection::execSql(QString sql)
                 {
                     types[i] = detectType(mtl.back()[i].getInt(oracle::occi::MetaData::ATTR_DATA_TYPE));
                     data.headers[i] = QString().fromLocal8Bit(mtl.back()[i].getString(oracle::occi::MetaData::ATTR_NAME).c_str());
+
+                    while(data.typecount[i].size() <= types[i])
+                        data.typecount[i].emplace_back();
+
+                    data.typecount[i][types[i]]++;
+
+
                 }
 
+                data.maxVarTypes.clear();
+                data.maxVarTypes.resize( data.typecount.size());
+
+                for(int i=0;i < data.typecount.size();i++)
+                {
+                    int maxvt = 0;
+                    for(int a  = 0; a < data.typecount[i].size();a++)
+                    {
+                        if(a == 0 || maxvt <= data.typecount[i][a])
+                        {
+                            data.maxVarTypes[i] = a;
+                            maxvt = data.typecount[i][a];
+                        }
+
+                    }
+                }
 
                 int ccnt = 0;
 
@@ -1789,27 +1824,23 @@ bool DatabaseConnection::execSql(QString sql)
                             else
                             {
                                 QString tmpstr = QString().fromLocal8Bit(rset->getString(i+1)).replace(',','.');
-                                bool ok = false;
-                                data.tbldata[i].push_back(QVariant(tmpstr).toDouble(&ok));
+
+
+                                data.tbldata[i].push_back(tmpstr);
 
 
                             }
                         }
                         else if(!rset->isNull(i + 1))
                         {
-                            data.tbldata[i].push_back(fromOCIDateTime(rset->getDate(i+1)));
+                            data.tbldata[i].push_back(fromOCIDateTimeToString(rset->getDate(i+1)));
                         }
                         else
                         {
-                            data.tbldata[i].push_back(QVariant());
+                            data.tbldata[i].push_back("");
                         }
 
-                        if(data.tbldata[i].back().toString().size()>0)
-                        {
-                            while(data.typecount[i].size() <= types[i])
-                                data.typecount[i].emplace_back();
-                            data.typecount[i][types[i]]++;
-                        }
+
 
                     }
 
@@ -1822,22 +1853,12 @@ bool DatabaseConnection::execSql(QString sql)
                     }
                 }
 
-                data.maxVarTypes.clear();
-                data.maxVarTypes.resize( data.typecount.size());
 
-                for(int i=0;i < data.typecount.size();i++)
-                {
-                    int maxvt = 0;
-                    for(int a  = 0; a < data.typecount[i].size();a++)
-                    {
-                        if(a == 0 || maxvt <= data.typecount[i][a])
-                        {
-                            data.maxVarTypes[i] = a;
-                            maxvt = data.typecount[i][a];
-                        }
+                qDebug() << "max types:";
+                for(auto x : data.maxVarTypes)
+                    qDebug() << x;
 
-                    }
-                }
+                qDebug() << "data.maxVarTypes == data.tbldata.size()" << (data.maxVarTypes.size() == data.tbldata.size() );
 
                 dataDownloading = false;
                 if(rset!=nullptr)
@@ -2134,7 +2155,7 @@ bool DatabaseConnection::execSql(QString sql)
                     data.typecount[a].emplace_back();
                 data.typecount[a][var.typeId()]++;
 
-                data.tbldata[a].push_back(var);
+                data.tbldata[a].push_back(var.toString());
             }
             i++;
             if(stopAt500Lines && i > 500)
@@ -2169,22 +2190,6 @@ bool DatabaseConnection::execSql(QString sql)
         data.headers.clear();
         data.tbldata.clear();
         data.tbldata.emplace_back();
-        if(!q.isSelect())
-        {
-
-            data.headers.push_back("not a select");
-            q.clear();
-            q.finish();
-            query = nullptr;
-
-            executionEnd = QDateTime::currentDateTime();
-            executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
-            if(!nodebug) qDebug() << "Execd";
-            executing = false;
-            emit execedSql();
-            queryExecutionState = 4;
-            return true;
-        }
 
         data.headers.push_back("Error");
         data.headers.push_back("db Error");
@@ -2202,9 +2207,9 @@ bool DatabaseConnection::execSql(QString sql)
             {
                 while(q.next())
                 {
-                    data.tbldata.back().push_back(q.value(0));
-                    data.tbldata.back().push_back(q.value(1));
-                    data.tbldata.back().push_back(q.value(2));
+                    data.tbldata.back().push_back(q.value(0).toString());
+                    data.tbldata.back().push_back(q.value(1).toString());
+                    data.tbldata.back().push_back(q.value(2).toString());
                 }
             }
             if(q.lastError().text().contains(" line "))
@@ -2317,15 +2322,14 @@ void DatabaseConnection::stopRunning()
     {
         // just in case
         qDebug() << "sending cancel to postgres";
-        PGcancelConn * cncl = PQcancelCreate((PGconn*) ptr_PGconn);
-        PQcancelBlocking(cncl);
-        PQcancelFinish(cncl);
 
 
-        PQfinish((PGconn*) ptr_PGconn);
-        ptr_PGconn = nullptr;
-        pg_connected = false;
-        Create(driver,dbname);
+        qDebug() << "PQrequestCancel returned " << PQrequestCancel((PGconn*) ptr_PGconn);
+
+
+        //ptr_PGconn = nullptr;
+        //pg_connected = false;
+        //Create(driver,dbname);
     }
 
     #ifdef Oracle_OCI_Driver

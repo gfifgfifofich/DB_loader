@@ -221,41 +221,135 @@ inline QVariant fixQVariantTypeFormat(QVariant var)
     return var;
 }
 
-inline QVariant fixQStringType(QString& str)
+thread_local inline int fixQStringType_lasttype = 10;
+inline QString fixQStringType(QString str)
 {
 
-
-    if(str.size()>15)
-        return str;
-
-    bool hascomas = false;
-    bool isdouble = false;
-    bool isint = false;
-    QVariant var = str;
+    fixQStringType_lasttype = 10;
 
     if((str.size()>=2 && !(str[0]==QChar('0') && str[1]!=QChar('.')&& str[1]!=QChar(',')) && str[0]!=QChar('+')) || str.size()< 2)
     {
-        double doub = var.toDouble(&isdouble);
-        if(isdouble)
-            return QVariant(doub);
-        qlonglong integ = var.toLongLong(&isint);
-        if(isint)
-            return QVariant(integ);
+        int cnt = str.count('.');
+        bool isdouble = false;
+        if(cnt == 1)
+        {
+            str.toDouble(&isdouble);
+            if(isdouble)
+            {
+                fixQStringType_lasttype = 6;
+                return str;
+            }
+        }
+        else if (cnt > 1)
+        {
 
-        doub = QVariant(str.replace(',','.')).toDouble(&isdouble);
+            if(str.size() == 19 || str.size() == 23 || str.size() == 10)//2000-01-01 10:10:10 || 2000-01-01 10:10:10.000 || 2000-01-01
+            {
+                if((str[4] == '-' || str[4] == '.') && (str[7] == '-' || str[7] == '.'))
+                {
+                    fixQStringType_lasttype = 16; // probably is date
+                    if(str.size()<19)//its only date;
+                    {
+                        str.resize(19);
+                        str[10] = ' ';
+                        str[11] = '0';
+                        str[12] = '0';
+                        str[13] = ':';
+                        str[14] = '0';
+                        str[15] = '0';
+                        str[16] = ':';
+                        str[17] = '0';
+                        str[18] = '0';
+                    }
+                    else
+                        str.resize(19);
 
-        if(isdouble)
-            return QVariant(doub);
+                    return str.replace('T',' ');
+                }
+            }
+            return str;
+        }
+        cnt+= str.count(',');
 
+        if(cnt == 1)
+        {
+            QString doub = str.replace(',','.');
+            doub.toDouble(&isdouble);
+            if(isdouble)
+            {
+                fixQStringType_lasttype = 6;
+                return str;
+            }
+        }
+        else if (cnt == 0)
+        {
+            bool ok = false;
+            str.toInt(&ok);
+
+            if(ok)
+            {
+                fixQStringType_lasttype = 6;
+                return str;
+            }
+        }
+
+        if(str.size() == 19 || str.size() == 23 || str.size() == 10)//2000-01-01 10:10:10 || 2000-01-01 10:10:10.000 || 2000-01-01
+        {
+            if((str[4] == '-' || str[4] == '.') && (str[7] == '-' || str[7] == '.'))
+            {
+                fixQStringType_lasttype = 16; // probably is date
+                if(str.size()<19)//its only date;
+                {
+                    str.resize(19);
+                    str[10] = ' ';
+                    str[11] = '0';
+                    str[12] = '0';
+                    str[13] = ':';
+                    str[14] = '0';
+                    str[15] = '0';
+                    str[16] = ':';
+                    str[17] = '0';
+                    str[18] = '0';
+                }
+                else
+                    str.resize(19);
+
+                return str.replace('T',' ');
+            }
+        }
         return str;
     }
     else
-    {
-        // string or date, ignore date
+    {// string or date
+
+        if(str.size() == 19 || str.size() == 23 || str.size() == 10)//2000-01-01 10:10:10 || 2000-01-01 10:10:10.000 || 2000-01-01
+        {
+            if((str[4] == '-' || str[4] == '.') && (str[7] == '-' || str[7] == '.'))
+            {
+                fixQStringType_lasttype = 16; // probably is date
+                if(str.size()<19)//its only date;
+                {
+                    str.resize(19);
+                    str[10] = ' ';
+                    str[11] = '0';
+                    str[12] = '0';
+                    str[13] = ':';
+                    str[14] = '0';
+                    str[15] = '0';
+                    str[16] = ':';
+                    str[17] = '0';
+                    str[18] = '0';
+                }
+                else
+                    str.resize(19);
+
+                return str.replace('T',' ');
+            }
+        }
         return str;
     }
 
-    return QVariant();
+    return str;
 }
 
 

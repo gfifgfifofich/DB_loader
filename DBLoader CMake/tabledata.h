@@ -28,7 +28,7 @@ public:
     QString additionalSaveFileData = "";
 
     //Table data
-    QVector<QVector<QVariant>> tbldata;
+    QVector<QVector<QString>> tbldata;
     QStringList headers;
     std::vector<int> types; // columns types
     std::vector<std::vector<int>> typecount; // column has a string in it. Force string on whole column

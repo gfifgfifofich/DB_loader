@@ -81,7 +81,7 @@ void StructureDescriptor::on_pushButton_clicked()
             loadWind->cd->highlighter->TableColumnDS.data.clear();
             for(int i = 0; i < loadWind->dc->data.tbldata[0].size();i++)
             {
-                loadWind->cd->highlighter->TableColumnDS.data[loadWind->dc->data.tbldata[0][i].toString()][loadWind->dc->data.tbldata[1][i].toString()];
+                loadWind->cd->highlighter->TableColumnDS.data[loadWind->dc->data.tbldata[0][i]][loadWind->dc->data.tbldata[1][i]];
             }
 
 

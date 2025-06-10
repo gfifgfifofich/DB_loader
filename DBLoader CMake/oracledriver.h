@@ -150,7 +150,41 @@ inline QDateTime fromOCIDateTime(oracle::occi::Date dateTime)
     // OCIDateTimeGetTime gives "fractions of second" as nanoseconds
     return QDateTime(QDate(year, month, day), QTime(hour, minute, second, nsec / 1000000));
 }
+inline QString fromOCIDateTimeToString (oracle::occi::Date dateTime)
+{
+    int year;
+    unsigned int month, day, hour, minute, second;
+    unsigned int nsec = 0;
+    //int tzHour, tzMinute;// will be modified if needed
 
+    dateTime.getDate(year,month,day,hour,minute,second);
+
+    QString stry = std::to_string(year).c_str();
+    QString strm = std::to_string(month).c_str();
+    QString strd = std::to_string(day).c_str();
+    QString strh = std::to_string(hour).c_str();
+    QString strmm = std::to_string(minute).c_str();
+    QString strs = std::to_string(second).c_str();
+
+    while(stry.size() < 4)
+        stry = "0" + stry;
+
+    while(strm.size() < 2)
+        strm = "0" + strm;
+
+    while(strd.size() < 2)
+        strd = "0" + strd;
+
+    while(strh.size() < 2)
+        strh = "0" + strh;
+
+    while(strmm.size() < 2)
+        strmm = "0" + strmm;
+
+    while(strs.size() < 2)
+        strs = "0" + strs;
+    return stry + "-" + strm + "-" + strd + " " + strh + ":" + strmm + ":" + strs;
+}
 
 #endif // ORACLEDRIVER_H
 

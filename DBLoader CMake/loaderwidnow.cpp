@@ -395,25 +395,21 @@ LoaderWidnow::~LoaderWidnow()
         sqlexecThread = &tabDatas[i]->sqlexecThread;
         if(dc!=nullptr)
         {
-            dc->stopRunning();
-            dc->db.close();
+            try
+            {
+                dc->stopNow = true;
+                dc->stopRunning();
+                dc->stopRunning();
+                dc->db.close();
+                delete dc;
+            } catch (...){}
         }
         if((*sqlexecThread) != nullptr)
         {
             try
             {
-                dc->stopNow = true;
-                // stop query if loading.
-                // if query is executing, thead will be left alive untill executed
-                // still cant cancel query propperly
-                dc->db.driver()->cancelQuery(); // in case it will be possible some day...
-                dc->db.close();
-                dc->db.driver()->close();
-                if(dc->query != nullptr)
-                    dc->query->finish();
                 (*sqlexecThread)->terminate();
 
-                delete dc;
                 delete sqlexecThread;
 
             } catch (...)
@@ -989,7 +985,7 @@ void LoaderWidnow::UpdateTable()
     {
         for (int a=0; (a<dc->data.tbldata[i].size() && a < 25000);a++)
         {
-            QTableWidgetItem *item = new QTableWidgetItem(dc->data.tbldata[i][a].toString(),dc->data.tbldata[i][a].typeId());
+            QTableWidgetItem *item = new QTableWidgetItem(dc->data.tbldata[i][a]);
             ui->tableWidget->setItem(a, i, item);
         }
     }
@@ -1322,7 +1318,7 @@ void LoaderWidnow::UpdateGraph()
     // use dateAxis or valueAxis
     if(dc->data.tbldata[groupColumn].size() >=2)
     {
-        bottomAxisIsDate = dc->data.tbldata[groupColumn][0].toDateTime().isValid() && !dc->data.tbldata[groupColumn][0].toDateTime().isNull();
+        bottomAxisIsDate = QVariant(dc->data.tbldata[groupColumn][0]).toDateTime().isValid() && !QVariant(dc->data.tbldata[groupColumn][0]).toDateTime().isNull();
     }
     else
         bottomAxisIsDate = false;
@@ -1332,13 +1328,13 @@ void LoaderWidnow::UpdateGraph()
     for(int i=0;i < dc->data.tbldata[groupColumn].size();i++)
     {
         bool isReal = false;
-        float a = dc->data.tbldata[dataColumn][i].toReal(&isReal);
+        float a = QVariant(dc->data.tbldata[dataColumn][i]).toReal(&isReal);
         if(!isReal)
             a=1; // count
         if(separate)
-            ColumnData[dc->data.tbldata[separateColumn][i].toString()][dc->data.tbldata[groupColumn][i].toString()] += a;
+            ColumnData[dc->data.tbldata[separateColumn][i]][dc->data.tbldata[groupColumn][i]] += a;
         else
-            ColumnData["Value1"][dc->data.tbldata[groupColumn][i].toString()] += a;
+            ColumnData["Value1"][dc->data.tbldata[groupColumn][i]] += a;
     }
 
 
@@ -2389,7 +2385,7 @@ void LoaderWidnow::on_nnTestRun_pressed()
         while(str.size()<10)
             str = "0" + str;
         dc->data.tbldata[0][i] = str;
-        dc->data.tbldata[1][i] = nn.outputs[0] + NN_min;
+        dc->data.tbldata[1][i] = QVariant(nn.outputs[0] + NN_min).toString();
     }
 
     UpdateTable();
@@ -2479,7 +2475,7 @@ void LoaderWidnow::on_nnTestLearn_pressed()
                     str = "0" + str;
                 data.tbldata[0][a] = "iteration"  + QVariant(i).toString();
                 data.tbldata[1][a] = str;
-                data.tbldata[2][a] = nn.outputs[0]+ NN_min;//(nn.outputs[0] * (NN_max - NN_min)) + NN_min;
+                data.tbldata[2][a] = QVariant(nn.outputs[0]+ NN_min).toString();//(nn.outputs[0] * (NN_max - NN_min)) + NN_min;
             }
             data.ExportToSQLiteTable("NN_Learn_Iteration"  + QVariant(i).toString());
         }
