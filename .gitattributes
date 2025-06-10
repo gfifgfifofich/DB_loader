@@ -1,7 +1,7 @@
 # Auto detect text files and perform LF normalization
 * text=auto
 
-# just in case
+# one of these options will work for sure
 DBLoader CMake/sqlite_amalgamation/** linguist-vendored
 DBLoader CMake/include/** linguist-vendored
 DBLoader CMake/QXlsx-master/** linguist-vendored
@@ -13,3 +13,11 @@ DBLoader CMake/QXlsx-master/** linguist-vendored
 DBLoader%20CMake/sqlite_amalgamation/** linguist-vendored
 DBLoader%20CMake/include/** linguist-vendored
 DBLoader%20CMake/QXlsx-master/** linguist-vendored
+
+DBLoader[[:space:]]CMake/sqlite_amalgamation/** linguist-vendored
+DBLoader[[:space:]]CMake/include/** linguist-vendored
+DBLoader[[:space:]]CMake/QXlsx-master/** linguist-vendored
+
+"DBLoader CMake/sqlite_amalgamation/**" linguist-vendored
+"DBLoader CMake/include/**" linguist-vendored
+"DBLoader CMake/QXlsx-master/**" linguist-vendored
