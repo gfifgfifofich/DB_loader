@@ -1441,6 +1441,8 @@ bool DatabaseConnection::execSql(QString sql)
     data.typecount.clear();
 
     queryExecutionState = 1;
+    Last_sqlCode = str;
+
 
     if(customSQlite && sqlite3DBConnectionIsOpen && sqlite3DBConnection != nullptr)
     {

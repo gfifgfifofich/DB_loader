@@ -293,6 +293,8 @@ public slots:
     void CopySelectionFormTable();
     void CopySelectionFormTableSql();
 
+    void CopyLastLaunchedSql();
+
     // SubWindow switches
     void ShowHistoryWindow();
     void ShowWorkspacesWindow();
@@ -318,10 +320,8 @@ public slots:
 
     //Workspace name change
     void on_workspaceLineEdit_textChanged(const QString &arg1);
-private slots:
     // History/workspace loading
     void on_TreeItem_Changed(const QItemSelection &selected, const QItemSelection &deselected);
-public slots:
     // Workspace save
     void SaveWorkspace();
 

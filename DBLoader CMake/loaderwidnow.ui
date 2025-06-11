@@ -678,6 +678,7 @@
     <addaction name="actionRun"/>
     <addaction name="actionCommentSelected"/>
     <addaction name="actionReplace"/>
+    <addaction name="actionCopy_last_launched_sql"/>
    </widget>
    <widget class="QMenu" name="menuWindows">
     <property name="title">
@@ -883,6 +884,11 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+D</string>
+   </property>
+  </action>
+  <action name="actionCopy_last_launched_sql">
+   <property name="text">
+    <string>Copy last launched sql</string>
    </property>
   </action>
  </widget>

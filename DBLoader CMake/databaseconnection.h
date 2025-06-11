@@ -26,6 +26,7 @@ public:
     QSqlDatabase db;
     QSqlQuery* query = nullptr;
     QString sqlCode;
+    QString Last_sqlCode;
 
     // Connection info
     QString connectionName = "";

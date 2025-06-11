@@ -230,7 +230,9 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     connect(ui->actionNN_Learn_first_column,  &QAction::triggered, this, [this]() {
         on_nnTestLearn_pressed();
     });
-
+    connect(ui->actionCopy_last_launched_sql,  &QAction::triggered, this, [this]() {
+        CopyLastLaunchedSql();
+    });
 
     connect(ui->actionUserTheme, &QAction::triggered, this, [this]() {
         SettingsWindow* st = new SettingsWindow();
@@ -1771,6 +1773,13 @@ void LoaderWidnow::CopySelectionFormTableSql()
     }
     QApplication::clipboard()->setText(selected_text);
     return;
+}
+
+// copy last unrolled sql
+void LoaderWidnow::CopyLastLaunchedSql()
+{
+    QApplication::clipboard()->setText(dc->Last_sqlCode);
+
 }
 
 // code edtitor
