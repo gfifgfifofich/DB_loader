@@ -551,7 +551,13 @@ bool TableData::ExportToSQLiteTable(QString tableName)
     SQLITE_sql += " ( ";
     for(int i=0;i<headers.size();i++)
     {
-        SQLITE_sql += "\"" + headers[i] + "\"";
+        bool need_quotation = false;
+        if(!isWord(headers[i]))
+            need_quotation = true;
+
+        if(need_quotation) SQLITE_sql += "\"";
+        SQLITE_sql += headers[i].trimmed();
+        if(need_quotation) SQLITE_sql += "\"";
 
         int doublecnt = 0;
         int othercnt = 0;

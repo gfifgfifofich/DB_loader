@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>800</width>
-    <height>600</height>
+    <width>1034</width>
+    <height>707</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -23,7 +23,7 @@
    <double>1.000000000000000</double>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <layout class="QVBoxLayout" name="verticalLayout_4">
+   <layout class="QVBoxLayout" name="verticalLayout_3">
     <item>
      <widget class="QSplitter" name="splitter">
       <property name="orientation">
@@ -298,160 +298,156 @@
         </item>
        </layout>
       </widget>
-      <widget class="QWidget" name="horizontalLayoutWidget_5">
-       <layout class="QHBoxLayout" name="CodeEditorLayout">
-        <item>
-         <widget class="QListWidget" name="listWidget">
-          <property name="maximumSize">
-           <size>
-            <width>300</width>
-            <height>16777215</height>
-           </size>
-          </property>
-          <property name="font">
-           <font>
-            <family>Segoe UI</family>
-           </font>
-          </property>
-          <property name="sortingEnabled">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <layout class="QVBoxLayout" name="timerLayout">
-          <item>
-           <widget class="QLabel" name="timerMainLabel">
-            <property name="maximumSize">
-             <size>
-              <width>16777215</width>
-              <height>100</height>
-             </size>
-            </property>
-            <property name="text">
-             <string>Script autolauncher</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLabel" name="timerRemainingTime">
-            <property name="maximumSize">
-             <size>
-              <width>16777215</width>
-              <height>100</height>
-             </size>
-            </property>
-            <property name="text">
-             <string>Next launch at:</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLabel" name="timerLastLaunchTime">
-            <property name="maximumSize">
-             <size>
-              <width>16777215</width>
-              <height>100</height>
-             </size>
-            </property>
-            <property name="text">
-             <string>Last launch was </string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <layout class="QHBoxLayout" name="horizontalLayout_5">
-            <item>
-             <widget class="QCheckBox" name="timer_checkBox">
-              <property name="text">
-               <string>Each Day at</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QSpinBox" name="timerHourDaily">
-              <property name="maximum">
-               <number>24</number>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QSpinBox" name="timerMinuteDaily">
-              <property name="maximum">
-               <number>59</number>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item>
-           <layout class="QHBoxLayout" name="horizontalLayout_6">
-            <item>
-             <widget class="QCheckBox" name="timer_checkBox_2">
-              <property name="text">
-               <string>Day Of Month</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QSpinBox" name="timerdayMonthly">
-              <property name="minimum">
-               <number>1</number>
-              </property>
-              <property name="maximum">
-               <number>31</number>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QSpinBox" name="timerHourMonthly">
-              <property name="maximum">
-               <number>24</number>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QSpinBox" name="timerMinuteMonthly">
-              <property name="maximum">
-               <number>59</number>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item>
-           <layout class="QHBoxLayout" name="horizontalLayout_7">
-            <item>
-             <widget class="QCheckBox" name="timer_checkBox_3">
-              <property name="text">
-               <string>Day Of Week</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QSpinBox" name="timerDayWeekly">
-              <property name="minimum">
-               <number>1</number>
-              </property>
-              <property name="maximum">
-               <number>7</number>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QSpinBox" name="timerHourWeekly"/>
-            </item>
-            <item>
-             <widget class="QSpinBox" name="timerMinuteWeekly"/>
-            </item>
-           </layout>
-          </item>
-         </layout>
-        </item>
-       </layout>
+      <widget class="QSplitter" name="CodeEditorSplitter">
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+       <widget class="QWidget" name="verticalLayoutWidget_5">
+        <layout class="QVBoxLayout" name="workspace_layout"/>
+       </widget>
+       <widget class="QWidget" name="verticalLayoutWidget">
+        <layout class="QVBoxLayout" name="edit_layout"/>
+       </widget>
+       <widget class="QWidget" name="horizontalLayoutWidget">
+        <layout class="QHBoxLayout" name="horizontalLayout_10">
+         <item>
+          <layout class="QVBoxLayout" name="timerLayout">
+           <item>
+            <widget class="QLabel" name="timerMainLabel">
+             <property name="maximumSize">
+              <size>
+               <width>16777215</width>
+               <height>100</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>Script autolauncher</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="timerRemainingTime">
+             <property name="maximumSize">
+              <size>
+               <width>16777215</width>
+               <height>100</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>Next launch at:</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="timerLastLaunchTime">
+             <property name="maximumSize">
+              <size>
+               <width>16777215</width>
+               <height>100</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>Last launch was </string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_5">
+             <item>
+              <widget class="QCheckBox" name="timer_checkBox">
+               <property name="text">
+                <string>Each Day at</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QSpinBox" name="timerHourDaily">
+               <property name="maximum">
+                <number>24</number>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QSpinBox" name="timerMinuteDaily">
+               <property name="maximum">
+                <number>59</number>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_6">
+             <item>
+              <widget class="QCheckBox" name="timer_checkBox_2">
+               <property name="text">
+                <string>Day Of Month</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QSpinBox" name="timerdayMonthly">
+               <property name="minimum">
+                <number>1</number>
+               </property>
+               <property name="maximum">
+                <number>31</number>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QSpinBox" name="timerHourMonthly">
+               <property name="maximum">
+                <number>24</number>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QSpinBox" name="timerMinuteMonthly">
+               <property name="maximum">
+                <number>59</number>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_7">
+             <item>
+              <widget class="QCheckBox" name="timer_checkBox_3">
+               <property name="text">
+                <string>Day Of Week</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QSpinBox" name="timerDayWeekly">
+               <property name="minimum">
+                <number>1</number>
+               </property>
+               <property name="maximum">
+                <number>7</number>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QSpinBox" name="timerHourWeekly"/>
+             </item>
+             <item>
+              <widget class="QSpinBox" name="timerMinuteWeekly"/>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QVBoxLayout" name="graph_layout"/>
+         </item>
+        </layout>
+       </widget>
       </widget>
       <widget class="QWidget" name="verticalLayoutWidget_4">
-       <layout class="QVBoxLayout" name="verticalLayout_3">
+       <layout class="QVBoxLayout" name="verticalLayout_2">
         <item>
          <layout class="QHBoxLayout" name="horizontalLayout_4">
           <item>
@@ -547,89 +543,82 @@
          </layout>
         </item>
         <item>
-         <layout class="QVBoxLayout" name="verticalLayout_2">
-          <property name="bottomMargin">
-           <number>5</number>
-          </property>
+         <layout class="QHBoxLayout" name="horizontalLayout_3">
           <item>
-           <layout class="QHBoxLayout" name="horizontalLayout_3">
-            <item>
-             <widget class="QLabel" name="dataSizeLabel">
-              <property name="maximumSize">
-               <size>
-                <width>55</width>
-                <height>20</height>
-               </size>
-              </property>
-              <property name="text">
-               <string>Data size:</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QLabel" name="dataSizeLabel_2">
-              <property name="maximumSize">
-               <size>
-                <width>16777215</width>
-                <height>20</height>
-               </size>
-              </property>
-              <property name="text">
-               <string>No data</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QLabel" name="tableDBNameLabel">
-              <property name="maximumSize">
-               <size>
-                <width>150</width>
-                <height>20</height>
-               </size>
-              </property>
-              <property name="text">
-               <string>No database</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QPushButton" name="nnTestLearn">
-              <property name="text">
-               <string>nnTestLearn</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QPushButton" name="nnTestRun">
-              <property name="text">
-               <string>nnTestRun</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QPushButton" name="pushButton_2">
-              <property name="text">
-               <string>Token processor test</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QPushButton" name="pushButton">
-              <property name="text">
-               <string>qml test button</string>
-              </property>
-             </widget>
-            </item>
-           </layout>
+           <widget class="QLabel" name="dataSizeLabel">
+            <property name="maximumSize">
+             <size>
+              <width>55</width>
+              <height>20</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>Data size:</string>
+            </property>
+           </widget>
           </item>
           <item>
-           <widget class="QTableWidget" name="tableWidget">
-            <property name="toolTip">
-             <string extracomment="CTRL + SHIFT + C to copy with SQL formating"/>
+           <widget class="QLabel" name="dataSizeLabel_2">
+            <property name="maximumSize">
+             <size>
+              <width>16777215</width>
+              <height>20</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>No data</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="tableDBNameLabel">
+            <property name="maximumSize">
+             <size>
+              <width>150</width>
+              <height>20</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>No database</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="nnTestLearn">
+            <property name="text">
+             <string>nnTestLearn</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="nnTestRun">
+            <property name="text">
+             <string>nnTestRun</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="pushButton_2">
+            <property name="text">
+             <string>Token processor test</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="pushButton">
+            <property name="text">
+             <string>qml test button</string>
             </property>
            </widget>
           </item>
          </layout>
+        </item>
+        <item>
+         <widget class="QTableWidget" name="tableWidget">
+          <property name="toolTip">
+           <string extracomment="CTRL + SHIFT + C to copy with SQL formating"/>
+          </property>
+         </widget>
         </item>
        </layout>
       </widget>
@@ -642,7 +631,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>800</width>
+     <width>1034</width>
      <height>21</height>
     </rect>
    </property>

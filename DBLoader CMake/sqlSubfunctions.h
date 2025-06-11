@@ -30,7 +30,8 @@ inline bool isWord(QString s)
            !s.contains('<') &&
            !s.contains('>') &&
            !s.contains(';') &&
-           !s.contains(':');
+           !s.contains(':') &&
+           !s.trimmed().contains(' ');
 }
 inline bool isNumber(QString s)
 {

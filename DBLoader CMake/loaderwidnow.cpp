@@ -3,7 +3,9 @@
 #include "ui_loaderwidnow.h"
 #include <qbarset.h>
 #include <qclipboard.h>
+#include <qcommandlineparser.h>
 #include <qdir.h>
+#include <qfilesystemmodel.h>
 #include <qpdfwriter.h>
 #include <qrandom.h>
 #include <qshortcut.h>
@@ -18,6 +20,7 @@
 #include <qtimer.h>
 #include "tokenprocessor.h"
 #include <QInputDialog>
+#include <qtreeview.h>
 #include "settingswindow.h"
 #include "include/SimpleMail/SimpleMail"
 
@@ -75,10 +78,9 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 
     // graph window init
     gw.Init();
-    ui->CodeEditorLayout->addLayout(&gw.graph_layout);
 
-    // hide workspaces/history
-    ui->listWidget->hide();
+    ui->graph_layout->addLayout(&gw.graph_layout);
+
 
     //hide autolauncher/automation
     ui->timerdayMonthly->hide();
@@ -101,6 +103,25 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     autolaunchTimer.start();
 
 
+
+    workspace_model = new QFileSystemModel();
+    workspace_tree = new QTreeView();
+    workspace_model->setRootPath(documentsDir);
+    workspace_tree->setModel(workspace_model);
+    workspace_tree->setRootIndex(workspace_model->index(documentsDir));
+    workspace_tree->setAnimated(true);
+    workspace_tree->setIndentation(20);
+    workspace_tree->setSortingEnabled(true);
+    workspace_tree->setSelectionMode(QAbstractItemView::SingleSelection);
+    const QSize availableSize = workspace_tree->screen()->availableGeometry().size();
+    workspace_tree->resize(availableSize / 2);
+    workspace_tree->setColumnWidth(0, workspace_tree->width() / 3);
+
+    ui->workspace_layout->addWidget(workspace_tree);
+
+    // hide workspaces/history
+    workspace_tree->hide();
+
     // init tabs, first code editor instance, DataConnection
     while (ui->tabWidget->tabBar()->count()>0)
     {
@@ -122,7 +143,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     tabDatas.back()->cd = new CodeEditor();
 
     cd = tabDatas.back()->cd;
-    ui->CodeEditorLayout->layout()->addWidget(cd);
+    ui->edit_layout->addWidget(cd);
 
     dc = &tabDatas.back()->dc;
     sqlexecThread = &tabDatas.back()->sqlexecThread;
@@ -210,6 +231,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
         on_nnTestLearn_pressed();
     });
 
+
     connect(ui->actionUserTheme, &QAction::triggered, this, [this]() {
         SettingsWindow* st = new SettingsWindow();
         connect(st, SIGNAL(saved()), this, SLOT(updateMisc()), Qt::QueuedConnection );
@@ -245,9 +267,19 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     connect( &gw.dataColumnsb, SIGNAL(valueChanged(int)), this, SLOT(on_graph_data_change(int)), Qt::QueuedConnection );
 
 
+    //workspace/history change
+    //connect( workspace_tree, SIGNAL(activated(QModelIndex&)), this, SLOT(on_TreeItem_Changed(QModelIndex&)), Qt::QueuedConnection );
+
+    QItemSelectionModel *selectionModel = workspace_tree->selectionModel();
+    connect(selectionModel, &QItemSelectionModel::selectionChanged, this, &LoaderWidnow::on_TreeItem_Changed);
+
+
+
     //maximize code editor
     ui->splitter->setSizes({1,2000,1});
 
+
+    ui->CodeEditorSplitter->setSizes({0,2000,0});
 
     // load last database/driver
     if(userDS.Load((documentsDir + "/userdata.txt")))
@@ -275,7 +307,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
         userDS.Save((documentsDir + "/userdata.txt"));
     }
 
-    if(!userDS.GetPropertyAsBool("UserTheme","ShowTestButtons"))
+    if(userDS.GetProperty("UserTheme","ShowTestButtons").trimmed() == "false")
     {
         ui->pushButton->hide();
         ui->pushButton_2->hide();
@@ -388,6 +420,15 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 LoaderWidnow::~LoaderWidnow()
 {
     qDebug()<<"closing window";
+
+    _tab_failsave=false;
+
+    while (ui->tabWidget->tabBar()->count()>0)
+    {
+        on_tabWidget_tabCloseRequested(0);
+    }
+
+    qDebug()<<"closed tabs";
     // a mess to have more chances of actually terminating all db connections
     for(int i=0;i < tabDatas.size();i++)
     {
@@ -401,26 +442,9 @@ LoaderWidnow::~LoaderWidnow()
                 dc->stopRunning();
                 dc->stopRunning();
                 dc->db.close();
-                delete dc;
             } catch (...){}
         }
-        if((*sqlexecThread) != nullptr)
-        {
-            try
-            {
-                (*sqlexecThread)->terminate();
 
-                delete sqlexecThread;
-
-            } catch (...)
-            {
-
-                try
-                {
-                    (*sqlexecThread)->terminate();
-                }catch (...){}
-            }
-        }
     }
     delete ui;
 }
@@ -562,6 +586,17 @@ void LoaderWidnow::runSqlAsync()
     cd->setFocus();
     ui->stopLoadingQueryButton->show();
 
+
+
+    QString conname = QVariant(_dbconnectcount++).toString();
+    QString driver = ui->driverComboBox->currentText();
+    QString dbname = ui->DBNameComboBox->currentText();
+    QString usrname = ui->userNameLineEdit->text();
+    QString password = ui->passwordLineEdit->text();
+    if(driver != dc->driver || dc->dbname!=dbname || usrname != dc->usrname || password != dc->password)
+    {
+        on_ConnectButton_pressed();
+    }
     // save new lastOpenedDb
     if(userDS.Load((documentsDir + "/userdata.txt")))
     {
@@ -588,12 +623,6 @@ void LoaderWidnow::runSqlAsync()
     ui->pushButton_3->hide();
     queryExecutionState = 0;
     dc->queryExecutionState = 0;
-    QRandomGenerator64 gen; // random 64 bit connection name, to not close previous connections with 99.9% chance. used in QT native drivers, to not crash the app
-    QString conname = QVariant(gen.generate()).toString();
-    QString driver = ui->driverComboBox->currentText();
-    QString dbname = ui->DBNameComboBox->currentText();
-    QString usrname = ui->userNameLineEdit->text();
-    QString password = ui->passwordLineEdit->text();
 
     dc->executing = true;
 
@@ -1107,6 +1136,12 @@ void LoaderWidnow::ShowGraph()
 {
     if(gw.groupBysb.isVisible())
     {
+        QList<int> sizes = ui->CodeEditorSplitter->sizes();
+        if(sizes[2] > 0)
+        {
+            sizes[2] =  0;
+        }
+        ui->CodeEditorSplitter->setSizes(sizes);
         gw.graphThemeCheckBox.hide();
         gw.showLabelsCheckBox.hide();
         gw.saveAsPDFButton.hide();
@@ -1125,6 +1160,13 @@ void LoaderWidnow::ShowGraph()
     }
     else
     {
+        QList<int> sizes = ui->CodeEditorSplitter->sizes();
+        if(sizes[2] < 100)
+        {
+            sizes[2] =  100;
+        }
+        ui->CodeEditorSplitter->setSizes(sizes);
+
         gw.graphThemeCheckBox.show();
         gw.showLabelsCheckBox.show();
         gw.saveAsPDFButton.show();
@@ -1154,25 +1196,28 @@ void LoaderWidnow::ShowHistoryWindow()
     b_showHistoryWindow = !b_showHistoryWindow;
     if(b_showHistoryWindow)
     {
-        QDir directory(documentsDir + "/sqlBackup");
-        QStringList strl = directory.entryList();
-        tmpSql = cd->toPlainText();
-        ui->listWidget->clear();
-        ui->listWidget->addItem("tmp");
-        for(auto x : strl)
+        workspace_model->setRootPath(documentsDir + "/sqlBackup");
+        workspace_tree->setModel(workspace_model);
+        workspace_tree->setRootIndex(workspace_model->index(documentsDir + "/sqlBackup"));
+        workspace_tree->show();
+        workspace_tree->setFocus();
+        QList<int> sizes = ui->CodeEditorSplitter->sizes();
+        if(sizes[0] <300)
         {
-            ui->listWidget->addItem(x);
+            sizes[0] =  300;
         }
-        ui->listWidget->sortItems(Qt::DescendingOrder);
-        historyDS.Save("sqlHistoryList.txt");
-
-        ui->listWidget->setFocus();
-        ui->listWidget->show();
+        ui->CodeEditorSplitter->setSizes(sizes);
     }
     if(!b_showHistoryWindow)
     {
-        ui->listWidget->hide();
+        workspace_tree->hide();
         cd->setFocus();
+        QList<int> sizes = ui->CodeEditorSplitter->sizes();
+        if(sizes[0] > 0)
+        {
+            sizes[0] =  0;
+        }
+        ui->CodeEditorSplitter->setSizes(sizes);
     }
 }
 void LoaderWidnow::ShowWorkspacesWindow()
@@ -1189,25 +1234,32 @@ void LoaderWidnow::ShowWorkspacesWindow()
 
         qDebug()<<prefix ;
 
-        QDir directory(prefix + "/workspaces");
-        QStringList strl = directory.entryList();
         SaveWorkspace();
 
-        ui->listWidget->clear();
-        for(auto x : strl)
-        {
-            if(x !="." && x !=".." )
-                ui->listWidget->addItem(x);
-        }
-        ui->listWidget->sortItems(Qt::AscendingOrder);
-
+        workspace_model->setRootPath(prefix + "/workspaces");
+        workspace_tree->setModel(workspace_model);
+        workspace_tree->setRootIndex(workspace_model->index(prefix + "/workspaces"));
+        workspace_tree->show();
+        workspace_tree->setFocus();
         //ui->listWidget->setFocus();
-        ui->listWidget->show();
+        workspace_tree->show();
+        QList<int> sizes = ui->CodeEditorSplitter->sizes();
+        if(sizes[0] <300)
+        {
+            sizes[0] =  300;
+        }
+        ui->CodeEditorSplitter->setSizes(sizes);
     }
     if(!b_showWorkspaceWindow)
     {
-        ui->listWidget->hide();
+        workspace_tree->hide();
         cd->setFocus();
+        QList<int> sizes = ui->CodeEditorSplitter->sizes();
+        if(sizes[0] > 0)
+        {
+            sizes[0] =  0;
+        }
+        ui->CodeEditorSplitter->setSizes(sizes);
     }
 }
 void LoaderWidnow::ShowTimerWindow()
@@ -1229,9 +1281,21 @@ void LoaderWidnow::ShowTimerWindow()
         ui->timerMainLabel->hide();
         ui->timerRemainingTime->hide();
         ui->timerLastLaunchTime->hide();
+        QList<int> sizes = ui->CodeEditorSplitter->sizes();
+        if(sizes[2] > 0)
+        {
+            sizes[2] =  0;
+        }
+        ui->CodeEditorSplitter->setSizes(sizes);
     }
     else
     {
+        QList<int> sizes = ui->CodeEditorSplitter->sizes();
+        if(sizes[2] < 100)
+        {
+            sizes[2] =  100;
+        }
+        ui->CodeEditorSplitter->setSizes(sizes);
         ui->timerdayMonthly->show();
         ui->timerDayWeekly->show();
         ui->timerHourWeekly->show();
@@ -1887,8 +1951,21 @@ void LoaderWidnow::on_workspaceLineEdit_textChanged(const QString &arg1)
     LastWorkspaceName = arg1;
     this->setWindowTitle(LastWorkspaceName);
 }
-void LoaderWidnow::on_listWidget_currentTextChanged(const QString &currentText)
+void LoaderWidnow::on_TreeItem_Changed(const QItemSelection &selected, const QItemSelection &deselected)
 {
+    ;
+
+
+    QString currentText = workspace_model->filePath(workspace_tree->currentIndex());
+
+    QString prefix = documentsDir;
+    if(QString(userDS.data["UserTheme"]["Workspace_Directory"]).trimmed() != "documents")
+        prefix = QString(userDS.data["UserTheme"]["Workspace_Directory"]).trimmed();
+
+    currentText = currentText.mid(workspace_model->rootDirectory().path().size() +1);
+
+
+    qDebug() << "currentText " << currentText ;
     if(b_showWorkspaceWindow && currentText =="")
         return;
 
@@ -1900,11 +1977,9 @@ void LoaderWidnow::on_listWidget_currentTextChanged(const QString &currentText)
         if(b_showWorkspaceWindow)
         {
 
-            QString prefix = documentsDir;
-            if(QString(userDS.data["UserTheme"]["Workspace_Directory"]).trimmed() != "documents")
-                prefix = QString(userDS.data["UserTheme"]["Workspace_Directory"]).trimmed();
 
             filename = prefix + "/workspaces/" + currentText;
+
             LastWorkspaceName = currentText;
             ui->workspaceLineEdit->setText(currentText);
         }
@@ -2033,15 +2108,13 @@ void LoaderWidnow::on_tabWidget_tabCloseRequested(int index)
             if(index != 0)
             {
                 ui->tabWidget->setCurrentIndex(0);
-                //on_tabWidget_currentChanged(0);
             }
             else
             {
                 ui->tabWidget->setCurrentIndex(1);
-                //on_tabWidget_currentChanged(1);
             }
         }
-        else return;
+        else if(_tab_failsave)return;
     }
 
     int delTabId = QVariant(ui->tabWidget->tabWhatsThis(index)).toInt();
@@ -2093,7 +2166,7 @@ void LoaderWidnow::on_tabWidget_tabCloseRequested(int index)
         // just in case
         tabDatas[i]->dc.stopRunning();
 
-        ui->CodeEditorLayout->layout()->removeWidget(tabDatas[i]->cd);
+        ui->edit_layout->removeWidget(tabDatas[i]->cd);
         delete tabDatas[i]->cd;
         delete tabDatas[i];
         tabDatas[i] = tabDatas.back();
@@ -2237,8 +2310,9 @@ void LoaderWidnow::on_pushButton_4_clicked()
 
     tabDatas.back()->cd = new CodeEditor();
 
-    ui->CodeEditorLayout->layout()->addWidget(tabDatas.back()->cd);
+    ui->edit_layout->addWidget(tabDatas.back()->cd);
     tabDatas.back()->cd->hide();
+    ui->tabWidget->setCurrentIndex(_addtabcounter);
     _addtabcounter++;
 }
 

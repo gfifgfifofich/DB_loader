@@ -1623,7 +1623,6 @@ bool DatabaseConnection::execSql(QString sql)
             emit execedSql();
             return true;
         }
-
         emit querySuccess();
         queryExecutionState = 3;
 

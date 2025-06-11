@@ -45,8 +45,12 @@ Highlighter::Highlighter(QTextDocument *parent)
 void Highlighter::highlightBlock(const QString &text)
 {
 
+
+    std::vector<int> tabcount; // count amount of tabs for before each character
     int bn = currentBlock().blockNumber();
     currentBlock().setUserState(bn);
+
+
 
 
     while(lineInterval.size() <= bn)
@@ -66,9 +70,14 @@ void Highlighter::highlightBlock(const QString &text)
     bool inword = false;
     QString word = "";
 
+    tabcount.resize(text.size());
+    int i_tabcnt = 0;
     // split, Cant use one sqlSubfunction.h due to tokens beeng a TextInterval
     for(int i =0;i<text.size();i++)
     {
+        if(text[i] == '\t')
+            i_tabcnt++;
+        tabcount[i] = i_tabcnt;
         // word handling
         if(text[i] != ' ' && text[i] != '\n' && text[i] != '\t' && !isSpecialSymbol(text[i]))
         {
@@ -118,11 +127,11 @@ void Highlighter::highlightBlock(const QString &text)
     TableAliasMapPerRow[bn].clear();
     for (int i = 2 ; i < tokens[bn].size() ; i++)
     {
-        int step = 1;
-        if (PostgresStyle)
-            step = 2; // skip the ""
 
-        QString Prevword = tokens[bn][i-step].text;
+        QString Prevword = tokens[bn][i-1].text;
+        if(Prevword.endsWith('"'))
+            Prevword = tokens[bn][i-2].text;
+
         QString word = tokens[bn][i].text;
         if(!PostgresStyle)
         {
@@ -137,7 +146,7 @@ void Highlighter::highlightBlock(const QString &text)
             tmpti.start = tokens[bn][i].start;
             tmpti.end = tokens[bn][i].end;
             tmpti.text = tokens[bn][i].text;
-            tmpti.PrevWord = tokens[bn][i-step].text;
+            tmpti.PrevWord = Prevword;
             TableAliasMapPerRow[bn][word] = tmpti;
             qDebug()<<"creating alias " <<  tmpti.PrevWord << tmpti.text;
         }
@@ -379,17 +388,14 @@ void Highlighter::highlightBlock(const QString &text)
         QTextCharFormat format;
         format.setForeground( QColor::fromRgbF(0.95f,0.95f,0.85f,1.0f));
 
-        int aliasstep = 1;
-        if(PostgresStyle)
-            aliasstep = 2 ;
 
         QString word = tokens[bn][i].text;
         QString prevword = "";
         if(i>0)
             prevword = tokens[bn][i-1].text;
         QString SteppedWord = "";
-        if(i - aliasstep >= 0)
-            SteppedWord = tokens[bn][i-aliasstep].text;
+        if(i - 2 >= 0)
+            SteppedWord = tokens[bn][i-2].text;
         if(!PostgresStyle)
         {
             word = word.toLower();
@@ -435,6 +441,28 @@ void Highlighter::highlightBlock(const QString &text)
                     addQuotesToToken = true;
                 }}
 
+            // repeat with prevword, not stepped
+            // columns of tables
+            if(TableColumnMap.contains(prevword ))
+            {if(TableColumnMap[prevword].contains(word))
+                {
+                    format = NameFormat;
+                    addQuotesToToken = true;
+                }}
+            // columns of aliases
+            if(TableColumnAliasMap.contains(prevword))
+            {if(TableColumnMap[TableColumnAliasMap[prevword]].contains(word))
+                {
+                    format = NameFormat;
+                    addQuotesToToken = true;
+                }}
+            // columns of complex aliases
+            if(tmpTableColumnMap.contains(prevword ))
+            {if(tmpTableColumnMap[prevword].contains(word))
+                {
+                    format = NameFormat;
+                    addQuotesToToken = true;
+                }}
 
 
             // tables, aliases, complex aliases
@@ -478,7 +506,7 @@ void Highlighter::highlightBlock(const QString &text)
             format = keywordFormat;
         setFormat(tokens[bn][i].start,tokens[bn][i].end - tokens[bn][i].start+1, format);
 
-        lineInterval[bn].push_back({tokens[bn][i].start,tokens[bn][i].end - tokens[bn][i].start+1});
+        lineInterval[bn].push_back({tokens[bn][i].start + tabcount[tokens[bn][i].start]*4,tokens[bn][i].end - tokens[bn][i].start+1});
         lineIntervalColor[bn].push_back(format.foreground().color());
 
     }
@@ -499,7 +527,7 @@ void Highlighter::highlightBlock(const QString &text)
         {
             setFormat(tokens[bn][i].start,text.size(), multiLineCommentFormat);
 
-            lineInterval[bn].push_back({tokens[bn][i].start,text.size() - tokens[bn][i].start});
+            lineInterval[bn].push_back({tokens[bn][i].start + tabcount[tokens[bn][i].start]*4,text.size() - tokens[bn][i].start});
             lineIntervalColor[bn].push_back(multiLineCommentFormat.foreground().color());
 
             break;
@@ -525,7 +553,7 @@ void Highlighter::highlightBlock(const QString &text)
                 if(!quote)
                     setFormat(quote_start, (tokens[bn][i].start + 1) - quote_start , quotationFormat);
 
-                lineInterval[bn].push_back({quote_start,(tokens[bn][i].start + 1) - quote_start});
+                lineInterval[bn].push_back({quote_start + tabcount[quote_start]*4,(tokens[bn][i].start + 1) - quote_start});
                 lineIntervalColor[bn].push_back(quotationFormat.foreground().color());
                 continue;
             }
@@ -703,7 +731,7 @@ void Highlighter::highlightBlock(const QString &text)
             if(markPrevAsError  && prevend>=0 && prevstart >=0 )setFormat(prevstart,prevToken.size(), format);
             if(markNextAsError  && nextend>=0 && nextstart >=0 )setFormat(nextstart,nextToken.size(), format);
 
-            lineInterval[bn].push_back({tokens[bn][i].start,tokens[bn][i].text.size()});
+            lineInterval[bn].push_back({tokens[bn][i].start  + tabcount[tokens[bn][i].start]*4,tokens[bn][i].text.size()});
             lineIntervalColor[bn].push_back(QColor::fromRgbF(1.0f,0.0f,0.0f,1.0f));
 
         }
@@ -976,10 +1004,17 @@ void Highlighter::UpdateTableColumns(QSqlDatabase* db, QString dbname)
     {
         for(auto y : x.second)
         {
-            TableColumnMap[x.first][y.first] = true;
-            TableColumnMap_lower[QVariant(x.first).toString().toLower()][QVariant(y.first).toString()] = true;
-            ColumnMap[y.first] = true;
-            ColumnMap_lower[QVariant(y.first).toString().toLower()] = true;
+            QString word = y.first.trimmed() +' '+ y.second;
+            if(y.second.trimmed().size()<=0)
+                word = y.first;
+            word = word.trimmed();
+
+
+
+            TableColumnMap[x.first][word] = true;
+            TableColumnMap_lower[x.first.toLower()][word.toLower()] = true;
+            ColumnMap[word] = true;
+            ColumnMap_lower[word.toLower()] = true;
 
         }
         dbPatterns.push_back(x.first);

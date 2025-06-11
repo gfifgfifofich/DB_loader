@@ -173,9 +173,13 @@ void StructureDescriptor::on_lineEdit_textChanged(const QString &arg1)
     if(loadWind->cd != nullptr)
     {
         ui->listWidget_2->clear();
-        for(auto column : loadWind->cd->highlighter->TableColumnDS.data[arg1.trimmed()])
+        for(auto y : loadWind->cd->highlighter->TableColumnDS.data[arg1.trimmed()])
         {
-            ui->listWidget_2->addItem(column.first);
+            QString word = y.first.trimmed() +' '+ y.second;
+            if(y.second.trimmed().size()<=0)
+                word = y.first;
+            word = word.trimmed();
+            ui->listWidget_2->addItem((word));
         }
     }
 }

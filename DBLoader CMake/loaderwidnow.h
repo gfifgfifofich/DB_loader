@@ -9,6 +9,7 @@
 #include <qcheckbox.h>
 #include <qcombobox.h>
 #include <qdatetimeaxis.h>
+#include <qfilesystemmodel.h>
 #include <qlabel.h>
 #include <qlineedit.h>
 #include <qlineseries.h>
@@ -17,6 +18,7 @@
 #include <qsplineseries.h>
 #include <qthread.h>
 #include <qtimer.h>
+#include <qtreeview.h>
 #include <qvalueaxis.h>
 #include <QChart>
 
@@ -39,6 +41,10 @@ class LoaderWidnow : public QMainWindow
 public:
     explicit LoaderWidnow(QWidget *parent = nullptr);
     ~LoaderWidnow();
+
+
+    QFileSystemModel* workspace_model = nullptr;
+    QTreeView *workspace_tree = nullptr;
 
     CodeEditor* cd = nullptr;
 
@@ -75,6 +81,7 @@ public:
     };
     std::vector <tabdata*> tabDatas;
     int currentTabId = 0;
+    bool _tab_failsave = true;
 
     // Query states
     int queryExecutionState = 0;
@@ -311,8 +318,10 @@ public slots:
 
     //Workspace name change
     void on_workspaceLineEdit_textChanged(const QString &arg1);
+private slots:
     // History/workspace loading
-    void on_listWidget_currentTextChanged(const QString &currentText);
+    void on_TreeItem_Changed(const QItemSelection &selected, const QItemSelection &deselected);
+public slots:
     // Workspace save
     void SaveWorkspace();
 
