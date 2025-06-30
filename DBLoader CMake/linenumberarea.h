@@ -23,6 +23,8 @@ protected:
             codeEditor->lineNumberAreaPaintEvent(event);
         else if (id==1)
             codeEditor->drawPreview(event);
+        else if (id==2)
+            codeEditor->drawSuggestedWord(event);
 
     }
 

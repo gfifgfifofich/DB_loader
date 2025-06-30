@@ -16,6 +16,9 @@ public:
 
     void lineNumberAreaPaintEvent(QPaintEvent *event);
     void drawPreview(QPaintEvent *event);
+    void drawSuggestedWord(QPaintEvent *event);
+
+
     int lineNumberAreaWidth();
     Highlighter* highlighter = nullptr;
 
@@ -56,6 +59,7 @@ signals:
 private:
     QWidget *lineNumberArea;
     QWidget *codePreview;
+    QWidget *suggestedWordDrawer;
 };
 
 #endif // CODEEDITOR_H

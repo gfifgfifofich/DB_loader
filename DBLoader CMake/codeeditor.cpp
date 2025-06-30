@@ -21,7 +21,6 @@
 
 
 
-
 class VProxyStyle : public QProxyStyle
 {
 public:
@@ -256,7 +255,9 @@ CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent)
 {
     lineNumberArea = new LineNumberArea(this);
     codePreview = new LineNumberArea(this);
+    suggestedWordDrawer = new LineNumberArea(this);
     ((LineNumberArea*) codePreview)->id = 1;
+    ((LineNumberArea*) suggestedWordDrawer)->id = 2;
 
     highlighter = new Highlighter(document());
 
@@ -341,6 +342,7 @@ void CodeEditor::resizeEvent(QResizeEvent *e)
     lineNumberArea->setGeometry(QRect(cr.left(), cr.top(), lineNumberAreaWidth(), cr.height()));
     if(b_codePreview)
         codePreview->setGeometry(QRect(cr.right()-200, cr.top(), 200, cr.height()));
+    suggestedWordDrawer->setGeometry(QRect(cr.right()-200, cr.top(), 400, cr.height()));
 }
 void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
 {
@@ -381,6 +383,42 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
         ++blockNumber;
     }
 
+}
+
+
+
+void CodeEditor::drawSuggestedWord(QPaintEvent *event)
+{
+
+    QPainter painter(suggestedWordDrawer);
+
+    painter.setFont(this->font());
+    painter.fillRect(suggestedWordDrawer->rect(), Qt::black);
+
+
+
+    QTextFormat format;
+    // keywords
+    if(keywordPatterns.contains(lastSuggestedWord,Qt::CaseInsensitive))
+    {
+        format = highlighter->keywordFormat;
+    }
+    else if(highlighter->ColumnMap_lower.contains(lastSuggestedWord.toLower()))
+    {
+        format = highlighter->NameFormat;
+    }
+    else if((highlighter->TableColumnMap.contains(lastSuggestedWord) || highlighter->TableColumnAliasMap.contains(lastSuggestedWord) ||highlighter-> tmpTableColumnMap.contains(lastSuggestedWord)))
+    {
+        format = highlighter->classFormat;
+    }
+
+
+    QColor cl = format.foreground().color();
+
+    if(!cl.isValid() || (cl.blue()==0 && cl.red()==0 && cl.green()==0))
+        cl = cl.fromRgb(255,255,255);
+    painter.setPen(cl);
+    painter.drawText(suggestedWordDrawer->rect(),lastSuggestedWord);
 }
 
 void CodeEditor::drawPreview(QPaintEvent *event)
@@ -582,7 +620,6 @@ void CodeEditor::drawPreview(QPaintEvent *event)
 }
 void CodeEditor::highlightCurrentLine()
 {
-
 
     QString text = toPlainText();
     int cursor_position = textCursor().position();
@@ -908,6 +945,7 @@ void CodeEditor::replace(int _from, int _to, QString _what, QString _with)
 }
 void CodeEditor::suggestName()
 {
+
 
     QString word = "";
     QString PrevWord= "";
@@ -1365,6 +1403,24 @@ void CodeEditor::suggestName()
             }
     }
 
+
+
+    QTextCursor cursor = textCursor();
+    text = toPlainText();
+    QString lasttext = lastSuggestedWord;
+
+    if(!(cursor.hasSelection() || (cursor.position()-1>=0 && (text[cursor.position()-1]=='\n' ||text[cursor.position()-1]=='\t' ||text[cursor.position()-1]=='\r')) || cursor.atBlockStart() || (lasttext.size()<=1 && (lasttext.size() > 0 && lasttext[0]!='.'&& lasttext[0]!='='&& lasttext[0]!='*'&& lasttext[0]!='\''&& lasttext[0]!='(' && lasttext[0]!=')'))))
+    {
+        QRect cr = cursorRect();
+        QFontMetrics fm(this->font());
+        QRect bounding_rect = fm.boundingRect(lastSuggestedWord);
+
+        suggestedWordDrawer->setGeometry(QRect(cr.left()+30, cr.bottom() +2, bounding_rect.width() + 5, cr.height()));
+    }
+    else
+        suggestedWordDrawer->setGeometry(QRect(0,0,0,0));
+
+
     emit s_suggestedName();
 
 }
@@ -1428,6 +1484,7 @@ void CodeEditor::FillsuggestName()
     }
 
     //decide if its a real word, or a tab symbol needs to be placed
+
     if((cursor.position()-1>=0 && (text[cursor.position()-1]=='\n' ||text[cursor.position()-1]=='\t' ||text[cursor.position()-1]=='\r')) || cursor.atBlockStart() || (lasttext.size()<=1 && (lasttext.size() > 0 && lasttext[0]!='.'&& lasttext[0]!='='&& lasttext[0]!='*'&& lasttext[0]!='\''&& lasttext[0]!='(' && lasttext[0]!=')')))
     {
         cursor.insertText("\t");

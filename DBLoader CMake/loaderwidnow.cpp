@@ -24,7 +24,7 @@
 #include <qtreeview.h>
 #include "settingswindow.h"
 #include "include/SimpleMail/SimpleMail"
-
+#include <QDockWidget>
 
 /*
 +                                          add togglable "add db name into file name" // feature added, not togglable
@@ -123,6 +123,10 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     // hide workspaces/history
     workspace_tree->hide();
 
+
+
+
+
     // init tabs, first code editor instance, DataConnection
     while (ui->tabWidget->tabBar()->count()>0)
     {
@@ -156,6 +160,9 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 
 
 
+    // QDockWidget* dw = new QDockWidget();
+
+    // ui->edit_layout->addWidget(dw);
 
 
 
@@ -1145,12 +1152,12 @@ void LoaderWidnow::ShowGraph()
 {
     if(gw.groupBysb.isVisible())
     {
-        QList<int> sizes = ui->CodeEditorSplitter->sizes();
-        if(sizes[2] > 0)
+        QList<int> sizes = ui->splitter_2->sizes();
+        if(sizes[1] > 0)
         {
-            sizes[2] =  0;
+            sizes[1] =  0;
         }
-        ui->CodeEditorSplitter->setSizes(sizes);
+        ui->splitter_2->setSizes(sizes);
         gw.graphThemeCheckBox.hide();
         gw.showLabelsCheckBox.hide();
         gw.saveAsPDFButton.hide();
@@ -1169,12 +1176,12 @@ void LoaderWidnow::ShowGraph()
     }
     else
     {
-        QList<int> sizes = ui->CodeEditorSplitter->sizes();
-        if(sizes[2] < 100)
+        QList<int> sizes = ui->splitter_2->sizes();
+        if(sizes[1] < 300)
         {
-            sizes[2] =  100;
+            sizes[1] =  300;
         }
-        ui->CodeEditorSplitter->setSizes(sizes);
+        ui->splitter_2->setSizes(sizes);
 
         gw.graphThemeCheckBox.show();
         gw.showLabelsCheckBox.show();
@@ -1792,7 +1799,7 @@ void LoaderWidnow::CopyLastLaunchedSql()
 // code edtitor
 void LoaderWidnow::updatesuggestion()
 {
-    ui->suggestionLabel->setText(cd->lastSuggestedWord);
+    //ui->suggestionLabel->setText(cd->lastSuggestedWord);
     ui->textPosLabel->setText(QVariant(cd->textCursor().blockNumber() + 1).toString() + ":" + QVariant(cd->textCursor().positionInBlock() + 1).toString() + "(" + QVariant(cd->textCursor().position() + 1).toString() + ")");
 }
 void LoaderWidnow::FillSuggest()
