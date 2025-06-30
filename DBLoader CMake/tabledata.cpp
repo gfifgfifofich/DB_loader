@@ -40,10 +40,10 @@ void TableData::Init()
 }
 
 // import
-void TableData::ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHeader)
+bool TableData::ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHeader)
 {
     if(fileName.size() < 2)
-        return;
+        return false;
     qDebug()<< " importing "<< fileName;
 
     tbldata.clear();
@@ -80,12 +80,17 @@ void TableData::ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHe
                 tbldata.resize(strl.size());
             }
             first = false;
-            if(tbldata.size()>strl.size())
+            while(tbldata.size()>strl.size())
             {
-                qDebug()<<"error importing from csv, if(data.size()>strl.size()) is true";
-                tbldata.clear();
-                headers.clear();
-                return;
+                if(file.atEnd())
+                {
+                    qDebug()<<"error importing from csv, if(data.size()>strl.size()) is true";
+                    tbldata.clear();
+                    headers.clear();
+                    return false;
+                }
+                else
+                    strl += QString().fromUtf8(file.readLine()).split(delimeter);
             }
 
             for(int i=0;i<tbldata.size();i++)
@@ -122,12 +127,12 @@ void TableData::ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHe
 
     for(int i=0;i<headers.size();i++)
         setHeaderData(i,Qt::Horizontal,headers[i]);
-
+    return true;
 }
-void TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_start,int y_end, bool firstRowHeader)
+bool TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_start,int y_end, bool firstRowHeader)
 {
     if(fileName.size() < 2)
-        return;
+        return false;
     bool serachall = x_start == 0 && y_start == 0 && x_end == 0 && y_end == 0;
 
     tbldata.clear();
@@ -139,7 +144,7 @@ void TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_st
     if(!xlsxR3.load())
     {
         qDebug()<< "xlsxR3.load() failed";
-        return;
+        return false;
     }
     else
         qDebug()<< "xlsxR3.load() success";
@@ -214,6 +219,7 @@ void TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_st
         setHeaderData(i,Qt::Horizontal,headers[i]);
         //qDebug()<<headerData(0,Qt::Horizontal);
     }
+    return true;
 }
 void TableData::ImportFromSQLiteTable(QString fileName, QString tableName)
 {

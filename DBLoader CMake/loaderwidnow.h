@@ -229,6 +229,9 @@ public:
     NeuralNetwork nn;
 
 
+    void dragEnterEvent(QDragEnterEvent * evt) override;
+    void dropEvent(QDropEvent * evt) override;
+
 public slots:
     void sendMail(QString host, QString Sender, QString SenderName, QStringList to,QStringList cc, QString Subject, QString messageText, QStringList attachments);
 

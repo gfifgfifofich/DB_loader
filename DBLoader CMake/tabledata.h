@@ -35,8 +35,8 @@ public:
     std::vector<int> maxVarTypes; // columns types
 
     // import
-    Q_INVOKABLE void ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHeader);
-    Q_INVOKABLE void ImportFromExcel(QString fileName, int x_start,int x_end,int y_start,int y_end, bool firstRowHeader);
+    Q_INVOKABLE bool ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHeader);
+    Q_INVOKABLE bool ImportFromExcel(QString fileName, int x_start,int x_end,int y_start,int y_end, bool firstRowHeader);
     Q_INVOKABLE void ImportFromSQLiteTable(QString fileName, QString tableName); // load table from sqlite quicker
 
     // export

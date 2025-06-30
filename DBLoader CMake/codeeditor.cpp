@@ -263,6 +263,7 @@ CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent)
 
     updateLineNumberAreaWidth(0);
 
+    setAcceptDrops(false);
 
 
     QFont font;

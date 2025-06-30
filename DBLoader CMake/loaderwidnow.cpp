@@ -6,6 +6,7 @@
 #include <qcommandlineparser.h>
 #include <qdir.h>
 #include <qfilesystemmodel.h>
+#include <qmimedata.h>
 #include <qpdfwriter.h>
 #include <qrandom.h>
 #include <qshortcut.h>
@@ -136,6 +137,11 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     ui->tabWidget->addTab(wg,"New tab" + QVariant(0).toString());
     ui->tabWidget->setTabWhatsThis(ui->tabWidget->tabBar()->count()-1,QVariant(0).toString());
 
+    ui->tableWidget->setAcceptDrops(true);
+    this->setAcceptDrops(true);
+
+
+
     tabDatas.push_back(new tabdata());
     tabDatas.back()->Name = "New tab0";
     tabDatas.back()->Id = "0";
@@ -147,6 +153,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 
     dc = &tabDatas.back()->dc;
     sqlexecThread = &tabDatas.back()->sqlexecThread;
+
 
 
 
@@ -2231,6 +2238,7 @@ void LoaderWidnow::on_tabWidget_currentChanged(int index)
     disconnect( dc, SIGNAL(queryBeginExecuting()), this, SLOT(onQueryBegin()));
     disconnect( dc, SIGNAL(querySuccess()), this, SLOT(onQuerySuccess()));
     disconnect( dc, SIGNAL(execedSql()), this, SLOT(UpdateTable()));
+    disconnect( dc, SIGNAL(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList)), this, SLOT(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList)) );
 
 
 
@@ -2242,6 +2250,7 @@ void LoaderWidnow::on_tabWidget_currentChanged(int index)
     connect( dc, SIGNAL(queryBeginExecuting()), this, SLOT(onQueryBegin()), Qt::QueuedConnection );
     connect( dc, SIGNAL(querySuccess()), this, SLOT(onQuerySuccess()), Qt::QueuedConnection );
     connect( dc, SIGNAL(execedSql()), this, SLOT(UpdateTable()), Qt::QueuedConnection );
+    connect( dc, SIGNAL(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList)), this, SLOT(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList)), Qt::QueuedConnection );
 
     sqlexecThread = &tabDatas[i]->sqlexecThread;
 
@@ -2565,4 +2574,110 @@ void LoaderWidnow::on_nnTestLearn_pressed()
         qDebug() << "end cost " <<  cst;
     }
 
+}
+
+
+
+bool _tmp_drag_drop_is_file = false;
+
+void LoaderWidnow::dragEnterEvent(QDragEnterEvent * evt)
+{
+    _tmp_drag_drop_is_file = false;
+    const QMimeData *mimeData = evt->mimeData();
+    qDebug()<<mimeData->formats();
+
+
+    if(mimeData->hasFormat("application/x-qt-windows-mime;value=\"Csv\""))// a part of excel table (excel table selection)
+    {
+        evt->accept();
+    }
+    if(mimeData->hasFormat("application/x-qt-windows-mime;value=\"FileContents\""))// if file is dropped from microsoft app, like attachment from Outlook
+    {
+        evt->accept();
+    }
+    if(evt->mimeData()->hasUrls())
+        evt->accept();
+}
+void LoaderWidnow::dropEvent(QDropEvent * evt)
+{
+
+    const QMimeData *mimeData = evt->mimeData();
+
+    dc->executionStart = QDateTime::currentDateTime();
+    if(mimeData->hasFormat("application/x-qt-windows-mime;value=\"Csv\""))// if file is dropped from microsoft app, like attachment from Outlook
+    {
+        //
+        _tmp_drag_drop_is_file = true;
+        QFile fl(documentsDir + "/tmpDragDropFile.xlsx");
+        if(fl.open(QFile::OpenModeFlag::WriteOnly))
+        {
+            QString str = QString().fromLocal8Bit(mimeData->data("application/x-qt-windows-mime;value=\"Csv\""));
+            QString resultcsvstr = "";
+            int i=0;
+            while(i<str.size() && str[i] != QChar('\x00'))
+            {
+                resultcsvstr += str[i++];
+            }
+            fl.write(resultcsvstr.toUtf8());
+            qDebug()<<"written " + documentsDir + "/tmpDragDropFile.xlsx";
+        }
+        fl.close();
+        if (dc->data.ImportFromCSV(documentsDir + "/tmpDragDropFile.xlsx",';',true))
+        {
+            dc->executionEnd = QDateTime::currentDateTime();
+            UpdateTable();
+            ui->tableDBNameLabel->setText("Imported from csv");
+        }
+
+    }
+    else if(mimeData->hasUrls())
+    {
+        auto urls = mimeData->urls();
+        foreach(auto url, urls) {
+            QString str = url.toString();
+
+            if(str.startsWith("file:///"))
+                str.replace("file:///","");
+            if(dc->data.ImportFromExcel(str,0,0,0,0,true))
+            {
+                dc->executionEnd = QDateTime::currentDateTime();
+                UpdateTable();
+                ui->tableDBNameLabel->setText("Imported from Excel");
+            }
+            else if (dc->data.ImportFromCSV(str,';',true))
+            {
+                dc->executionEnd = QDateTime::currentDateTime();
+                UpdateTable();
+                ui->tableDBNameLabel->setText("Imported from csv");
+            }
+
+        }
+    }
+    else if(mimeData->hasFormat("application/x-qt-windows-mime;value=\"FileContents\""))// if file is dropped from microsoft app, like attachment from Outlook
+    {
+        _tmp_drag_drop_is_file = true;
+        QFile fl(documentsDir + "/tmpDragDropFile.xlsx");
+        if(fl.open(QFile::OpenModeFlag::WriteOnly))
+        {
+            fl.write(mimeData->data("application/x-qt-windows-mime;value=\"FileContents\""));
+
+            qDebug()<<"written " + documentsDir + "/tmpDragDropFile.xlsx";
+        }
+        fl.close();
+
+        if(dc->data.ImportFromExcel(documentsDir + "/tmpDragDropFile.xlsx",0,0,0,0,true))
+        {
+            dc->executionEnd = QDateTime::currentDateTime();
+            UpdateTable();
+            ui->tableDBNameLabel->setText("Imported from Excel");
+        }
+        else if (dc->data.ImportFromCSV(documentsDir + "/tmpDragDropFile.xlsx",';',true))
+        {
+            dc->executionEnd = QDateTime::currentDateTime();
+            UpdateTable();
+            ui->tableDBNameLabel->setText("Imported from csv");
+        }
+
+    }
+    dc->executionEnd = QDateTime::currentDateTime();
 }

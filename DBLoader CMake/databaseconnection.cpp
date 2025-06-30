@@ -947,7 +947,7 @@ bool DatabaseConnection::execSql(QString sql)
                                             if(!subscriptConnesction->data.ExportToExcel(QString(documentsDir + "/" +"excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true))
                                                 saveErrorStr = "Failed to save to excel, probably file is opened";
 
-                                    else if (saveErrorStr.size() > 0)
+                                    if (saveErrorStr.size() > 0)
                                     {
                                         formatedSql += " '";
                                         formatedSql += saveErrorStr;
