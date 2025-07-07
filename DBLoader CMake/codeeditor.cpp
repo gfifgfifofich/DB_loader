@@ -332,7 +332,14 @@ void CodeEditor::updateLineNumberArea(const QRect &rect, int dy)
             codePreview->update(viewport()->rect().left() - 200, rect.y(), 200, rect.height());
     }
 
+    if(b_showSuggestion)
+    {
+        QRect cr = cursorRect();
+        QFontMetrics fm(this->font());
+        QRect bounding_rect = fm.boundingRect(lastSuggestedWord);
 
+        suggestedWordDrawer->setGeometry(QRect(cr.left()+30, cr.bottom() +2, bounding_rect.width() + 5, cr.height()));
+    }
 }
 void CodeEditor::resizeEvent(QResizeEvent *e)
 {
@@ -340,9 +347,9 @@ void CodeEditor::resizeEvent(QResizeEvent *e)
 
     QRect cr = contentsRect();
     lineNumberArea->setGeometry(QRect(cr.left(), cr.top(), lineNumberAreaWidth(), cr.height()));
+
     if(b_codePreview)
         codePreview->setGeometry(QRect(cr.right()-200, cr.top(), 200, cr.height()));
-    suggestedWordDrawer->setGeometry(QRect(cr.right()-200, cr.top(), 400, cr.height()));
 }
 void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
 {
@@ -424,7 +431,8 @@ void CodeEditor::drawSuggestedWord(QPaintEvent *event)
 void CodeEditor::drawPreview(QPaintEvent *event)
 {
 
-
+    if(!b_codePreview)
+        return;
 
     QTextBlock block = firstVisibleBlock();
 
@@ -1215,12 +1223,22 @@ void CodeEditor::suggestName()
     }
     else
     {
-        keys.append(subCommandPatterns);
+        for(auto s_str : subCommandPatterns)
+        {
+
+            if(!s_str.startsWith("_DBL_"))
+            {
+                keys.push_back(s_str);
+            }
+        }
+
+
         if(highlighter->TableColumnMap.contains(PrevWord))
             for(auto ke : highlighter->TableColumnMap[PrevWord].keys())
             {
                 keys.push_back(ke);
                 lesslikelykeys.push_back(ke);
+
             }
         if(highlighter->TableColumnAliasMap.contains(PrevWord))
             for(auto ke : highlighter->TableColumnMap[highlighter->TableColumnAliasMap[PrevWord]].keys())
@@ -1409,13 +1427,14 @@ void CodeEditor::suggestName()
     text = toPlainText();
     QString lasttext = lastSuggestedWord;
 
-    if(!(cursor.hasSelection() || (cursor.position()-1>=0 && (text[cursor.position()-1]=='\n' ||text[cursor.position()-1]=='\t' ||text[cursor.position()-1]=='\r')) || cursor.atBlockStart() || (lasttext.size()<=1 && (lasttext.size() > 0 && lasttext[0]!='.'&& lasttext[0]!='='&& lasttext[0]!='*'&& lasttext[0]!='\''&& lasttext[0]!='(' && lasttext[0]!=')'))))
+
+    if(b_showSuggestion && !(cursor.hasSelection() || (cursor.position()-1>=0 && (text[cursor.position()-1]=='\n' ||text[cursor.position()-1]=='\t' ||text[cursor.position()-1]=='\r')) || cursor.atBlockStart() || (lasttext.size()<=1 && (lasttext.size() > 0 && lasttext[0]!='.'&& lasttext[0]!='='&& lasttext[0]!='*'&& lasttext[0]!='\''&& lasttext[0]!='(' && lasttext[0]!=')'))))
     {
         QRect cr = cursorRect();
         QFontMetrics fm(this->font());
         QRect bounding_rect = fm.boundingRect(lastSuggestedWord);
 
-        suggestedWordDrawer->setGeometry(QRect(cr.left()+30, cr.bottom() +2, bounding_rect.width() + 5, cr.height()));
+        suggestedWordDrawer->setGeometry(QRect(cr.left()+30, cr.bottom() +2, bounding_rect.width() + 5, cr.height()));        
     }
     else
         suggestedWordDrawer->setGeometry(QRect(0,0,0,0));

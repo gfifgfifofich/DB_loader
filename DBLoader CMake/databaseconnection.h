@@ -86,13 +86,14 @@ public:
     int _code_end_pos = 0;
     int lastErrorPos = 0;
     bool lastLaunchIsError = false;
-
+    bool disableSaveToUserDS = false;
 
 
     Q_INVOKABLE void Init();
 
     Q_INVOKABLE bool Create(QString driver, QString DBName, QString userName, QString password);
     Q_INVOKABLE bool Create(QString driver, QString DBName); // create dc connection, using userdata
+    Q_INVOKABLE bool DeleteDbConnection(); // create dc connection, using userdata
     Q_INVOKABLE bool execSql(QString sql = "");
 
     // QML functions

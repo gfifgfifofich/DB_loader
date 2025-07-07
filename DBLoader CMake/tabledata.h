@@ -23,6 +23,9 @@ public:
     void Init();
 
     // excel 'Debug' info
+    QString LastUser = "";
+    QString LastDriver = "";
+    QString LastDatabase = "";
     QString sqlCode = "";
     QString allSqlCode = "";
     QString additionalSaveFileData = "";
@@ -41,11 +44,11 @@ public:
 
     // export
     Q_INVOKABLE bool ExportToCSV(QString fileName, char delimeter, bool firstRowHeader);
-    Q_INVOKABLE bool ExportToExcel(QString fileName, int x_start,int x_end,int y_start,int y_end, bool firstRowHeader);
+    Q_INVOKABLE bool ExportToExcel(QString fileName, int x_start,int x_end,int y_start,int y_end, bool firstRowHeader,QString sheetName = "", bool append = false);
     Q_INVOKABLE bool ExportToSQLiteTable(QString tableName);
 
     Q_INVOKABLE bool AppendToCSV(QString fileName, char delimeter);
-    Q_INVOKABLE bool AppendToExcel(QString fileName);
+    Q_INVOKABLE bool AppendToExcel(QString fileName, QString SheetName = "Sheet1");
 
     // QAbstractTableModel overrides
     int rowCount(const QModelIndex & = QModelIndex()) const override;
@@ -63,14 +66,7 @@ public:
     Q_INVOKABLE QVariant getObject(int x,int y);// qml functionality
     Q_INVOKABLE int getSizeX();// qml functionality
     Q_INVOKABLE int getSizeY();// qml functionality
-    Q_INVOKABLE void selectXLSXFile(QString filename);// qml functionality
-    Q_INVOKABLE bool saveXLSXFile(QString filename);// qml functionality
-    Q_INVOKABLE void writeToXLSXFile(int x, int y, QVariant value);// qml functionality
-    Q_INVOKABLE QVariant readFromXLSXFile(int x, int y);// qml functionality
 
-    // move table(x_s,y_s,x_s,y_s) by dx, dy
-    // ExcelMove(0,0,10,10, 5,5); // move block 5 right 5 down
-    Q_INVOKABLE bool ExcelMove(QString table,int x_start,int x_end,int y_start,int y_end, int dx, int dy);
 
 
 signals:

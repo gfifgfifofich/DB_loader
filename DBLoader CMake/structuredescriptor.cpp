@@ -5,6 +5,7 @@
 
 
 inline QString documentsDir;
+inline DataStorage userDS;
 StructureDescriptor::StructureDescriptor(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::StructureDescriptor)
@@ -25,7 +26,6 @@ StructureDescriptor::StructureDescriptor(QWidget *parent)
     ui->verticalLayout_3->addWidget(cd);
 
     cd->b_codePreview = false;
-
     cd->setPlainText(
         "SELECT distinct lower(table_name), lower(column_name )  -- oracle\n"
         "FROM ALL_TAB_COLUMNS       \n"
@@ -46,6 +46,7 @@ StructureDescriptor::StructureDescriptor(QWidget *parent)
             "\n"
         "--SQLite is automatic, just press connect again\n"
         );
+
 
 
     for(auto table : loadWind->cd->highlighter->TableColumnDS.data)
@@ -72,8 +73,24 @@ void StructureDescriptor::on_pushButton_clicked()
     if(loadWind->cd != nullptr)
     {
 
+        if(loadWind->dc->oracle)
+        {
+            loadWind->dc->execSql("SELECT distinct lower(table_name), lower(column_name )  -- oracle\n"
+                                  "FROM ALL_TAB_COLUMNS       \n"
+                                  "inner join   (SELECT DISTINCT  OBJECT_NAME       \n"
+                                  "    FROM ALL_OBJECTS           \n"
+                                  "    WHERE OBJECT_TYPE = 'TABLE' or OBJECT_TYPE like '%VIEW%'  AND\n"
+                                  "    (upper(OWNER) != 'SYSTEM' AND upper(OWNER) != 'SYS' AND upper(OWNER) != 'ADMIN' )\n"
+                                  ") tables on tables.OBJECT_NAME = table_name      \n"
+                                  "order by lower(table_name)");
+        }
+        if(loadWind->dc->postgre)
+        {
+            loadWind->dc->execSql("SELECT table_name, column_name -- Postgres\n"
+                                  "  FROM information_schema.columns\n"
+                                  " WHERE table_schema = 'public'\n");
+        }
 
-        loadWind->dc->execSql(cd->toPlainText());
         loadWind->UpdateTable();
         if(loadWind->dc->data.tbldata.size()>=2 && loadWind->dc->data.tbldata[0].size()>0)
         {
@@ -172,6 +189,33 @@ void StructureDescriptor::on_lineEdit_textChanged(const QString &arg1)
 {// Describing table name changed
     if(loadWind->cd != nullptr)
     {
+        if(loadWind->dc->dbname == userDS.data["UserTheme"]["db_drv_Save_table_Connection"].replace("documentsDir",documentsDir).trimmed() && loadWind->dc->driver == userDS.data["UserTheme"]["db_drv_Save_table_driver"].trimmed())
+        {// in local db
+            qDebug() << "in local database";
+            DatabaseConnection dc;
+            // dc.nodebug = true;
+            dc.rawquery = true;
+            dc.disableSaveToUserDS = true;
+            QString driver = userDS.data["UserTheme"]["db_drv_Save_table_driver"].trimmed();
+            QString conection = userDS.data["UserTheme"]["db_drv_Save_table_Connection"].trimmed();
+            conection.replace("documentsDir",documentsDir);
+
+            dc.Create(driver.trimmed(), conection.trimmed());
+
+
+            if(dc.execSql("select exec_sql,cre_date,exec_workspace_name,exec_user_name,exec_driver,exec_database from user_table_desc where exec_table_name = '" + arg1.trimmed() +  "'"))
+            {
+                if(dc.data.tbldata.size() >=6 && dc.data.tbldata[0].size()>0)
+                {
+                    cd->setPlainText("-- {" + dc.data.tbldata[4][0] + "} {" + dc.data.tbldata[5][0] + "} \n"
+                                     "--Last update: " + dc.data.tbldata[1][0] + "\n" +
+                                     "--Last workspace: " + dc.data.tbldata[2][0] + "\n" +
+                                     "--Last user: " + dc.data.tbldata[3][0] + "\n" +
+                                     dc.data.tbldata[0][0]);
+                }
+            }
+        }
+
         ui->listWidget_2->clear();
         for(auto y : loadWind->cd->highlighter->TableColumnDS.data[arg1.trimmed()])
         {

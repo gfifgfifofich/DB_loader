@@ -472,16 +472,9 @@
    </widget>
    <widget class="QMenu" name="menuAbout">
     <property name="title">
-     <string>Info</string>
-    </property>
-    <addaction name="actionKey_bindings"/>
-    <addaction name="actionsubfunction_docs"/>
-   </widget>
-   <widget class="QMenu" name="menuHelp">
-    <property name="title">
      <string>Help</string>
     </property>
-    <addaction name="actionno"/>
+    <addaction name="actionsubfunction_docs"/>
    </widget>
    <widget class="QMenu" name="menuMisc">
     <property name="title">
@@ -526,7 +519,6 @@
    <addaction name="menufile"/>
    <addaction name="menuSettings"/>
    <addaction name="menuAbout"/>
-   <addaction name="menuHelp"/>
    <addaction name="menuMisc"/>
    <addaction name="menuCode"/>
    <addaction name="menuWindows"/>
@@ -550,7 +542,7 @@
        <property name="orientation">
         <enum>Qt::Orientation::Horizontal</enum>
        </property>
-       <widget class="QWidget" name="">
+       <widget class="QWidget" name="layoutWidget">
         <layout class="QVBoxLayout" name="verticalLayout_2">
          <item>
           <layout class="QHBoxLayout" name="horizontalLayout_4">
@@ -726,7 +718,7 @@
          </item>
         </layout>
        </widget>
-       <widget class="QWidget" name="">
+       <widget class="QWidget" name="layoutWidget">
         <layout class="QVBoxLayout" name="graph_layout"/>
        </widget>
       </widget>
@@ -746,7 +738,7 @@
   </action>
   <action name="actionsubfunction_docs">
    <property name="text">
-    <string>subfunction docs</string>
+    <string>Documentation</string>
    </property>
   </action>
   <action name="actionno">

@@ -25,6 +25,7 @@
 #include "settingswindow.h"
 #include "include/SimpleMail/SimpleMail"
 #include <QDockWidget>
+#include "docwindow.h"
 
 /*
 +                                          add togglable "add db name into file name" // feature added, not togglable
@@ -169,6 +170,13 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     //// Menubar Actions, additional keyboard shortcuts
 
 
+
+    //open documentation window
+    connect(ui->actionsubfunction_docs,  &QAction::triggered, this, [this]() {
+        DocWindow* dw = new DocWindow();
+        dw->show();
+    });
+
     //open new app instance
     connect(ui->actionNew_window,  &QAction::triggered, this, [this]() {
         OpenNewWindow();
@@ -216,7 +224,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_C), this, SLOT(CopySelectionFormTable()));
     new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_C), this, SLOT(CopySelectionFormTableSql()));
 
-    // switching different windows
+    // switching different windosheet
     connect(ui->actionGraph,  &QAction::triggered, this, [this]() {
         ShowGraph();
     });
@@ -438,6 +446,8 @@ LoaderWidnow::~LoaderWidnow()
     qDebug()<<"closing window";
 
     _tab_failsave=false;
+
+    dc->DeleteDbConnection();
 
     while (ui->tabWidget->tabBar()->count()>0)
     {
@@ -975,7 +985,7 @@ void LoaderWidnow::onQuerySuccess()
 }
 void LoaderWidnow::UpdateTable()
 {
-    // clear tableData, fill tableView with new data up to  25k rows, update info label
+    // clear tableData, fill tableView with new data up to  25k rosheet, update info label
     qDebug() << "Updating table";
     if((dc->executing || dc->dataDownloading || dc->data.tbldata.size() <1 || dc->data.headers.size() <1) && !dc->lastLaunchIsError)
     {
@@ -1842,7 +1852,7 @@ void LoaderWidnow::on_SaveXLSXButton_pressed()
 
     str += userDS.data["ExcelPrefixAliases"][cd->highlighter->dbSchemaName];
     str += ui->saveLineEdit->text();
-    if(str.size() > 200)// backup against too long filenames, cuz windows
+    if(str.size() > 200)// backup against too long filenames, cuz windosheet
         str.resize(200);
     if(!str.endsWith(".xlsx"))
         str += ".xlsx";
@@ -1862,7 +1872,7 @@ void LoaderWidnow::on_SaveCSVButton_pressed()
     if(!cd->highlighter->dbSchemaName.contains('.'))
         str += cd->highlighter->dbSchemaName;
     str += ui->saveLineEdit->text();
-    if(str.size() > 200)// backup against too long filenames, cuz windows
+    if(str.size() > 200)// backup against too long filenames, cuz windosheet
         str.resize(200);
     if(!str.endsWith(".csv"))
         str += ".csv";
@@ -1875,6 +1885,7 @@ void LoaderWidnow::on_SaveCSVButton_pressed()
 void LoaderWidnow::on_SaveSQLiteButton_pressed()
 {
     qDebug()<<"on_SaveSQLiteButton_pressed()";
+    dc->data.sqlCode = dc->sqlCode;
     if(dc->data.ExportToSQLiteTable(ui->saveLineEdit->text()))
         ui->miscStatusLabel->setText(QString("Saved to SQLite table ") + ui->saveLineEdit->text());
     else
@@ -2456,39 +2467,9 @@ void LoaderWidnow::on_pushButton_2_pressed()
     fl.close();
 }
 
-
-
 inline float NN_min = 100000;
-void LoaderWidnow::on_nnTestRun_pressed()
-{
-    qDebug() << "nntestrun undefined";
-    int datasize = dc->data.tbldata[0].size();
 
-    datasize *= 2;// double to extrapolate
 
-    dc->data.tbldata.clear();
-    dc->data.headers.clear();
-    dc->data.headers.resize(2);
-    dc->data.headers[0] = "iteration";
-    dc->data.headers[1] = "value";
-    dc->data.tbldata.resize(2);
-    dc->data.tbldata[0].resize(datasize);
-    dc->data.tbldata[1].resize(datasize);
-
-    for(int i=0;i < datasize;i++)
-    {
-        float input = (((float)i)/(float)datasize )  *2.0f +0.5f;
-        nn.Run(&input);
-
-        QString str = QVariant(i).toString();
-        while(str.size()<10)
-            str = "0" + str;
-        dc->data.tbldata[0][i] = str;
-        dc->data.tbldata[1][i] = QVariant(nn.outputs[0] + NN_min).toString();
-    }
-
-    UpdateTable();
-}
 void LoaderWidnow::on_nnTestLearn_pressed()
 {
     qDebug() << "on_nnTestLearn_pressed undefined";
@@ -2594,11 +2575,11 @@ void LoaderWidnow::dragEnterEvent(QDragEnterEvent * evt)
     qDebug()<<mimeData->formats();
 
 
-    if(mimeData->hasFormat("application/x-qt-windows-mime;value=\"Csv\""))// a part of excel table (excel table selection)
+    if(mimeData->hasFormat("application/x-qt-windosheet-mime;value=\"Csv\""))// a part of excel table (excel table selection)
     {
         evt->accept();
     }
-    if(mimeData->hasFormat("application/x-qt-windows-mime;value=\"FileContents\""))// if file is dropped from microsoft app, like attachment from Outlook
+    if(mimeData->hasFormat("application/x-qt-windosheet-mime;value=\"FileContents\""))// if file is dropped from microsoft app, like attachment from Outlook
     {
         evt->accept();
     }
@@ -2611,14 +2592,14 @@ void LoaderWidnow::dropEvent(QDropEvent * evt)
     const QMimeData *mimeData = evt->mimeData();
 
     dc->executionStart = QDateTime::currentDateTime();
-    if(mimeData->hasFormat("application/x-qt-windows-mime;value=\"Csv\""))// if file is dropped from microsoft app, like attachment from Outlook
+    if(mimeData->hasFormat("application/x-qt-windosheet-mime;value=\"Csv\""))// if file is dropped from microsoft app, like attachment from Outlook
     {
         //
         _tmp_drag_drop_is_file = true;
         QFile fl(documentsDir + "/tmpDragDropFile.xlsx");
         if(fl.open(QFile::OpenModeFlag::WriteOnly))
         {
-            QString str = QString().fromLocal8Bit(mimeData->data("application/x-qt-windows-mime;value=\"Csv\""));
+            QString str = QString().fromLocal8Bit(mimeData->data("application/x-qt-windosheet-mime;value=\"Csv\""));
             QString resultcsvstr = "";
             int i=0;
             while(i<str.size() && str[i] != QChar('\x00'))
@@ -2660,13 +2641,13 @@ void LoaderWidnow::dropEvent(QDropEvent * evt)
 
         }
     }
-    else if(mimeData->hasFormat("application/x-qt-windows-mime;value=\"FileContents\""))// if file is dropped from microsoft app, like attachment from Outlook
+    else if(mimeData->hasFormat("application/x-qt-windosheet-mime;value=\"FileContents\""))// if file is dropped from microsoft app, like attachment from Outlook
     {
         _tmp_drag_drop_is_file = true;
         QFile fl(documentsDir + "/tmpDragDropFile.xlsx");
         if(fl.open(QFile::OpenModeFlag::WriteOnly))
         {
-            fl.write(mimeData->data("application/x-qt-windows-mime;value=\"FileContents\""));
+            fl.write(mimeData->data("application/x-qt-windosheet-mime;value=\"FileContents\""));
 
             qDebug()<<"written " + documentsDir + "/tmpDragDropFile.xlsx";
         }
@@ -2687,4 +2668,214 @@ void LoaderWidnow::dropEvent(QDropEvent * evt)
 
     }
     dc->executionEnd = QDateTime::currentDateTime();
+}
+
+
+
+
+
+
+#include <OpenXLSX.hpp>
+#include <cmath>
+
+using namespace std;
+using namespace OpenXLSX;
+
+
+
+void LoaderWidnow::on_nnTestRun_pressed()
+{
+    XLDocument doc1;
+    doc1.open("./Demo04.xlsx");
+    if(!doc1.isOpen())
+        doc1.create("./Demo04.xlsx", XLForceOverwrite);
+
+
+    auto wks1 = doc1.workbook().worksheet("Простыня");
+    // wks1.setName("Простыня");
+
+    // Cell values can be set to any Unicode string using the normal value assignment methods.
+
+    // qDebug() << QDateTime::currentSecsSinceEpoch() / 86400.0f;
+
+    // // Create an XLDateTime object from an Excel date number (e.g., 55.5 represents Feb 24, 1900, 12:00 PM)
+    // OpenXLSX::XLDateTime dt( 45658.0);//QDateTime::currentSecsSinceEpoch() / 86400.0f + 86400.0f + 3600*3);
+
+    // // Convert to std::tm structure
+    // std::tm tmo = dt.tm();
+
+    // // Print the time using asctime for human-readable format
+    // qDebug() << "Time from XLDateTime: " << std::asctime(&tmo);
+
+    // XLStyles style = doc1.workbook()
+    // style.numberFormat().setFormat("yyyy-mm-dd"); // Customize as needed
+    // wks1.cell("A1").setCellFormat();
+
+    ;// Or create a new style
+
+    // style.numberFormat().setFormat("yyyy-mm-dd"); // Customize as needed
+    // qDebug() << wks1.cell("A1").cellFormat();
+
+    ;
+
+    //for(int i=0;i < doc1.styles().cellFormats().count();i++)
+    //{
+    //    qDebug() << doc1.styles().numberFormats().numberFormatById(i).summary() <<doc1.styles().numberFormats().numberFormatById(i).formatCode() << doc1.styles().numberFormats().numberFormatById(i).numberFormatId();
+    //}
+
+    //XLCellFormats & cellFormats = doc1.styles().cellFormats();
+    qDebug() << "doc1.styles().cellFormats().count() " << doc1.styles().cellFormats().count();
+
+    for(int i=0;i < doc1.styles().cellFormats().count();i++)
+    {
+        qDebug() << i << doc1.styles().cellFormats().cellFormatByIndex(i).summary() << doc1.styles().cellFormats().cellFormatByIndex(i).numberFormatId()  ;
+        if(doc1.styles().cellFormats().cellFormatByIndex(i).numberFormatId() > 0)
+        {
+            uint32_t numfmtid = doc1.styles().cellFormats().cellFormatByIndex(i).numberFormatId();
+            // qDebug() << doc1.styles().numberFormats().numberFormatById(14).formatCode();
+            // qDebug() << doc1.styles().numberFormats().numberFormatById(14).summary();
+            // si = i;
+        }
+    }
+
+    XLCellFormats & cellFormats = doc1.styles().cellFormats();
+
+    XLStyleIndex DateTimeStyle = cellFormats.create();
+
+    XLStyleIndex nfi = doc1.styles().numberFormats().create();
+    OpenXLSX::XLNumberFormat nm = doc1.styles().numberFormats().numberFormatByIndex(nfi);
+    nm.setFormatCode("DD.MM.YYYY HH:mm:SS");
+    cellFormats.cellFormatByIndex(DateTimeStyle).setApplyNumberFormat(true);
+    cellFormats.cellFormatByIndex(DateTimeStyle).setNumberFormatId(nm.numberFormatId());
+
+
+
+
+
+    // void ExcelSerialDateToDMY(int nSerialDate, int& nDay, int& nMonth, int& nYear)
+    // {
+    //     // Modified Julian to DMY calculation with an addition of 2415019
+    //     int l  = nSerialDate + 68569 + 2415019;
+    //     int n  = int(( 4 * l ) / 146097);
+    //     l      = l - int(( 146097 * n + 3 ) / 4);
+    //     int i  = int(( 4000 * ( l + 1 ) ) / 1461001);
+    //     l      = l - int(( 1461 * i ) / 4) + 31;
+    //     int j  = int(( 80 * l ) / 2447);
+    //     nDay   = l - int(( 2447 * j ) / 80);
+    //     l      = int(j / 11);
+    //     nMonth = j + 2 - ( 12 * l );
+    //     nYear  = 100 * ( n - 49 ) + i + l;
+    // }
+
+
+    // static qint64 msecs1904 = QDateTime(QDate(1904, 1, 1), QTime(0, 0)).toMSecsSinceEpoch();
+    // static qint64 msecs1899 = QDateTime(QDate(1899, 12, 31), QTime(0, 0)).toMSecsSinceEpoch();
+
+    // if (!is1904 && num > 60) // for mac os excel
+    // {
+    //     num = num - 1;
+    // }
+
+    // auto msecs = static_cast<qint64>(num * 1000 * 60 * 60 * 24.0 + 0.5);
+
+    // if (is1904)
+    //     msecs += msecs1904;
+    // else
+    //     msecs += msecs1899;
+
+    // QDateTime dtRet = QDateTime::fromMSecsSinceEpoch(msecs);
+
+    // // Remove one hour to see whether the date is Daylight
+    // QDateTime dtNew = dtRet.addMSecs(-3600000); // issue102
+    // if (dtNew.isDaylightTime()) {
+    //     dtRet = dtNew;
+    // }
+
+    // double whole      = 0;
+    // double fractional = std::modf(num, &whole);
+
+    // if (num < double(1)) {
+    //     // only time
+    //     QTime t = dtRet.time();
+    //     // return QVariant(t);
+    // }
+
+    // if (fractional == 0.0) {
+    //     // only date
+    //     QDate onlyDT = dtRet.date();
+    //     // return QVariant(onlyDT);
+    // }
+
+    // // return QVariant(dtRet);
+
+
+
+
+
+
+
+    wks1.cell(XLCellReference(1,1)).value() = "안녕하세요 세계!";
+    wks1.cell(XLCellReference(1,2)).value() = "你好，世界!";
+    wks1.cell(XLCellReference(1,3)).value() = "こんにちは 世界";
+    wks1.cell(XLCellReference(1,4)).value() = "नमस्ते दुनिया!";
+    wks1.cell(XLCellReference(1,5)).value() = "Привет, мир!";
+    wks1.cell(XLCellReference(1,6)).value() = "Γειά σου Κόσμε!";
+
+    wks1.cell(XLCellReference(40,7)).value() = 45032.2;
+    wks1.cell(XLCellReference(40,7)).setCellFormat(DateTimeStyle);
+
+
+    wks1.cell(XLCellReference(40,8)).value() = 45032.2;
+    wks1.cell(XLCellReference(40,7)).setCellFormat(0);
+    wks1.cell(XLCellReference(40,9)).value() = "45032.2";
+
+    QDateTime dt = QDateTime::currentDateTime();
+
+    double currentdt = (int(( 1461 * ( dt.date().year() + 4800 + int(( dt.date().month() - 14 ) / 12) ) ) / 4) +
+        int(( 367 * ( dt.date().month() - 2 - 12 * ( ( dt.date().month() - 14 ) / 12 ) ) ) / 12) -
+        int(( 3 * ( int(( dt.date().year() + 4900 + int(( dt.date().month() - 14 ) / 12) ) / 100) ) ) / 4) +
+            dt.date().day() - 2415019 - 32075) + (dt.time().second() * 1.0  + dt.time().minute()*60.0 + dt.time().hour()*3600.0)/86400.0;
+    wks1.cell(XLCellReference(45,8)).value() = currentdt;
+
+    // Workbooks can also be saved and loaded with Unicode names
+    doc1.save();
+    doc1.saveAs(QString("фывячс.xlsx").toLocal8Bit().constData(), XLForceOverwrite);
+    doc1.close();
+
+
+    doc1.open(QString("фывячс.xlsx").toLocal8Bit().constData());
+    if(!doc1.isOpen())
+        doc1.create(QString("фывячс.xlsx").toLocal8Bit().constData(), XLForceOverwrite);
+
+    if(!doc1.isOpen())
+    {
+        qDebug() << "doc2 is not opened";
+        return;
+    }
+    qDebug() << "doc2 is opened";
+    wks1 = doc1.workbook().worksheet("Простыня");
+    if(!wks1.valid())
+    {
+        qDebug() << "couldnt read sheet name";
+        return;
+    }
+
+
+    // The nowide::cout object is a drop-in replacement of the std::cout that enables console output of UTF-8, even on Windows.
+    qDebug() << "Cell A1 (Korean)  : " << wks1.cell(XLCellReference("A1")).value().get<std::string>() << '\n';
+    qDebug() << "Cell A2 (Chinese) : " << wks1.cell(XLCellReference("A2")).value().get<std::string>() << '\n';
+    qDebug() << "Cell A3 (Japanese): " << wks1.cell(XLCellReference("A3")).value().get<std::string>() << '\n';
+    qDebug() << "Cell A4 (Hindi)   : " << wks1.cell(XLCellReference("A4")).value().get<std::string>() << '\n';
+    qDebug() << "Cell A5 (Russian) : " << wks1.cell(XLCellReference("A5")).value().get<std::string>() << '\n';
+    qDebug() << "Cell A6 (Greek)   : " << wks1.cell(XLCellReference("A6")).value().get<std::string>() << '\n';
+
+
+    cout << "\nNOTE: If you are using a Windows terminal, the above output may look like gibberish,\n"
+            "because the Windows terminal does not support UTF-8 at the moment. To view to output,\n"
+            "you can use the overloaded 'cout' in the boost::nowide library (as in this sample program).\n"
+            "This will require a UTF-8 enabled font in the terminal. Lucinda Console supports some\n"
+            "non-ASCII scripts, such as Cyrillic and Greek. NSimSun supports some asian scripts.\n\n";
+
+    doc1.close();
+    qDebug() << "on_nnTestRun_pressed undefined";
 }

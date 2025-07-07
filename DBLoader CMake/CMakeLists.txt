@@ -17,6 +17,7 @@ find_package(Qt6 REQUIRED COMPONENTS Graphs)
 find_package(Qt6 REQUIRED COMPONENTS Quick)
 find_package(Qt6 REQUIRED COMPONENTS QuickControls2)
 add_subdirectory(QXlsx-master/QXlsx)
+add_subdirectory(OpenXLSX)
 
 #oracle
 if(Oracle_OCI_Driver)
@@ -38,7 +39,6 @@ LINK_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/lib)
 
 # add sqlite source directly
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/sqlite_amalgamation)
-
 
 
 
@@ -76,6 +76,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         colorbutton.h colorbutton.cpp
         structuredescriptor.h structuredescriptor.cpp structuredescriptor.ui
         sqlite_amalgamation/sqlite3.c
+        docwindow.h docwindow.cpp docwindow.ui
 
     )
 # Define target properties for Android with Qt 6 as:
@@ -99,11 +100,11 @@ endif()
 target_link_libraries(untitled PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 target_link_libraries(untitled PRIVATE Qt${QT_VERSION_MAJOR}::Sql)
 target_link_libraries(untitled PRIVATE QXlsx::QXlsx)
+target_link_libraries(untitled PRIVATE OpenXLSX)
 target_link_libraries(untitled PRIVATE Qt6::Charts)
 target_link_libraries(untitled PRIVATE Qt6::Graphs)
 target_link_libraries(untitled PRIVATE Qt6::Quick)
 target_link_libraries(untitled PRIVATE Qt6::QuickControls2)
-
 
 
 

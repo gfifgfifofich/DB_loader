@@ -13,7 +13,6 @@
 inline int thrnum;
 
 
-#include "Shlobj.h"
 
 inline DataStorage userDS;
 inline DataStorage historyDS;
@@ -23,8 +22,13 @@ inline QString documentsDir;
 
 inline QQmlApplicationEngine* TestqmlEngine = nullptr;
 
+
+
 int main(int argc, char *argv[])
 {
+
+
+
     fillPaterns();
     qDebug()<< "filled patterns";
     QStringList strl = QStandardPaths::standardLocations(QStandardPaths::HomeLocation);

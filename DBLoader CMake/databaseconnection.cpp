@@ -36,7 +36,34 @@ void DatabaseConnection::Init()
 {
 
 }
+bool DatabaseConnection::DeleteDbConnection()
+{
+    db.close();
+    if(sqlite3DBConnectionIsOpen && sqlite3DBConnection != nullptr)
+    {
+        sqlite3_interrupt((sqlite3*) sqlite3DBConnection);// in case if something was running
+        sqlite3_close((sqlite3*) sqlite3DBConnection);
 
+        sqlite3DBConnection = nullptr;
+        sqlite3DBConnectionIsOpen = false;
+    }
+
+
+    if(pg_connected && ptr_PGconn != nullptr)
+    {
+        // just in case
+        qDebug() << "sending cancel to postgres";
+        PGcancelConn * cncl = PQcancelCreate((PGconn*) ptr_PGconn);
+        PQcancelBlocking(cncl);
+        PQcancelFinish(cncl);
+
+
+        PQfinish((PGconn*) ptr_PGconn);
+        ptr_PGconn = nullptr;
+        pg_connected = false;
+    }
+    return true;
+}
 DatabaseConnection::~DatabaseConnection()
 {
 
@@ -82,7 +109,7 @@ inline QString lastOracleError = "";
 /*Oracle straight up crashes whole app if you try doing that when there are more than some amount of columns. Storing MetaData untill very end will delay crash to when user will want to close app, so works. But app will crash instead of closing if user used Oracle driver(
 yep, imma gonna shart into memory, and not deal with crashes when attempting to clear MetaData.
 */
-std::vector<std::vector<oracle::occi::MetaData>> mtl;
+thread_local std::vector<std::vector<oracle::occi::MetaData>> mtl;
 
 #endif
 
@@ -139,7 +166,6 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
 
     bool QODBC_Excel = false;
     QString dbSchemaName = "NoName";
-
 
 
     // decide driver type
@@ -288,7 +314,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
             {
                 connectString.append("DRIVER={Microsoft Excel Driver (*.xls, *.xlsx, *.xlsm, *.xlsb)};ReadOnly=0;DBQ=" );
                 connectString.append(dbname);
-
+                qDebug() << connectString;
             }
             else
                 connectString = dbname;
@@ -323,7 +349,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
             if(userDS.Load((documentsDir + "/userdata.txt")))
             {
                 userDS.data[dbname]["lastDriver"] = this->driver;
-                userDS.Save(documentsDir + "/userdata.txt");
+                if(!disableSaveToUserDS) userDS.Save(documentsDir + "/userdata.txt");
             }
             return true;
         }
@@ -372,7 +398,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
             if(userDS.Load((documentsDir + "/userdata.txt")))
             {
                 userDS.data[dbname]["lastDriver"] = this->driver;
-                userDS.Save(documentsDir + "/userdata.txt");
+                if(!disableSaveToUserDS) userDS.Save(documentsDir + "/userdata.txt");
             }
             return true;
 
@@ -437,7 +463,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
                     if(userDS.Load((documentsDir + "/userdata.txt")))
                     {
                         userDS.data[dbname]["lastDriver"] = this->driver;
-                        userDS.Save(documentsDir + "/userdata.txt");
+                        if(!disableSaveToUserDS) userDS.Save(documentsDir + "/userdata.txt");
                     }
                     return true;
                 }
@@ -460,8 +486,10 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
             if(userDS.Load((documentsDir + "/userdata.txt")))
             {
                 userDS.data[dbname]["lastDriver"] = this->driver;
-                userDS.Save(documentsDir + "/userdata.txt");
+                if(!disableSaveToUserDS) userDS.Save(documentsDir + "/userdata.txt");
             }
+
+            qDebug() << PQisthreadsafe() << " <-thread safety";
             return true;
         }
     }
@@ -482,7 +510,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
             if(userDS.Load((documentsDir + "/userdata.txt")))
             {
                 userDS.data[dbname]["lastDriver"] = this->driver;
-                userDS.Save(documentsDir + "/userdata.txt");
+                if(!disableSaveToUserDS) userDS.Save(documentsDir + "/userdata.txt");
             }
             return true;
         }
@@ -522,6 +550,286 @@ bool DatabaseConnection::Create(QString driver, QString DBName)
 }
 
 
+// function to give to thread to process query async
+void _dc_AsyncFunc(DatabaseConnection* tmpcon, QString sql)
+{
+
+    qDebug() << "Async: running " << tmpcon->dbname<<tmpcon->driver;
+    tmpcon->execSql(sql);
+    qDebug() << "Async: ran";
+}
+
+QString UnrollAllLoops(QString sql)
+{
+    QString scriptCommand = "";
+    QString formatedSql;
+    QString keywordbuff = "";
+    std::vector<int> localKeywordsMatch;
+    localKeywordsMatch.resize(subCommandPatterns.size());
+
+    // iterate through keywords, detect similarity
+
+    bool reset = true;
+    int loopcount = -1;
+
+
+    // loop while keywords can be possible in code (due to nested loops and other syntax)
+    while (reset)
+    {
+
+        formatedSql = "";
+        keywordbuff = "";
+        localKeywordsMatch.clear();
+        localKeywordsMatch.resize(subCommandPatterns.size());
+        loopcount++;
+        reset = false;
+        for(int a=0;a < sql.size();a++)
+        {
+            bool isAPartOfKeyword = false;
+            for(int i=0;i<subCommandPatterns.size();i++)
+            {
+                if(subCommandPatterns[i][localKeywordsMatch[i]].toLower() == sql[a].toLower())
+                {
+                    isAPartOfKeyword = true;
+                    localKeywordsMatch[i]++;
+
+                    if(localKeywordsMatch[i] == subCommandPatterns[i].size() && (subCommandPatterns[i].trimmed() == "ForLoop" || subCommandPatterns[i].trimmed() == "QueryForLoop" || (subCommandPatterns[i].trimmed() == "DBLPasteMonth") || (subCommandPatterns[i].trimmed() == "DBLPasteNumMonth")))
+                    { // detected keyword, implement action
+
+                        localKeywordsMatch[i] = 0;
+                        int buff_a = a;
+                        bool beginSubscriptSQL = false;
+                        int bracketValue = 0;
+                        int bracketCount = 0;
+                        bool inlineVariables = true;
+                        bool justOutOfBrackets = false;
+                        bool searchingFirstBrackets = false;
+                        QStringList funcVariables;
+                        QString lastVar = "";
+                        scriptCommand = "";
+                        while(buff_a < sql.size())
+                        {
+                            if(bracketValue <=0 && beginSubscriptSQL)
+                            {
+                                beginSubscriptSQL = false;
+                                a = buff_a;
+                                break;
+                            }
+                            if(justOutOfBrackets && sql[buff_a] != '-'&& sql[buff_a] != '{'&& sql[buff_a] != '}'&& sql[buff_a] != ' '&& sql[buff_a] != '\t'&& sql[buff_a] != '\n'&& sql[buff_a] != '\t'&& sql[buff_a] != '\r')
+                                inlineVariables = false;
+                            if(inlineVariables)
+                            {
+                                if(bracketValue > 1 &&  sql[buff_a] != '{'&& sql[buff_a] != '}' && sql[buff_a] != '\t'&& sql[buff_a] != '\t'&& sql[buff_a] != '\r')
+                                {
+                                    lastVar += sql[buff_a];
+                                }
+                                if(sql[buff_a] == '}')
+                                {
+                                    lastVar = lastVar.trimmed();
+                                    funcVariables  << lastVar;
+                                    lastVar = "";
+                                }
+                            }
+                            if(sql[buff_a]== '{')
+                            {
+                                justOutOfBrackets = false;
+                                beginSubscriptSQL = true;
+                                bracketCount++;
+                                if(bracketCount > 1)
+                                    searchingFirstBrackets = false;
+
+                                if(inlineVariables)
+                                    scriptCommand.push_back(' ');
+                                else
+                                    scriptCommand.push_back('{');
+
+                                bracketValue+=1;
+                                buff_a++;
+                                continue;
+                            }
+                            if(sql[buff_a]== '}')
+                            {
+                                bracketValue-=1;
+                                if(bracketValue == 1)
+                                {
+                                    justOutOfBrackets = true;
+                                }
+                                if(inlineVariables)
+                                    scriptCommand.push_back(' ');
+                                else if(bracketValue >0)
+                                    scriptCommand.push_back('}');
+                                buff_a++;
+                                continue;
+                            }
+
+
+                            if(beginSubscriptSQL)
+                                scriptCommand.push_back(sql[buff_a]);
+
+
+                            buff_a++;
+                        }
+                        a = buff_a;
+
+
+                        // no recursion = manualy unroll though reset
+                        if(subCommandPatterns[i].trimmed() == "ForLoop" || subCommandPatterns[i].trimmed() == "QueryForLoop" )
+                        {
+                            reset = true;
+
+
+                            QString replValue = "_____Unset_Iter_Value_";
+                            int replStart = 0;
+                            int replEnd = 1;
+                            int replStep = 1;
+                            int fillStage = 0;
+                            bool toIntStart = false;
+                            QStringList iterateValues;
+                            //QString valueFiller = ""; // mb implement it, for syntax like {iterval} {002} {100} and itervalue will be 3 digits, 002,003 etc.
+                            int valueRuquieredSize = 0; // implemented through this. less flexability
+                            bool isIteration = false;
+                            for(auto s : funcVariables)
+                            {
+                                if(fillStage  == 0)
+                                {
+                                    fillStage++;
+                                    replValue = s.trimmed();
+                                }else if(fillStage  == 1)
+                                {
+                                    fillStage++;
+                                    replStart = QVariant(s.trimmed()).toInt(&toIntStart);
+                                    valueRuquieredSize = s.trimmed().size();
+                                    if(!toIntStart)
+                                    {
+                                        iterateValues = s.trimmed().split(',');
+                                        if(iterateValues.size()>0)
+                                            isIteration = true;
+                                    }
+
+                                }else if(fillStage  == 2)
+                                {
+                                    fillStage++;
+                                    replEnd = QVariant(s.trimmed()).toInt();
+                                }else if(fillStage  == 3)
+                                {
+                                    fillStage++;
+                                    replStep = QVariant(s.trimmed()).toInt();
+                                }
+                                else
+                                    break;
+                            }
+
+                            if(!isIteration)
+                            {for(int iter = replStart; iter <= replEnd; iter += replStep)
+                                {
+                                    if(iter != replStart)
+                                    {
+                                        if(subCommandPatterns[i].trimmed() == "QueryForLoop")
+                                            formatedSql+= " union all ";
+                                    }
+                                    QString fmiterSql = scriptCommand;
+                                    QString replString = QVariant(iter).toString();
+                                    while (replString.size() < valueRuquieredSize)
+                                        replString = '0' + replString;
+
+                                    fmiterSql = fmiterSql.replace(replValue, replString);
+                                    formatedSql += fmiterSql;
+
+                                }
+                            }else
+                            {
+                                int first = true;
+                                for(auto val : iterateValues)
+                                {
+                                    if(!first)
+                                    {
+                                        if(subCommandPatterns[i].trimmed() == "QueryForLoop")
+                                            formatedSql+= " union all ";
+                                    }
+                                    first = false;
+                                    QString fmiterSql = scriptCommand;
+                                    QString replString = val;
+
+                                    fmiterSql = fmiterSql.replace(replValue, replString);
+                                    formatedSql += fmiterSql;
+
+                                }
+                            }
+
+                            formatedSql += " ";
+                        }
+
+
+                        // Async execution.
+                        //// Start async - start launching each subexec on separate threads.
+                        //// Wait async - wait all async executions, paste all temporary placeholders(_DBL_AsyncExecutionTempValue) with results
+
+                        // subCommandPatterns.push_back("StartAsyncExecution");
+                        // subCommandPatterns.push_back("AwaitAsyncExecution");
+
+
+                        if(subCommandPatterns[i].trimmed() == "DBLPasteMonth")
+                        {
+                            QString str;
+                            QDateTime::currentDateTime().date().month();
+                            int monthnum = QDateTime::currentDateTime().date().month();
+                            if(funcVariables.size() > 0)
+                            {
+                                int offset = 0;
+                                bool ok = false;
+                                offset = QVariant(funcVariables[0]).toInt(&ok);
+                                if(ok)
+                                    monthnum +=offset;
+                            }
+                            str = QVariant(monthnum).toString();
+                            if(str.size() == 1)
+                                str = "0" + str;
+
+                            formatedSql += str;
+                        }
+
+                        if(subCommandPatterns[i].trimmed() == "DBLPasteNumMonth")
+                        {
+                            QString str;
+                            QDateTime::currentDateTime().date().month();
+                            int monthnum = QDateTime::currentDateTime().date().month();
+                            if(funcVariables.size() > 0)
+                            {
+                                int offset = 0;
+                                bool ok = false;
+                                offset = QVariant(funcVariables[0]).toInt(&ok);
+                                if(ok)
+                                    monthnum +=offset;
+                            }
+                            str = QVariant(monthnum).toString();
+
+                            formatedSql += str;
+                        }
+
+                        keywordbuff = "";
+                    }
+                }
+                else
+                { // broken symbol line, this isn't a keyword
+                    localKeywordsMatch[i] = 0;
+                }
+            }
+            if(!isAPartOfKeyword)
+            {
+                formatedSql += keywordbuff;
+                keywordbuff = "";
+                formatedSql +=sql[a];
+            }
+            else
+                keywordbuff+= sql[a];
+        }
+        formatedSql += keywordbuff;
+        keywordbuff = "";
+        sql = formatedSql;
+    }
+    sql = formatedSql.trimmed();
+    return sql;
+}
 
 bool DatabaseConnection::execSql(QString sql)
 {
@@ -551,21 +859,31 @@ bool DatabaseConnection::execSql(QString sql)
     if(sql.size() <=0)
         sql = sqlCode;
     QString str = sql;
+    this->data.allSqlCode = str;
+
+
+
 
     if(!rawquery)
     {
-
+        sql = UnrollAllLoops(sql);
         // Prepeare sql to be run, detect any special keywords
         QString formatedSql;
         QString keywordbuff = "";
         std::vector<int> localKeywordsMatch;
         localKeywordsMatch.resize(subCommandPatterns.size());
-        userDS.Load((documentsDir + "/userdata.txt"));
 
         // iterate through keywords, detect similarity
         if(!nodebug) qDebug()<<"Entered sql subcomand processing ";
         bool reset = true;
         int loopcount = -1;
+
+        bool asyncExecution_recordExecs = false;
+        bool asyncExecution_pasteExecsData = false;
+        QList<QStringList> asyncExecution_Formats;
+        QList<int> asyncExecution_commandIds;
+        QList<QThread*> asyncExecution_threads;
+        QList<DatabaseConnection*> asyncExecution_databaseConnections;
 
 
         // loop while keywords can be possible in code (due to nested loops and other syntax)
@@ -666,13 +984,32 @@ bool DatabaseConnection::execSql(QString sql)
                                 buff_a++;
                             }
                             a = buff_a;
+
+                            if(subCommandPatterns[i].startsWith("_DBL_AsyncExecutionTempValue"))
+                            {
+                                funcVariables = asyncExecution_Formats[0];
+                                asyncExecution_Formats.pop_front();
+
+                                i = asyncExecution_commandIds[0];
+                                asyncExecution_commandIds.pop_front();
+                                qDebug() << "Async function paste of: " << subCommandPatterns[i] << " vars:" << funcVariables;
+                                asyncExecution_pasteExecsData = true;
+                            }
+                            else
+                                asyncExecution_pasteExecsData = false;
+
+
                             if(!nodebug) qDebug()<< "subexec variables " << funcVariables;
                             // recursion does its thing, recursive subexec's are possible and infinite^tm
                             if(subCommandPatterns[i].startsWith("Subexec") ||subCommandPatterns[i].startsWith("SilentSubexec") || subCommandPatterns[i].startsWith("ExcelTo")|| subCommandPatterns[i].startsWith("CSVTo"))
                             {// its a subexec, crop part from next { to }, exec it in subscriptConnection
                                 if(!nodebug) qDebug()<<"Its SubExec or ExcelTo or CSVTo";
 
-
+                                // "_DBL_AsyncExecutionTempValue";
+                                // asyncExecution_Formats;
+                                // asyncExecution_commandIds;
+                                // asyncExecution_threads;
+                                // asyncExecution_databaseConnections;
 
                                 if(!nodebug) qDebug()<< "";
                                 if(!nodebug) qDebug()<< "Subscript command is:";
@@ -681,6 +1018,7 @@ bool DatabaseConnection::execSql(QString sql)
                                 QString subscriptDriver = "NoDriver";
                                 QString subscriptDBname = "NoDatabase";
                                 QString saveName = "unset_tmp_savename";
+                                QString WorksheetName = "Sheet1";
                                 char csvDelimeter = ';';
                                 int saveStart_X = 0;
                                 int saveStart_Y = 0;
@@ -709,21 +1047,45 @@ bool DatabaseConnection::execSql(QString sql)
                                         varcount++;
                                         saveStart_X = QVariant(s.trimmed()).toInt();
                                         csvDelimeter = s.trimmed()[0].unicode();
+                                        if(subCommandPatterns[i].endsWith("SubexecToExcelWorksheet"))
+                                        {
+                                            WorksheetName=s.trimmed();
+                                        }
                                     }
                                     else if(varcount == 4)
                                     {
                                         varcount++;
                                         saveEnd_X = QVariant(s.trimmed()).toInt();
+                                        if(subCommandPatterns[i].endsWith("SubexecToExcelWorksheet"))
+                                        {
+                                            saveStart_X = QVariant(s.trimmed()).toInt();
+                                        }
                                     }
                                     else if(varcount == 5)
                                     {
                                         varcount++;
-                                        saveStart_Y = QVariant(s.trimmed()).toInt();;
+                                        saveStart_Y = QVariant(s.trimmed()).toInt();
+                                        if(subCommandPatterns[i].endsWith("SubexecToExcelWorksheet"))
+                                        {
+                                            saveEnd_X = QVariant(s.trimmed()).toInt();
+                                        }
                                     }
                                     else if(varcount == 6)
                                     {
                                         varcount++;
                                         saveEnd_Y = QVariant(s.trimmed()).toInt();
+                                        if(subCommandPatterns[i].endsWith("SubexecToExcelWorksheet"))
+                                        {
+                                            saveStart_Y = QVariant(s.trimmed()).toInt();
+                                        }
+                                    }
+                                    else if(varcount == 7)
+                                    {
+                                        if(subCommandPatterns[i].endsWith("SubexecToExcelWorksheet"))
+                                        {
+                                            saveEnd_Y = QVariant(s.trimmed()).toInt();
+                                        }
+
                                     }
                                     else
                                         break;
@@ -731,29 +1093,84 @@ bool DatabaseConnection::execSql(QString sql)
 
                                 if(!nodebug) qDebug()<< "subscriptDriver: " << subscriptDriver;
                                 if(!nodebug) qDebug()<< "subscriptDBname: " << subscriptDBname;
-                                subscriptConnesction = new DatabaseConnection();
+
+                                if(asyncExecution_pasteExecsData)
+                                {
+                                    subscriptConnesction = asyncExecution_databaseConnections[0];
+                                    asyncExecution_databaseConnections.pop_front();
+                                }
+                                else
+                                    subscriptConnesction = new DatabaseConnection();
+
                                 if(!nodebug) qDebug()<< "created DatabaseConnection";
 
 
                                 // subCommandPatterns.push_back("ExcelToMagic");
                                 // subCommandPatterns.push_back("ExcelToArray");
                                 // if its subexec, subexec, else load from excel file
-                                if(subCommandPatterns[i].startsWith("Subexec") ||subCommandPatterns[i].startsWith("SilentSubexec"))
-                                {
-                                    QString username = userDS.GetObject(subscriptDBname)["name"];
-                                    QString password = userDS.GetObject(subscriptDBname)["password"];
-                                    if(!nodebug) qDebug()<< subscriptDriver << subscriptDBname << username.trimmed() << password.trimmed();
-                                    subscriptConnesction->connectionName = connectionName + QVariant(a).toString();
-                                    if(!nodebug) qDebug()<< "createding actual Connection";
-                                    subscriptConnesction->Create(subscriptDriver.trimmed(),subscriptDBname.trimmed(),username.trimmed(),password.trimmed());
-                                    if(!nodebug) qDebug()<< "createded";
-                                    while(scriptCommand.endsWith(' ') ||scriptCommand.endsWith('\t') ||scriptCommand.endsWith('\n') || scriptCommand.endsWith('\r'))
-                                        scriptCommand.resize(scriptCommand.size()-1);
+                                if(!asyncExecution_pasteExecsData)
+                                    if(subCommandPatterns[i].startsWith("Subexec") ||subCommandPatterns[i].startsWith("SilentSubexec"))
+                                    {
+                                        QString username = userDS.GetObject(subscriptDBname)["name"];
+                                        QString password = userDS.GetObject(subscriptDBname)["password"];
+                                        if(!nodebug) qDebug()<< subscriptDriver << subscriptDBname << username.trimmed() << password.trimmed();
+                                        subscriptConnesction->connectionName = connectionName + QVariant(a).toString();
+                                        if(!nodebug) qDebug()<< "creating actual Connection";
+                                        subscriptConnesction->Create(subscriptDriver.trimmed(),subscriptDBname.trimmed(),username.trimmed(),password.trimmed());
+                                        if(!nodebug) qDebug()<< "created";
+                                        while(scriptCommand.endsWith(' ') ||scriptCommand.endsWith('\t') ||scriptCommand.endsWith('\n') || scriptCommand.endsWith('\r'))
+                                            scriptCommand.resize(scriptCommand.size()-1);
 
-                                    if(!nodebug) qDebug()<< "executing sql";
-                                    subscriptConnesction->execSql(scriptCommand.trimmed());
-                                    if(!nodebug) qDebug()<< "sql execd";
-                                }
+                                        if(asyncExecution_recordExecs)
+                                        {
+
+                                            asyncExecution_Formats.push_back(funcVariables);
+                                            asyncExecution_databaseConnections.push_back(subscriptConnesction);
+                                            asyncExecution_commandIds.push_back(i);
+                                            asyncExecution_threads.push_back(QThread::create(_dc_AsyncFunc,subscriptConnesction,scriptCommand.trimmed()));
+                                            asyncExecution_threads.back()->start();
+                                            keywordbuff = "";
+                                            formatedSql+= "_DBL_AsyncExecutionTempValue {-- {} {} \n}";//{-- {} {} \n}
+                                            reset = true;
+                                            break;
+
+                                        }
+                                        else
+                                        {
+                                            if(!nodebug) qDebug()<< "executing sql";
+                                            subscriptConnesction->execSql(scriptCommand.trimmed());
+                                            subscriptConnesction->data.sqlCode = scriptCommand.trimmed();
+                                            if(!nodebug) qDebug()<< "sql execd";
+                                        }
+                                    }
+                                subscriptConnesction->data.allSqlCode = this->data.allSqlCode;
+
+
+                                QString hours =  QVariant((subscriptConnesction->executionTime / 3600)).toString();
+                                QString minuts = QVariant(subscriptConnesction->executionTime % 3600 / 60).toString();
+                                QString secs = QVariant(subscriptConnesction->executionTime % 60).toString();
+                                QString msecs = QVariant((QDateTime::currentMSecsSinceEpoch() - subscriptConnesction->executionStart.toMSecsSinceEpoch())%1000).toString();
+
+                                QString execTimeStr =  "";
+                                while(hours.size() <2)
+                                    hours = QString("0") + hours;
+                                while(minuts.size() <2)
+                                    minuts = QString("0") + minuts;
+                                while(secs.size() <2)
+                                    secs = QString("0") + secs;
+                                while(msecs.size() <3)
+                                    msecs = QString("0") + msecs;
+                                execTimeStr += hours;
+                                execTimeStr += ":";
+                                execTimeStr += minuts;
+                                execTimeStr += ":";
+                                execTimeStr += secs;
+                                execTimeStr += ".";
+                                execTimeStr += msecs;
+
+
+
+
                                 int neededMagicColumn = -1;
 
                                 int TableCutoffStart = -1;
@@ -868,6 +1285,25 @@ bool DatabaseConnection::execSql(QString sql)
                                         if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
                                             subscriptConnesction->data.ExportToExcel(QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true);
                                 }
+                                else if(subCommandPatterns[i] == "SilentSubexecToExcelWorksheet")
+                                {
+                                    savefilecount++;
+                                    if(!nodebug) qDebug() << "silent exporting to Excel Worksheet" << saveName;
+
+                                    if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
+                                        if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
+                                            subscriptConnesction->data.ExportToExcel(QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true,WorksheetName);
+                                }
+                                else if(subCommandPatterns[i] == "SilentSubexecAppendExcelWorksheet")
+                                {
+                                    savefilecount++;
+                                    if(!nodebug) qDebug() << "silent exporting to Excel Worksheet" << saveName;
+
+                                    if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
+                                        if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
+                                            subscriptConnesction->data.ExportToExcel(QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true,WorksheetName,true);
+                                }
+
                                 else if(subCommandPatterns[i] == "SilentSubexecToCSV")
                                 {
                                     savefilecount++;
@@ -934,6 +1370,12 @@ bool DatabaseConnection::execSql(QString sql)
                                             formatedSql += " 0 ";
                                         formatedSql += "'";
                                         formatedSql += " as \"Row count\" ";
+
+
+                                        formatedSql += ", '";
+                                        formatedSql += execTimeStr;
+                                        formatedSql += "' ";
+                                        formatedSql += "as \"Execution time\"";
                                     }
                                 }
                                 else if(subCommandPatterns[i] == "SubexecToExcelTable")
@@ -941,7 +1383,6 @@ bool DatabaseConnection::execSql(QString sql)
                                     savefilecount++;
                                     if(!nodebug) qDebug() << "exporting to Excel " << saveName;
                                     QString saveErrorStr = "";
-
                                     if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
                                         if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0 && subscriptConnesction->data.tbldata[0].size() > 0)
                                             if(!subscriptConnesction->data.ExportToExcel(QString(documentsDir + "/" +"excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true))
@@ -983,6 +1424,118 @@ bool DatabaseConnection::execSql(QString sql)
                                         formatedSql += " 0 ";
                                     formatedSql += "'";
                                     formatedSql += " as \"Row count\" ";
+
+
+                                    formatedSql += ", '";
+                                    formatedSql += execTimeStr;
+                                    formatedSql += "' ";
+                                    formatedSql += "as \"Execution time\"";
+                                }
+                                else if(subCommandPatterns[i] == "SubexecToExcelWorksheet")
+                                {
+                                    savefilecount++;
+                                    if(!nodebug) qDebug() << "exporting to Excel " << saveName;
+                                    QString saveErrorStr = "";
+                                    if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
+                                        if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0 && subscriptConnesction->data.tbldata[0].size() > 0)
+                                            if(!subscriptConnesction->data.ExportToExcel(QString(documentsDir + "/" +"excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true,WorksheetName))
+                                                saveErrorStr = "Failed to save to excel, probably file is opened";
+
+                                    if (saveErrorStr.size() > 0)
+                                    {
+                                        formatedSql += " '";
+                                        formatedSql += saveErrorStr;
+                                        formatedSql += "' ";
+                                        formatedSql += "as \"Status\", ";
+                                    }
+                                    else
+                                        formatedSql += " 'Success' as \"Status\", ";
+
+                                    if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
+                                    {
+                                        formatedSql += "'";
+                                        if(subscriptConnesction->data.tbldata.size() > 0 && subscriptConnesction->data.tbldata[0].size()>0)
+                                            formatedSql += subscriptConnesction->data.tbldata[0][0];
+                                        formatedSql += "'";
+                                        formatedSql += " as \"Error message\", ";
+                                    }
+                                    else
+                                    {
+                                        formatedSql += "'";
+                                        formatedSql += " ";
+                                        formatedSql += "'";
+                                        formatedSql += " as \"Error message\", ";
+                                    }
+                                    formatedSql += "'";
+                                    formatedSql += QVariant(subscriptConnesction->data.tbldata.size()).toString();
+                                    formatedSql += "'";
+                                    formatedSql += " as \"Column count\", ";
+                                    formatedSql += "'";
+                                    if(subscriptConnesction->data.tbldata.size() > 0)
+                                        formatedSql += QVariant(subscriptConnesction->data.tbldata[0].size()).toString();
+                                    else
+                                        formatedSql += " 0 ";
+                                    formatedSql += "'";
+                                    formatedSql += " as \"Row count\" ";
+
+
+                                    formatedSql += ", '";
+                                    formatedSql += execTimeStr;
+                                    formatedSql += "' ";
+                                    formatedSql += "as \"Execution time\"";
+                                }
+                                else if(subCommandPatterns[i] == "SubexecAppendExcelWorksheet")
+                                {
+                                    savefilecount++;
+                                    if(!nodebug) qDebug() << "exporting to Excel " << saveName;
+                                    QString saveErrorStr = "";
+                                    if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
+                                        if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0 && subscriptConnesction->data.tbldata[0].size() > 0)
+                                            if(!subscriptConnesction->data.ExportToExcel(QString(documentsDir + "/" +"excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true,WorksheetName,true))
+                                                saveErrorStr = "Failed to save to excel, probably file is opened";
+
+                                    if (saveErrorStr.size() > 0)
+                                    {
+                                        formatedSql += " '";
+                                        formatedSql += saveErrorStr;
+                                        formatedSql += "' ";
+                                        formatedSql += "as \"Status\", ";
+                                    }
+                                    else
+                                        formatedSql += " 'Success' as \"Status\", ";
+
+                                    if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
+                                    {
+                                        formatedSql += "'";
+                                        if(subscriptConnesction->data.tbldata.size() > 0 && subscriptConnesction->data.tbldata[0].size()>0)
+                                            formatedSql += subscriptConnesction->data.tbldata[0][0];
+                                        formatedSql += "'";
+                                        formatedSql += " as \"Error message\", ";
+                                    }
+                                    else
+                                    {
+                                        formatedSql += "'";
+                                        formatedSql += " ";
+                                        formatedSql += "'";
+                                        formatedSql += " as \"Error message\", ";
+                                    }
+                                    formatedSql += "'";
+                                    formatedSql += QVariant(subscriptConnesction->data.tbldata.size()).toString();
+                                    formatedSql += "'";
+                                    formatedSql += " as \"Column count\", ";
+                                    formatedSql += "'";
+                                    if(subscriptConnesction->data.tbldata.size() > 0)
+                                        formatedSql += QVariant(subscriptConnesction->data.tbldata[0].size()).toString();
+                                    else
+                                        formatedSql += " 0 ";
+                                    formatedSql += "'";
+                                    formatedSql += " as \"Row count\" ";
+
+
+                                    formatedSql += ", '";
+                                    formatedSql += execTimeStr;
+                                    formatedSql += "' ";
+                                    formatedSql += "as \"Execution time\"";
                                 }
                                 else if(subCommandPatterns[i] == "SubexecToCSV")
                                 {
@@ -1021,6 +1574,12 @@ bool DatabaseConnection::execSql(QString sql)
                                         formatedSql += " 0 ";
                                     formatedSql += "'";
                                     formatedSql += " as \"Row count\" ";
+
+
+                                    formatedSql += ", '";
+                                    formatedSql += execTimeStr;
+                                    formatedSql += "' ";
+                                    formatedSql += "as \"Execution time\"";
 
                                 }
                                 else if(subCommandPatterns[i] == "SubexecAppendCSV")
@@ -1062,6 +1621,12 @@ bool DatabaseConnection::execSql(QString sql)
                                         formatedSql += " 0 ";
                                     formatedSql += "'";
                                     formatedSql += " as \"Row count\" ";
+
+
+                                    formatedSql += ", '";
+                                    formatedSql += execTimeStr;
+                                    formatedSql += "' ";
+                                    formatedSql += "as \"Execution time\"";
 
                                 }
                                 // script extensions/dblinks
@@ -1266,135 +1831,36 @@ bool DatabaseConnection::execSql(QString sql)
 
                             }
 
-                            // no recursion = manualy unroll though reset
-                            if(subCommandPatterns[i].trimmed() == "ForLoop" || subCommandPatterns[i].trimmed() == "QueryForLoop")
+                            // Async execution.
+                            //// Start async - start launching each subexec on separate threads.
+                            //// Wait async - wait all async executions, paste all temporary placeholders(_DBL_AsyncExecutionTempValue) with results
+
+                            // subCommandPatterns.push_back("StartAsyncExecution");
+                            // subCommandPatterns.push_back("AwaitAsyncExecution");
+
+                            if(subCommandPatterns[i].trimmed() == "StartAsyncExecution")
                             {
+                                asyncExecution_recordExecs = true;
+                                asyncExecution_pasteExecsData = false;
+
+                            }
+                            if(subCommandPatterns[i].trimmed() == "AwaitAsyncExecution")
+                            {
+                                asyncExecution_recordExecs = false;
+                                asyncExecution_pasteExecsData = false;
+
+
+
+                                for(auto t : asyncExecution_threads)
+                                {
+                                    qDebug() << "wait thread " << t;
+                                    if(t->isRunning())
+                                        t->wait();
+                                    qDebug() << "thread done" << t;
+                                }
+                                asyncExecution_threads.clear();
+                                qDebug() << "threads done and cleared";
                                 reset = true;
-
-
-                                if(!nodebug) qDebug()<< "ForLoop";
-                                if(!nodebug) qDebug()<< "variables " << funcVariables;
-                                if(!nodebug) qDebug()<< "Subscript command is:";
-                                if(!nodebug) qDebug()<< scriptCommand;
-                                if(!nodebug) qDebug()<< "";
-                                QString replValue = "_____Unset_Iter_Value_";
-                                int replStart = 0;
-                                int replEnd = 1;
-                                int replStep = 1;
-                                int fillStage = 0;
-                                bool toIntStart = false;
-                                QStringList iterateValues;
-                                //QString valueFiller = ""; // mb implement it, for syntax like {iterval} {002} {100} and itervalue will be 3 digits, 002,003 etc.
-                                int valueRuquieredSize = 0; // implemented through this. less flexability
-                                bool isIteration = false;
-                                for(auto s : funcVariables)
-                                {
-                                    if(fillStage  == 0)
-                                    {
-                                        fillStage++;
-                                        replValue = s.trimmed();
-                                    }else if(fillStage  == 1)
-                                    {
-                                        fillStage++;
-                                        replStart = QVariant(s.trimmed()).toInt(&toIntStart);
-                                        valueRuquieredSize = s.trimmed().size();
-                                        if(!toIntStart)
-                                        {
-                                            iterateValues = s.trimmed().split(',');
-                                            if(iterateValues.size()>0)
-                                                isIteration = true;
-                                        }
-
-                                    }else if(fillStage  == 2)
-                                    {
-                                        fillStage++;
-                                        replEnd = QVariant(s.trimmed()).toInt();
-                                    }else if(fillStage  == 3)
-                                    {
-                                        fillStage++;
-                                        replStep = QVariant(s.trimmed()).toInt();
-                                    }
-                                    else
-                                        break;
-                                }
-                                if(!nodebug) qDebug() << replValue << replStart << replEnd << replStep << "valueRuquieredSize " << valueRuquieredSize;
-
-                                if(!isIteration)
-                                {for(int iter = replStart; iter <= replEnd; iter += replStep)
-                                    {
-                                        if(iter != replStart)
-                                        {
-                                            if(subCommandPatterns[i].trimmed() == "QueryForLoop")
-                                                formatedSql+= " union all ";
-                                        }
-                                        QString fmiterSql = scriptCommand;
-                                        QString replString = QVariant(iter).toString();
-                                        while (replString.size() < valueRuquieredSize)
-                                            replString = '0' + replString;
-
-                                        fmiterSql = fmiterSql.replace(replValue, replString);
-                                        formatedSql += fmiterSql;
-                                        if(!nodebug) qDebug()<<iter << fmiterSql;
-                                    }
-                                }else
-                                {
-                                    int first = true;
-                                    for(auto val : iterateValues)
-                                    {
-                                        if(!first)
-                                        {
-                                            if(subCommandPatterns[i].trimmed() == "QueryForLoop")
-                                                formatedSql+= " union all ";
-                                        }
-                                        first = false;
-                                        QString fmiterSql = scriptCommand;
-                                        QString replString = val;
-
-                                        fmiterSql = fmiterSql.replace(replValue, replString);
-                                        formatedSql += fmiterSql;
-                                        if(!nodebug) qDebug()<<val << fmiterSql;
-                                    }
-                                }
-
-                                formatedSql += " ";
-                            }
-
-                            if(subCommandPatterns[i].trimmed() == "DBLPasteMonth")
-                            {
-                                QString str;
-                                QDateTime::currentDateTime().date().month();
-                                int monthnum = QDateTime::currentDateTime().date().month();
-                                if(funcVariables.size() > 0)
-                                {
-                                    int offset = 0;
-                                    bool ok = false;
-                                    offset = QVariant(funcVariables[0]).toInt(&ok);
-                                    if(ok)
-                                        monthnum +=offset;
-                                }
-                                str = QVariant(monthnum).toString();
-                                if(str.size() == 1)
-                                    str = "0" + str;
-                                if(!nodebug) qDebug() << str;
-                                formatedSql += str;
-                            }
-
-                            if(subCommandPatterns[i].trimmed() == "DBLPasteNumMonth")
-                            {
-                                QString str;
-                                QDateTime::currentDateTime().date().month();
-                                int monthnum = QDateTime::currentDateTime().date().month();
-                                if(funcVariables.size() > 0)
-                                {
-                                    int offset = 0;
-                                    bool ok = false;
-                                    offset = QVariant(funcVariables[0]).toInt(&ok);
-                                    if(ok)
-                                        monthnum +=offset;
-                                }
-                                str = QVariant(monthnum).toString();
-                                if(!nodebug) qDebug() << str;
-                                formatedSql += str;
                             }
 
                             keywordbuff = "";
@@ -1429,6 +1895,7 @@ bool DatabaseConnection::execSql(QString sql)
         if(!nodebug) qDebug()<<"Exiting sql subcomand processing........";
         if(!nodebug) qDebug()<<"Resulting formatedSql is";
         str = formatedSql.trimmed();
+
     }
     executing = true;
     // run result
@@ -1443,6 +1910,10 @@ bool DatabaseConnection::execSql(QString sql)
     queryExecutionState = 1;
     Last_sqlCode = str;
 
+    data.sqlCode = str;
+    data.LastDatabase = this->dbname;
+    data.LastDriver = this->driver;
+    data.LastUser = this->usrname;
 
     if(customSQlite && sqlite3DBConnectionIsOpen && sqlite3DBConnection != nullptr)
     {

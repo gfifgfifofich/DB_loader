@@ -1,5 +1,6 @@
 #include "tabledata.h"
 #include "datastorage.h"
+#include "loaderwidnow.h"
 #include "sqlSubfunctions.h"
 
 #include <QSqlDatabase>
@@ -11,7 +12,7 @@
 #include <fstream>
 #include <qdir.h>
 #include "databaseconnection.h"
-
+#include <QInputDialog>
 
 inline QString documentsDir;
 inline DataStorage userDS;
@@ -22,9 +23,6 @@ double 6
 QString 10
 
 
-fucked up date imports from excel
-
-reeeeally fucked up date imports form excel
 */
 
 TableData::TableData(QObject *parent)
@@ -151,9 +149,31 @@ bool TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_st
 
 
     QVariant lastcellval = xlsxR3.read(1,1);
+    int sheetid = 0;
+    QStringList sheets = xlsxR3.sheetNames();
+    if(sheets.size()>1)
+    {
+        bool ok = true;
+        QInputDialog id(loadWind);
+        id.setLabelText("Select sheet to import");
+        id.setComboBoxItems(sheets);
+        id.exec();
 
+        QString text = id.textValue();
+        xlsxR3.selectSheet(text);
+        qDebug() << text;
+        if(!ok)
+        {
+            qDebug() << "xlsx import failed, user cancel";
+            return false;
+        }
 
-
+    }
+    else if(sheets.size()<=0)
+    {
+        qDebug() << "xlsx import failed, no sheets in excel table";
+        return false;
+    }
     int column = 1;
     while(lastcellval.toString().size()>0)
     {
@@ -283,8 +303,16 @@ bool TableData::ExportToCSV(QString fileName, char delimeter, bool firstRowHeade
     fl.close();
     return true;
 }
-bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_start,int y_end, bool firstRowHeader)
+
+
+bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_start,int y_end, bool firstRowHeader, QString sheetName, bool append)
 {
+
+    if(append)
+    {
+        return AppendToExcel(fileName,sheetName);
+    }
+
 
     if(tbldata.size()<=0)
         return false;
@@ -295,21 +323,43 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
         qDebug() << "saving boundries "<< x_start <<  x_end << y_start << y_end;
     }
     // to load only if needed
-    QString tmpfilenm = "";
-    if(diap) tmpfilenm = fileName;
-    QXlsx::Document xlsxR3(tmpfilenm);
+    QXlsx::Document xlsxR3(fileName);
+
+    if(sheetName!="")
+    {
+        xlsxR3.load();// load and clear sheet
+
+        if(!append && !diap)
+            if(xlsxR3.sheetNames().contains(sheetName))
+                xlsxR3.deleteSheet(sheetName);
+
+        xlsxR3.addSheet(sheetName);
+
+
+        xlsxR3.selectSheet(sheetName);
+    }
+    if(append && y_start <=0)
+        y_start=1;
+    if(append)
+    {
+        while(!xlsxR3.read(y_start,1).isNull())
+            y_start++;
+        y_start-=2;
+        qDebug() << y_start;
+    }
+
 
     qDebug() << "saving " << fileName;
+    int rowoffset = -y_start;
     int sheetnumber = 1;
-    int rowoffset = y_start;
     int column_offset = x_start;
-    if(firstRowHeader)
-    for(int i=0;i<headers.size();i++)
-    {
-        QVariant var = headers[i];
+    if(firstRowHeader && !append)
+        for(int i=0;i<headers.size();i++)
+        {
+            QVariant var = headers[i];
 
-        xlsxR3.write(1 + y_start,i+1 + x_start,var);
-    }
+            xlsxR3.write(1 + y_start,i+1 + x_start,var);
+        }
 
     //int datasaved = 0;
 
@@ -492,7 +542,7 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
             if(end > tbldata[0].size())
                 end = tbldata[0].size();
 
-            QString sheetname = "Sheet";
+            QString sheetname = sheetName;
             sheetname += QVariant(sheetnumber).toString();
             xlsxR3.addSheet(sheetname);
             xlsxR3.selectSheet(sheetname);
@@ -529,7 +579,7 @@ bool TableData::ExportToSQLiteTable(QString tableName)
     DatabaseConnection dc;
     dc.nodebug = true;
     dc.rawquery = true;
-
+    dc.disableSaveToUserDS = true;
     QString driver = userDS.data["UserTheme"]["db_drv_Save_table_driver"];
     QString conection = userDS.data["UserTheme"]["db_drv_Save_table_Connection"];
     conection.replace("documentsDir",documentsDir);
@@ -603,7 +653,65 @@ bool TableData::ExportToSQLiteTable(QString tableName)
     }
 
 
+    SQLITE_sql = "create table if not exists user_table_desc ( "
+                 " exec_table_name text, "
+                 " exec_driver text, "
+                 " exec_database text, "
+                 " exec_user_name text, "
+                 " exec_workspace_name text, "
+                 " cre_date timestamp, "
+                 " exec_sql text "
+                 ")";
 
+    if(dc.execSql(SQLITE_sql))
+        qDebug()<< "Created local table description";
+
+    if(!dc.execSql("select * from  user_table_desc where exec_table_name = '" + tableName + "'"))
+        qDebug()<< "Cant load table description";
+    else
+    {
+        if(dc.data.tbldata.size() >0 && dc.data.tbldata[0].size()<=0)
+        {
+            SQLITE_sql = "Insert into user_table_desc values( '";
+            SQLITE_sql += tableName;
+            SQLITE_sql += "', '";
+
+            SQLITE_sql += LastDriver;
+            SQLITE_sql += "', '";
+
+            SQLITE_sql += LastDatabase;
+            SQLITE_sql += "', '";
+
+            SQLITE_sql += LastUser;
+            SQLITE_sql += "', '";
+            SQLITE_sql += loadWind->LastWorkspaceName;
+            SQLITE_sql += "', ";
+            SQLITE_sql += "clock_timestamp ( )";
+            SQLITE_sql += ", '";
+            SQLITE_sql += sqlCode.replace("'","''");
+            SQLITE_sql += "')";
+
+            if(dc.execSql(SQLITE_sql))
+                qDebug()<< "inserted local table description";
+        }
+        else
+        {
+            SQLITE_sql = "update user_table_desc set ";
+
+            SQLITE_sql += " exec_driver = '" + LastDriver + "'";
+            SQLITE_sql += " ,exec_database = '" + LastDatabase + "'";
+            SQLITE_sql += " ,exec_user_name = '" + LastUser +"'";
+            SQLITE_sql += " ,exec_workspace_name = '" + loadWind->LastWorkspaceName + "' ";
+            SQLITE_sql += " ,cre_date  = clock_timestamp ( )";
+            SQLITE_sql += " ,exec_sql = '" +  sqlCode.replace("'","''") + "'";
+            SQLITE_sql += " where exec_table_name = '" + tableName + "'";
+
+
+            if(dc.execSql(SQLITE_sql))
+                qDebug()<< "inserted local table description";
+
+        }
+    }
 
 
     SQLITE_sql = "Insert into ";
@@ -642,7 +750,7 @@ bool TableData::ExportToSQLiteTable(QString tableName)
                 {
                     if(maxVarTypes[a] != 6)
                         SQLITE_sql += " '";
-                    SQLITE_sql += tbldata[a][i];
+                    SQLITE_sql += tbldata[a][i].replace("'","''");
                     if(maxVarTypes[a] != 6)
                         SQLITE_sql += "' ";
                 }
@@ -652,11 +760,16 @@ bool TableData::ExportToSQLiteTable(QString tableName)
             }
             else
             {
-                SQLITE_sql += " '";
+                if(tbldata[a][i].size() >0)
+                {
+                    SQLITE_sql += " '";
 
-                SQLITE_sql += tbldata[a][i];
+                    SQLITE_sql += tbldata[a][i].replace("'","''");
 
-                SQLITE_sql += "' ";
+                    SQLITE_sql += "' ";
+                }
+                else
+                    SQLITE_sql += "null";
 
             }
         }
@@ -685,8 +798,8 @@ bool TableData::ExportToSQLiteTable(QString tableName)
 bool TableData::AppendToCSV(QString fileName, char delimeter)
 {
     QFile fl((additionalSaveFileData + fileName));
-    fl.open(QFile::OpenModeFlag::Append);
-    if(fl.isOpen())
+    ;
+    if(fl.open(QFile::OpenModeFlag::Append))
     {
         if(tbldata.size() > 0 && tbldata[0].size() > 0)
             for(int a=0;a<tbldata[0].size();a++)
@@ -733,54 +846,86 @@ bool TableData::AppendToCSV(QString fileName, char delimeter)
     return true;
 }
 
-bool TableData::AppendToExcel(QString fileName)
-{
-    qDebug() << "TableData::AppendToExcel Unimplemented";
-    return false;
-}
 
+bool TableData::AppendToExcel(QString fileName, QString SheetName )
+{
+
+    if(SheetName== "")
+        SheetName = "Sheet1";
+    DatabaseConnection dc;
+    dc.Create("QODBC_Excel",fileName);
+    dc.nodebug = true;
+    dc.rawquery = true;
+    dc.disableSaveToUserDS = true;
+    QString SQLITE_sql = "";
+
+
+    if(tbldata.size() <=0)
+        return true;
+
+
+
+    qDebug() << SQLITE_sql;
+    int lasti=0;
+    for(int i=0;i<tbldata[0].size();i++)
+    {
+
+        SQLITE_sql = "Insert into ";
+        SQLITE_sql +=  "[" + SheetName + "$" + "]";
+        SQLITE_sql += " values ";
+        SQLITE_sql += " (";
+
+        //SQLITE_sql += " union all Select ";
+        bool first = true;
+        for(int a=0;a<tbldata.size();a++)
+        {
+            if(!first)
+                SQLITE_sql += ",";
+            first = false;
+
+            if(!(typecount.size() > i && typecount[i].size() >10 && typecount[i][10] >0))
+            {
+                //fixQStringType_lasttype
+
+                if(tbldata[a][i].size() >0)
+                {
+                    if(maxVarTypes[a] != 6)
+                        SQLITE_sql += " '";
+                    SQLITE_sql += tbldata[a][i];
+                    if(maxVarTypes[a] != 6)
+                        SQLITE_sql += "' ";
+                }
+                else
+                    SQLITE_sql += "null";
+
+            }
+            else if(tbldata[a][i].size() >0)
+            {
+                SQLITE_sql += " '";
+
+                SQLITE_sql += tbldata[a][i];
+
+                SQLITE_sql += "' ";
+            }
+            else
+                SQLITE_sql += "null";
+
+
+        }
+        SQLITE_sql += " )";
+        if(!dc.execSql(SQLITE_sql))
+        {
+
+            qDebug()<< "Failed to save to Excel: " << SQLITE_sql << dc.db.lastError().text();
+        }
+    }
+    return true;
+}
 
 // QML funtions, QAbstractTableData overrides
 
 // move table(x_s,y_s,x_s,y_s) by dx, dy
 // ExcelMove(0,0,10,10, 5,5); // move block 5 right 5 down
-bool TableData::ExcelMove(QString table,int x_start,int x_end,int y_start,int y_end, int dx, int dy)
-{
-    std::vector<std::vector<QVariant>> tmpTbldata;
-    QVariant lastcellval;
-    QXlsx::Document xlsx(table);
-
-    // form a cube of data
-    tmpTbldata.resize(x_end - x_start + 1);
-    if(tmpTbldata.size() <=0)
-        return false;
-    // read cube
-    for(int i=0;i<tmpTbldata.size();i++)
-    {    for(int a=0;a< y_end - y_start + 1;a++)
-        {
-            lastcellval = xlsx.read(a + 1 , i + 1);
-            tmpTbldata[i].push_back(lastcellval);
-            xlsx.write(a + 1 , i + 1,""); // write 0 at position we just read
-        }
-    }
-
-    for(int i=0;i<tmpTbldata.size();i++)
-    {    for(int a=0;a< y_end - y_start + 1;a++)
-        {
-            xlsx.write(a + 1 + dy , i + 1 + dx, tmpTbldata[i][a]); // write var at position we just read
-        }
-    }
-
-    if(xlsx.save())
-    {
-        return true;
-    }
-    else
-    {
-        qDebug()<<"Failed to save after move";
-        return false;
-    }
-}
 
 
 int TableData::getSizeX()
@@ -811,35 +956,6 @@ QVariant TableData::headerData(int section, Qt::Orientation orientation, int rol
         return headers[section];
     else return QVariant(section);
 }
-void TableData::selectXLSXFile(QString filename)
-{
-    if(xlsxFile != nullptr)
-        delete xlsxFile;
-    xlsxFile =  new QXlsx::Document(filename);
-}
-bool TableData::saveXLSXFile(QString filename)
-{
-    if(xlsxFile != nullptr)
-        if(xlsxFile->saveAs(filename))
-            return true;
-    return false;
-}
-void TableData::writeToXLSXFile(int x, int y, QVariant value)
-{
-    if(xlsxFile != nullptr)
-    {
-        xlsxFile->write(y+1,x+1,value);
-    }
-}
-QVariant TableData::readFromXLSXFile(int x, int y)
-{
-    if(xlsxFile != nullptr)
-    {
-        return xlsxFile->read(y+1,x+1);
-    }
-    else return QVariant();
-}
-
 // garbage to bootstrap class imto QML, cuz yea
 int TableData::rowCount(const QModelIndex & ) const
 {

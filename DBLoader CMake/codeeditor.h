@@ -34,6 +34,7 @@ public:
     QPixmap zoomOutView;
     bool updateZoomOutViewOnScroll = true;
     bool b_codePreview = false;
+    bool b_showSuggestion = true;
 
     void updateMisc();
 
