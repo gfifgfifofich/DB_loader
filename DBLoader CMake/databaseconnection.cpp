@@ -346,10 +346,10 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
             this->password = password;
 
             LastDBName = dbname;
-            if(userDS.Load((documentsDir + "/userdata.txt")))
+            if(!disableSaveToUserDS && userDS.Load((documentsDir + "/userdata.txt")))
             {
                 userDS.data[dbname]["lastDriver"] = this->driver;
-                if(!disableSaveToUserDS) userDS.Save(documentsDir + "/userdata.txt");
+                 userDS.Save(documentsDir + "/userdata.txt");
             }
             return true;
         }
@@ -395,7 +395,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
             sqlite3DBConnection = db;
             sqlite3DBConnectionIsOpen = true;
             if(!nodebug) qDebug() << "sqlite opened";
-            if(userDS.Load((documentsDir + "/userdata.txt")))
+            if(!disableSaveToUserDS && userDS.Load((documentsDir + "/userdata.txt")))
             {
                 userDS.data[dbname]["lastDriver"] = this->driver;
                 if(!disableSaveToUserDS) userDS.Save(documentsDir + "/userdata.txt");
@@ -460,7 +460,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
                     customPSQL = true;
 
                     LastDBName = dbname;
-                    if(userDS.Load((documentsDir + "/userdata.txt")))
+                    if(!disableSaveToUserDS && userDS.Load((documentsDir + "/userdata.txt")))
                     {
                         userDS.data[dbname]["lastDriver"] = this->driver;
                         if(!disableSaveToUserDS) userDS.Save(documentsDir + "/userdata.txt");
@@ -483,7 +483,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
             customPSQL = true;
 
             LastDBName = dbname;
-            if(userDS.Load((documentsDir + "/userdata.txt")))
+            if(!disableSaveToUserDS && userDS.Load((documentsDir + "/userdata.txt")))
             {
                 userDS.data[dbname]["lastDriver"] = this->driver;
                 if(!disableSaveToUserDS) userDS.Save(documentsDir + "/userdata.txt");
@@ -507,7 +507,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
             this->password = password;
 
             LastDBName = dbname;
-            if(userDS.Load((documentsDir + "/userdata.txt")))
+            if(!disableSaveToUserDS && userDS.Load((documentsDir + "/userdata.txt")))
             {
                 userDS.data[dbname]["lastDriver"] = this->driver;
                 if(!disableSaveToUserDS) userDS.Save(documentsDir + "/userdata.txt");
@@ -526,6 +526,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
 bool DatabaseConnection::Create(QString driver, QString DBName)
 {
     //if local db selected, swap all data for local database, in which the save goes
+
     if(driver.trimmed() == "LOCAL" || dbname.trimmed() == "LOCAL")
     {
         driver = userDS.data["UserTheme"]["db_drv_Save_table_driver"];
@@ -536,17 +537,18 @@ bool DatabaseConnection::Create(QString driver, QString DBName)
         dbname = dbname.trimmed();
 
     }
-    if(userDS.Load((documentsDir + "/userdata.txt")))
+    if(!disableSaveToUserDS)
     {
-        this->driver = driver;
-        this->dbname = DBName;
-        this->usrname = userDS.data[DBName]["name"];
-        this->password = userDS.data[DBName]["password"];
-
-        bool success = Create(driver.trimmed(),dbname.trimmed(), usrname.trimmed(), password.trimmed());
-        return success ;
+        userDS.Load((documentsDir + "/userdata.txt"));
     }
-    else return false;
+    this->driver = driver;
+    this->dbname = DBName;
+    this->usrname = userDS.data[DBName]["name"];
+    this->password = userDS.data[DBName]["password"];
+
+    bool success = Create(driver.trimmed(),dbname.trimmed(), usrname.trimmed(), password.trimmed());
+    return success ;
+
 }
 
 

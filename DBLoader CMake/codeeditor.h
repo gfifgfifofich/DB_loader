@@ -22,8 +22,6 @@ public:
     int lineNumberAreaWidth();
     Highlighter* highlighter = nullptr;
 
-    QString lastSuggestedWord=" ";
-    bool lastwordisTableColumn = false;
 
     void replace(int _from, int _to, QString _what, QString _with);
     void FillsuggestName();
@@ -36,8 +34,15 @@ public:
     bool b_codePreview = false;
     bool b_showSuggestion = true;
 
-    void updateMisc();
+    QString lastSuggestedWord=" ";
+    bool lastwordisTableColumn = false;
 
+    int FontSizeOverride = -1;
+
+    void updateMisc();
+    void FindNext(QString _what);
+
+    void wheelEvent(QWheelEvent *event) override;
 protected:
     void resizeEvent(QResizeEvent *event) override;
     void keyPressEvent(QKeyEvent *e) override;

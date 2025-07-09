@@ -47,6 +47,9 @@
 
 +- Iterate magic/arrays by 10k each -- possible through regular forloops
 
+    ui->tabWidget->tabText(ui->tabWidget->currentIndex());
+    ui->tabWidget->setTabText(ui->tabWidget->currentIndex(),"asdasda");
+on_workspaceLineEdit_textChanged(ui->tabWidget->tabText(ui->tabWidget->currentIndex()));
 
 
 
@@ -65,6 +68,16 @@ inline QTime lastMultiRunPress = QTime::currentTime();
 QStringList allPosibbleTokens;
 QMap<QString,int> allPosibbleTokensMap;
 
+void asyncLoadFrequencyMapFunc(QString filename)
+{
+
+    qDebug() << "loading token processor";
+    //
+    //load tokenprocessor data
+    if(!tokenProcessor.ds.Load(filename))
+        qDebug() << "failed to load FrequencyMap: " <<  filename;
+    qDebug() << "loaded token processor";
+}
 
 LoaderWidnow::LoaderWidnow(QWidget *parent)
     : QMainWindow(parent)
@@ -303,11 +316,14 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     ui->splitter->setSizes({1,2000,1});
 
 
+
+
     ui->CodeEditorSplitter->setSizes({0,2000,0});
 
     // load last database/driver
     if(userDS.Load((documentsDir + "/userdata.txt")))
     {
+        qDebug() << "Loaded ds:" <<(documentsDir + "/userdata.txt");
         QStringList strl;
         for( auto x : userDS.data["UserDBs"])
         {
@@ -327,6 +343,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 
         if(QString(userDS.data["UserTheme"]["Workspace_Directory"]).trimmed().size() < 3)
             userDS.data["UserTheme"]["Workspace_Directory"] = "documents";
+        qDebug() << "saved 1";
 
         userDS.Save((documentsDir + "/userdata.txt"));
     }
@@ -349,7 +366,8 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
         if (file.open(QFile::ReadOnly | QFile::Text))
             cd->setPlainText(file.readAll());
         LastWorkspaceName = launchOpenFileName;
-        ui->workspaceLineEdit->setText(LastWorkspaceName);
+        ui->tabWidget->setTabText(ui->tabWidget->currentIndex(),LastWorkspaceName);
+        on_workspaceLineEdit_textChanged(ui->tabWidget->tabText(ui->tabWidget->currentIndex()));
         ui->splitter->setSizes({0,2000,0});
     }
     else // open with all the slow stuff, in full edit mode
@@ -357,6 +375,8 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
         if(!LastWorkspaceName.endsWith(".sql"))
             LastWorkspaceName+=".sql";
 
+        ui->tabWidget->setTabText(ui->tabWidget->currentIndex(),LastWorkspaceName);
+        on_workspaceLineEdit_textChanged(ui->tabWidget->tabText(ui->tabWidget->currentIndex()));
 
         QString prefix = documentsDir;
         if(QString(userDS.data["UserTheme"]["Workspace_Directory"]).trimmed() != "documents")
@@ -366,14 +386,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
         if (file.open(QFile::ReadOnly | QFile::Text))
             cd->setPlainText(file.readAll());
 
-        // token processor data loaded only when opening app, to minimize open time of files
-        // better to offload this on a separate thread
 
-        qDebug() << "loading token processor";
-        //load tokenprocessor data
-        if(!tokenProcessor.ds.Load((documentsDir + "/" +"FrequencyMaps/test.txt")))
-            qDebug() << "failed to load FrequencyMap: " <<  (documentsDir + "/" +"FrequencyMaps/test.txt");
-        qDebug() << "loaded token processor";
     }
 
 
@@ -425,8 +438,12 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     cd->setFocus();
 
 
+    // load this big boy async, cuz it takes a hot minute to do so
+    QThread* thr = QThread::create(asyncLoadFrequencyMapFunc,(documentsDir + "/" +"FrequencyMaps/test.txt"));
+    thr->start();
+
     // connect to database
-    on_ConnectButton_pressed();
+    // on_ConnectButton_pressed();
 
 
 
@@ -507,7 +524,7 @@ void LoaderWidnow::on_ConnectButton_pressed()
         usrname = usrname.trimmed();
         password = password.trimmed();
     }
-
+    dc->disableSaveToUserDS=false;
 
     dc->connectionName = conname;// set new connection name for all the QT 'native' drivers.
 
@@ -520,7 +537,7 @@ void LoaderWidnow::on_ConnectButton_pressed()
         ui->passwordLineEdit->setText(dc->password);
         ui->connectionStatusLabel_2->setText(QString("connected to ") + dc->dbname);
 
-        if(userDS.Load("userdata.txt"))
+        if(userDS.Load(documentsDir + "/userdata.txt"))
         {
             QString LastTmpDriverName =  ui->driverComboBox->currentText();
             QString LastTmpDbName = ui->DBNameComboBox->currentText();
@@ -567,7 +584,7 @@ void LoaderWidnow::on_ConnectButton_pressed()
             userDS.data["User"]["password"] = dc->password;
             userDS.data["UserDBs"][ui->DBNameComboBox->currentText()] = "";
 
-            userDS.Save("userdata.txt");
+            userDS.Save((documentsDir + "/userdata.txt"));
             qDebug()<<"Saved usedata.txt";
         }
         else
@@ -622,19 +639,6 @@ void LoaderWidnow::runSqlAsync()
     if(driver != dc->driver || dc->dbname!=dbname || usrname != dc->usrname || password != dc->password)
     {
         on_ConnectButton_pressed();
-    }
-    // save new lastOpenedDb
-    if(userDS.Load((documentsDir + "/userdata.txt")))
-    {
-        userDS.data["User"]["lastDriver"] = ui->driverComboBox->currentText();
-        userDS.data["User"]["lastDBName"] = ui->DBNameComboBox->currentText();
-        userDS.data["User"]["name"] = ui->userNameLineEdit->text();
-        userDS.data["User"]["password"] = ui->passwordLineEdit->text();
-
-        userDS.data[ui->DBNameComboBox->currentText()]["name"] = ui->userNameLineEdit->text();
-        userDS.data[ui->DBNameComboBox->currentText()]["password"] = ui->passwordLineEdit->text();
-
-        userDS.Save("userdata.txt");
     }
 
     // return if executing
@@ -1821,23 +1825,80 @@ void LoaderWidnow::FillSuggest()
 void LoaderWidnow::replaceTool()
 {
     qDebug() <<"replaceTool()";
-    replaceDialog rd;
+    ReplaceWindow* rd = new ReplaceWindow();
 
-    rd.replaceWhat = _replacePrev_What;
-    rd.replaceWith = _replacePrev_With;
-    rd.start_line = _replacePrev_from;
-    rd.end_line = _replacePrev_to;
-    rd.Init();
-    if(rd.exec())
+
+    QTextCursor cursor = cd->textCursor();
+    cursor.setPosition(cd->textCursor().selectionStart());
+    rd->start_line = cursor.blockNumber();
+
+
+    cursor.setPosition(cd->textCursor().selectionEnd());
+    rd->end_line = cursor.blockNumber();
+
+    rd->replaceWhat = "";
+    if( rd->start_line != rd->end_line)
+    {
+        QTextCursor cursor = cd->textCursor();
+        cursor.setPosition(cd->textCursor().selectionStart());
+        rd->start_line = cursor.blockNumber()+1;
+
+
+        cursor.setPosition(cd->textCursor().selectionEnd());
+        rd->end_line = cursor.blockNumber()+1;
+    }
+    else if(cd->textCursor().selectedText().size()>0)
+    {
+        rd->replaceWhat = cd->textCursor().selectedText();
+        rd->start_line = _replacePrev_from;
+        rd->end_line = _replacePrev_to;
+
+
+    }
+    else
+    {
+        rd->replaceWhat = _replacePrev_What;
+        rd->start_line = _replacePrev_from;
+        rd->end_line = _replacePrev_to;
+
+    }
+    rd->replaceWith = _replacePrev_With;
+    rd->Init();
+    rd->show();
+    // if(rd.exec())
+    // {// do the raplacing
+    //     cd->replace(rd.start_line,rd.end_line,rd.replaceWhat,rd.replaceWith);
+    //     qDebug() <<"replaced";
+    // }
+    // _replacePrev_What = rd.replaceWhat;
+    // _replacePrev_With = rd.replaceWith;
+    // _replacePrev_from = rd.start_line;
+    // _replacePrev_to = rd.end_line;
+}
+
+void LoaderWidnow::replaceAction()
+{
+
+    if(replaceWindow != nullptr)
     {// do the raplacing
-        cd->replace(rd.start_line,rd.end_line,rd.replaceWhat,rd.replaceWith);
+        cd->replace(replaceWindow->start_line,replaceWindow->end_line,replaceWindow->replaceWhat,replaceWindow->replaceWith);
         qDebug() <<"replaced";
     }
-    _replacePrev_What = rd.replaceWhat;
-    _replacePrev_With = rd.replaceWith;
-    _replacePrev_from = rd.start_line;
-    _replacePrev_to = rd.end_line;
+    _replacePrev_What = replaceWindow->replaceWhat;
+    _replacePrev_With = replaceWindow->replaceWith;
+    _replacePrev_from = replaceWindow->start_line;
+    _replacePrev_to = replaceWindow->end_line;
+    replaceWindow = nullptr;
 }
+void LoaderWidnow::findAction()
+{
+
+    if(replaceWindow != nullptr)
+        cd->FindNext(replaceWindow->replaceWhat);
+
+    replaceWindow = nullptr;
+}
+
 void LoaderWidnow::CommentSelected()
 {
     cd->CommentSelected();
@@ -1980,7 +2041,7 @@ void LoaderWidnow::SaveWorkspace()
 
     this->setWindowTitle(LastWorkspaceName);
 }
-void LoaderWidnow::on_workspaceLineEdit_textChanged(const QString &arg1)
+void LoaderWidnow::on_workspaceLineEdit_textChanged(QString arg1)
 {
     LastWorkspaceName = arg1;
     this->setWindowTitle(LastWorkspaceName);
@@ -1990,7 +2051,7 @@ void LoaderWidnow::on_TreeItem_Changed(const QItemSelection &selected, const QIt
     ;
 
 
-    QString currentText = workspace_model->filePath(workspace_tree->currentIndex());
+    QString currentText = workspace_model->filePath(selected.back().indexes().back());
 
     QString prefix = documentsDir;
     if(QString(userDS.data["UserTheme"]["Workspace_Directory"]).trimmed() != "documents")
@@ -2015,13 +2076,15 @@ void LoaderWidnow::on_TreeItem_Changed(const QItemSelection &selected, const QIt
             filename = prefix + "/workspaces/" + currentText;
 
             LastWorkspaceName = currentText;
-            ui->workspaceLineEdit->setText(currentText);
+            ui->tabWidget->setTabText(ui->tabWidget->currentIndex(),currentText);
+            on_workspaceLineEdit_textChanged(currentText);
         }
         else
         {
             filename = documentsDir +"/sqlBackup/"+filename;
             LastWorkspaceName= "tmp_history";
-            ui->workspaceLineEdit->setText("tmp_history");
+            ui->tabWidget->setTabText(ui->tabWidget->currentIndex(),"tmp_history");
+            on_workspaceLineEdit_textChanged("tmp_history");
 
         }
         QFile file( filename);
@@ -2095,13 +2158,10 @@ void LoaderWidnow::on_TreeItem_Changed(const QItemSelection &selected, const QIt
 }
 void LoaderWidnow::on_DBNameComboBox_currentTextChanged(const QString &arg1)
 {
-    if(!userDS.Load((documentsDir + "/userdata.txt")))
-        return;
     ui->userNameLineEdit->setText(userDS.GetProperty(ui->DBNameComboBox->currentText(),"name"));
     ui->passwordLineEdit->setText(userDS.GetProperty(ui->DBNameComboBox->currentText(),"password"));
     ui->driverComboBox->setCurrentText(userDS.GetProperty(ui->DBNameComboBox->currentText(),"lastDriver"));
 
-    userDS.Save((documentsDir + "/userdata.txt"));
 }
 
 //Pause execution
@@ -2279,7 +2339,8 @@ void LoaderWidnow::on_tabWidget_currentChanged(int index)
     connect( cd, SIGNAL(s_suggestedName()), this, SLOT(updatesuggestion()), Qt::QueuedConnection );
     LastWorkspaceName = tabDatas[i]->workspaceName;
 
-    ui->workspaceLineEdit->setText(tabDatas[i]->workspaceName);
+    ui->tabWidget->setTabText(ui->tabWidget->currentIndex(),tabDatas[i]->workspaceName);
+    on_workspaceLineEdit_textChanged(ui->tabWidget->tabText(ui->tabWidget->currentIndex()));
 
     ui->driverComboBox->setCurrentText(dc->driver);
     ui->DBNameComboBox->setCurrentText(dc->dbname);
@@ -2329,7 +2390,9 @@ void LoaderWidnow::on_tabWidget_tabBarDoubleClicked(int index)
 
     if (ok) {
         ui->tabWidget->setTabText(index, newName);
+        on_workspaceLineEdit_textChanged(ui->tabWidget->tabText(ui->tabWidget->currentIndex()));
     }
+
 }
 void LoaderWidnow::on_pushButton_4_clicked()
 {// add tab

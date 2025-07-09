@@ -1,13 +1,13 @@
 #ifndef REPLACEDIALOG_H
 #define REPLACEDIALOG_H
 
-#include <QDialog>
+#include <QMainWindow>
 #include "codeeditor.h"
 namespace Ui {
 class replaceDialog;
 }
 
-class replaceDialog : public QDialog
+class replaceDialog : public QMainWindow
 {
     Q_OBJECT
 

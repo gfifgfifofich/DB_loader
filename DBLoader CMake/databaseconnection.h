@@ -86,7 +86,7 @@ public:
     int _code_end_pos = 0;
     int lastErrorPos = 0;
     bool lastLaunchIsError = false;
-    bool disableSaveToUserDS = false;
+    bool disableSaveToUserDS = true;
 
 
     Q_INVOKABLE void Init();

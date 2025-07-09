@@ -21,6 +21,12 @@
        <enum>Qt::Orientation::Horizontal</enum>
       </property>
       <widget class="QTreeWidget" name="treeWidget">
+       <property name="maximumSize">
+        <size>
+         <width>250</width>
+         <height>16777215</height>
+        </size>
+       </property>
        <column>
         <property name="text">
          <string notr="true">1</string>
@@ -57,7 +63,7 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>295</width>
+             <width>524</width>
              <height>508</height>
             </rect>
            </property>

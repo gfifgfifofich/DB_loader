@@ -66,7 +66,7 @@ SettingsWindow::SettingsWindow(QWidget *parent)
             varFontCB->setCurrentFont(QFont(QString(x.second).trimmed()));
             valLt->addWidget(varFontCB);
         }
-        else if(var.startsWith("Bold") || var.startsWith("Italic") || var == "ShowTestButtons" || var == "CodePreview"|| var == "CodePreviewAntialiasing" )
+        else if(var.startsWith("Bold") || var.startsWith("Italic") || var == "ShowTestButtons" || var == "CodePreview"|| var == "CodePreviewAntialiasing"|| var == "ShowCodeSuggestion" )
         {
             // add color select button
             if(varLE->text().trimmed() == "true")
@@ -144,10 +144,12 @@ void SettingsWindow::cb_pressed(QString whats_this)
 
 void SettingsWindow::cancel()
 {
+
     close();
 }
 void SettingsWindow::save()
 {
+    userDS.Load((documentsDir + "/userdata.txt"));
     for(int i=0;i < varLEs.size();i++)
     {
 
@@ -155,7 +157,7 @@ void SettingsWindow::save()
         {
             varLEs[i]->setText(varFontCBs[i]->currentText());
         }
-        else if(varLEs[i]->whatsThis().startsWith("Bold") || varLEs[i]->whatsThis().startsWith("Italic") || varLEs[i]->whatsThis() == "ShowTestButtons" || varLEs[i]->whatsThis() == "CodePreview"|| varLEs[i]->whatsThis() == "CodePreviewAntialiasing" )
+        else if(varLEs[i]->whatsThis().startsWith("Bold") || varLEs[i]->whatsThis().startsWith("Italic") || varLEs[i]->whatsThis() == "ShowTestButtons" || varLEs[i]->whatsThis() == "CodePreview"|| varLEs[i]->whatsThis() == "CodePreviewAntialiasing"|| varLEs[i]->whatsThis() == "ShowCodeSuggestion" )
         {
             if(varCheckBoxes[i]->isChecked())
                 varLEs[i]->setText("true");

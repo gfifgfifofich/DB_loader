@@ -3,10 +3,11 @@
 
 
 replaceDialog::replaceDialog(QWidget *parent)
-    : QDialog(parent)
+    : QMainWindow(parent)
     , ui(new Ui::replaceDialog)
 {
     ui->setupUi(this);
+
     this->setObjectName("replace tool");
 }
 

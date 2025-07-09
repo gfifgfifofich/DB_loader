@@ -16,6 +16,10 @@ find_package(Qt6 REQUIRED COMPONENTS Charts)
 find_package(Qt6 REQUIRED COMPONENTS Graphs)
 find_package(Qt6 REQUIRED COMPONENTS Quick)
 find_package(Qt6 REQUIRED COMPONENTS QuickControls2)
+find_package(Qt6 COMPONENTS Core LinguistTools)
+
+qt_standard_project_setup(I18N_TRANSLATED_LANGUAGES en ru)
+
 add_subdirectory(QXlsx-master/QXlsx)
 add_subdirectory(OpenXLSX)
 
@@ -40,8 +44,6 @@ LINK_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/lib)
 # add sqlite source directly
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/sqlite_amalgamation)
 
-
-
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     set(app_icon_resource_windows "${CMAKE_CURRENT_SOURCE_DIR}/resources/app.rc")
     qt_add_executable(untitled
@@ -62,7 +64,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         loaderwidnow.h loaderwidnow.cpp loaderwidnow.ui
         table.h table.cpp
         replacedialog.h replacedialog.cpp replacedialog.ui
-        DBLoadScript.qml
+
 
         tokenprocessor.h tokenprocessor.cpp
         sqlSubfunctions.h
@@ -72,13 +74,16 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
 
         oracledriver.h oracledriver.cpp
 
-        settingswindow.h settingswindow.cpp settingswindow.ui
         colorbutton.h colorbutton.cpp
-        structuredescriptor.h structuredescriptor.cpp structuredescriptor.ui
         sqlite_amalgamation/sqlite3.c
+        settingswindow.h settingswindow.cpp settingswindow.ui
+        structuredescriptor.h structuredescriptor.cpp structuredescriptor.ui
         docwindow.h docwindow.cpp docwindow.ui
+        replacewindow.h replacewindow.cpp replacewindow.ui
 
     )
+    qt_add_translations(untitled)
+
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET untitled APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
 #                 ${CMAKE_CURRENT_SOURCE_DIR}/android)

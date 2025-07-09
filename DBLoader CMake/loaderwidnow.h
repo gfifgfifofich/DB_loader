@@ -21,10 +21,12 @@
 #include <qtreeview.h>
 #include <qvalueaxis.h>
 #include <QChart>
+#include "replacedialog.h"
 
 #include "NeuralNetwork.h"
 #include "codeeditor.h"
 #include "databaseconnection.h"
+#include "replacewindow.h"
 
 
 //  Launch options
@@ -228,6 +230,7 @@ public:
 
     NeuralNetwork nn;
 
+    ReplaceWindow* replaceWindow = nullptr;
 
     void dragEnterEvent(QDragEnterEvent * evt) override;
     void dropEvent(QDropEvent * evt) override;
@@ -291,6 +294,8 @@ public slots:
     void updatesuggestion();
     void FillSuggest();
     void replaceTool();
+    void replaceAction();
+    void findAction();
 
     // Copying from tableView
     void CopySelectionFormTable();
@@ -322,7 +327,8 @@ public slots:
     void on_pushButton_4_clicked();
 
     //Workspace name change
-    void on_workspaceLineEdit_textChanged(const QString &arg1);
+    void on_workspaceLineEdit_textChanged(QString arg1);
+
     // History/workspace loading
     void on_TreeItem_Changed(const QItemSelection &selected, const QItemSelection &deselected);
     // Workspace save

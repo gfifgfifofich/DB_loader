@@ -747,10 +747,11 @@ void Highlighter::updateMisc()
 
 
 
-    if(userDS.Load(documentsDir +"/userdata.txt"))
+    if(userDS.data.count("UserTheme") > 0)
     {
 
-        int fnt_size = userDS.GetPropertyAsInt("UserTheme","FontSize");
+        int fnt_size = FontSizeOverride;
+        if(fnt_size  == -1) fnt_size = userDS.GetPropertyAsInt("UserTheme","FontSize");
 
 
         if(userDS.data["UserTheme"]["Italic_KeyWord"].trimmed().toLower() == "true")

@@ -10,6 +10,7 @@
 #include <QQmlApplicationEngine>
 #include "databaseconnection.h"
 #include "tabledata.h"
+#include <QTranslator>
 inline int thrnum;
 
 
@@ -102,6 +103,12 @@ int main(int argc, char *argv[])
 
 
         userDS.data["User"]["appdir"] = usrDir;
+
+        if(userDS.data["UserTheme"]["Language"].trimmed().size()<=1)
+        {
+            userDS.data["UserTheme"]["Language"] = "en";
+        }
+
         userDS.Save((documentsDir + "/userdata.txt"));
     }
 
@@ -171,7 +178,14 @@ int main(int argc, char *argv[])
     qmlRegisterType<DatabaseConnection>("SourceApplication", 1, 0, "DatabaseConnection");
 
 
-
+    QTranslator qtTranslator;
+    if(userDS.data["UserTheme"]["Language"].trimmed() == "ru")
+    if(qtTranslator.load("untitled_ru.qm"))
+    {
+        qDebug() << "loaded translation";
+        app.installTranslator(&qtTranslator);
+        qDebug() << qtTranslator.language();
+    }
 
     LoaderWidnow w;
 

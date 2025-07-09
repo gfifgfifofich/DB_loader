@@ -39,6 +39,7 @@ public:
     Highlighter(QTextDocument *parent = 0);
 
 
+    int FontSizeOverride = -1;
 
     // highlihghting formats
     QTextCharFormat keywordFormat;

@@ -323,7 +323,13 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
         qDebug() << "saving boundries "<< x_start <<  x_end << y_start << y_end;
     }
     // to load only if needed
-    QXlsx::Document xlsxR3(fileName);
+    QString flopenname = "";
+    if(sheetName!="")
+    {
+        flopenname = fileName;
+    }
+
+    QXlsx::Document xlsxR3(flopenname);
 
     if(sheetName!="")
     {
@@ -575,13 +581,14 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
 bool TableData::ExportToSQLiteTable(QString tableName)
 {
 
-
+    userDS.Load(documentsDir +"/userdata.txt");
     DatabaseConnection dc;
     dc.nodebug = true;
     dc.rawquery = true;
     dc.disableSaveToUserDS = true;
     QString driver = userDS.data["UserTheme"]["db_drv_Save_table_driver"];
     QString conection = userDS.data["UserTheme"]["db_drv_Save_table_Connection"];
+    qDebug() <<driver << "  " << conection;
     conection.replace("documentsDir",documentsDir);
 
     dc.Create(driver.trimmed(), conection.trimmed());

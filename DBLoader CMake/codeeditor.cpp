@@ -4,6 +4,7 @@
 #include <QPainter>
 #include <QTextBlock>
 #include <QFile>
+#include <qapplication.h>
 #include <qmenu.h>
 #include <qshortcut.h>
 #include <QTextCursor>
@@ -951,6 +952,58 @@ void CodeEditor::replace(int _from, int _to, QString _what, QString _with)
     cursor.endEditBlock();
 
 }
+
+void CodeEditor::FindNext(QString _what)
+{// better to reimplement to work from cursors, not just text replacing
+
+    if(_what.size() < 1)
+        return;
+
+    QString text = toPlainText();
+
+    QTextCursor cursor = textCursor();
+
+    int startPosition = cursor.position();
+
+    int w_start = 0;
+    int w_end = 0;
+    int match = 0;
+    int replace_count = 0;
+    int sizeDiff =  - _what.size();
+    int lineNumber = 0;
+    int i=startPosition + 1;
+    while(i != startPosition)
+    {
+        if (startPosition > text.size())
+            return;
+        if (i > text.size())
+            i = 0;
+
+        if(text[i] == '\n')
+            lineNumber++;
+
+        if(text[i] == _what[match])
+        {
+            if(match == 0)
+                w_start = i + (sizeDiff * replace_count);
+            match++;
+        }
+        else
+            match = 0;
+        if(match == _what.size())
+        {
+            match = 0;
+            w_end = i + (sizeDiff * replace_count);
+            cursor.setPosition(w_start, QTextCursor::MoveAnchor);
+            cursor.setPosition(w_end+1, QTextCursor::KeepAnchor);
+            this->setTextCursor(cursor);
+            return;
+        }
+        i++;
+    }
+
+}
+
 void CodeEditor::suggestName()
 {
 
@@ -1842,60 +1895,69 @@ static QStringList strl;
 void CodeEditor::updateMisc()
 {
 
-    qDebug() << "Opening code editors DS";
     // user theme
-    if(userDS.Load((documentsDir + "/userdata.txt")))
+    userDS.data["UserTheme"]["CodePreviewLineCount"];
+    userDS.data["UserTheme"]["CodePreviewAntialiasing"];
+    userDS.data["UserTheme"]["CodePreviewSnapCount"];
+    userDS.data["UserTheme"]["CodePreview"];
+    userDS.data["UserTheme"]["Font"];
+
+    QFont fnt = this->font();
+
+    if(userDS.data["UserTheme"]["Font"].size()>2)
+        fnt.setFamily(QString(userDS.data["UserTheme"]["Font"]).trimmed());
+
+    if(FontSizeOverride == -1)
     {
-        userDS.data["UserTheme"]["CodePreviewLineCount"];
-        userDS.data["UserTheme"]["CodePreviewAntialiasing"];
-        userDS.data["UserTheme"]["CodePreviewSnapCount"];
-        userDS.data["UserTheme"]["CodePreview"];
-        userDS.data["UserTheme"]["Font"];
+        FontSizeOverride = userDS.GetPropertyAsInt("UserTheme","FontSize");
+    }
 
+    fnt.setPointSize(FontSizeOverride);
+    this->setFont(fnt);
 
-        qDebug() << "in";
-        QFont fnt = this->font();
+    strl = userDS.data["UserTheme"]["Color_BracketHighlight"].split(',');
+    QColor col = QColor(Qt::GlobalColor::darkRed).lighter(35);
+    for(int i=0;i<strl.size();i++)
+    {
+        if(i==0) col.setRed(QVariant(strl[i]).toInt());
+        if(i==1) col.setGreen(QVariant(strl[i]).toInt());
+        if(i==2) col.setBlue(QVariant(strl[i]).toInt());
+        if(i==3) col.setAlpha(QVariant(strl[i]).toInt());
+    }
+    braccketHighlightColor = col;
 
-        if(userDS.data["UserTheme"]["Font"].size()>2)
-            fnt.setFamily(QString(userDS.data["UserTheme"]["Font"]).trimmed());
+    qDebug() <<userDS.GetProperty("UserTheme","ShowCodeSuggestion").trimmed() << "----------------------------------------------------------------------ShowCodeSuggestion";
+    b_showSuggestion = userDS.GetProperty("UserTheme","ShowCodeSuggestion").trimmed() == "true";
 
-        fnt.setPointSize(userDS.GetPropertyAsInt("UserTheme","FontSize"));
-        this->setFont(fnt);
-
-        qDebug() << "in 2";
-        strl = userDS.data["UserTheme"]["Color_BracketHighlight"].split(',');
-        qDebug() << "in 3";
-        QColor col = QColor(Qt::GlobalColor::darkRed).lighter(35);
-        for(int i=0;i<strl.size();i++)
-        {
-            if(i==0) col.setRed(QVariant(strl[i]).toInt());
-            if(i==1) col.setGreen(QVariant(strl[i]).toInt());
-            if(i==2) col.setBlue(QVariant(strl[i]).toInt());
-            if(i==3) col.setAlpha(QVariant(strl[i]).toInt());
-        }
-        braccketHighlightColor = col;
-        qDebug() << "in 4";
-
-
-        if(userDS.GetProperty("UserTheme","CodePreview") == "true")
-        {
-            b_codePreview = true;
-        }
-        else
-            b_codePreview = false;
-
-        userDS.Save((documentsDir + "/userdata.txt"));
-        strl.clear();
-        qDebug() << "out";
+    if(userDS.GetProperty("UserTheme","CodePreview") == "true")
+    {
+        b_codePreview = true;
     }
     else
-    {
-        qDebug() << "file not opened userdata.txt in code editor";
-    }
+        b_codePreview = false;
+
+    strl.clear();
 
     //Scroll bar setup
+    highlighter->FontSizeOverride = FontSizeOverride;
     highlighter->updateMisc();
     highlighter->rehighlight();
 }
 
+
+
+void CodeEditor::wheelEvent(QWheelEvent *event)
+{
+    if(event->modifiers().testFlag(Qt::ControlModifier))
+    {
+        FontSizeOverride += event->angleDelta().y()*0.01f;
+        if(FontSizeOverride <= 1.0f)
+            FontSizeOverride=1.0f;
+        updateMisc();
+    }
+    else
+    {
+        QPlainTextEdit::wheelEvent(event);
+    }
+}
 
