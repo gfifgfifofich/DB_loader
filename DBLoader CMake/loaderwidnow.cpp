@@ -2556,6 +2556,8 @@ void LoaderWidnow::on_tabWidget_currentChanged(int index)
         ui->pushButton_3->show();
         ui->stopLoadingQueryButton->hide();
         UpdateTable();
+        if(dc->data.exported)
+            on_exportDone();
 
         queryExecutionState = tabDatas[i]->lastQueryState;
 

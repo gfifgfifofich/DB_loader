@@ -567,6 +567,89 @@
             </widget>
            </item>
            <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_3">
+             <item>
+              <widget class="QLabel" name="dataSizeLabel">
+               <property name="minimumSize">
+                <size>
+                 <width>55</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>55</width>
+                 <height>20</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>Data size:</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="dataSizeLabel_2">
+               <property name="maximumSize">
+                <size>
+                 <width>16777215</width>
+                 <height>20</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>No data</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="tableDBNameLabel">
+               <property name="minimumSize">
+                <size>
+                 <width>250</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>250</width>
+                 <height>20</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>No database</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="nnTestLearn">
+               <property name="text">
+                <string>nnTestLearn</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="nnTestRun">
+               <property name="text">
+                <string>nnTestRun</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="pushButton_2">
+               <property name="text">
+                <string>Token processor test</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="pushButton">
+               <property name="text">
+                <string>qml test button</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
             <widget class="QPushButton" name="SaveXLSXButton">
              <property name="maximumSize">
               <size>
@@ -637,77 +720,6 @@
             <widget class="QPushButton" name="importFromExcelButton">
              <property name="text">
               <string>Import from Excel file</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-         <item>
-          <layout class="QHBoxLayout" name="horizontalLayout_3">
-           <item>
-            <widget class="QLabel" name="dataSizeLabel">
-             <property name="maximumSize">
-              <size>
-               <width>55</width>
-               <height>20</height>
-              </size>
-             </property>
-             <property name="text">
-              <string>Data size:</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLabel" name="dataSizeLabel_2">
-             <property name="maximumSize">
-              <size>
-               <width>16777215</width>
-               <height>20</height>
-              </size>
-             </property>
-             <property name="text">
-              <string>No data</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLabel" name="tableDBNameLabel">
-             <property name="maximumSize">
-              <size>
-               <width>150</width>
-               <height>20</height>
-              </size>
-             </property>
-             <property name="text">
-              <string>No database</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="nnTestLearn">
-             <property name="text">
-              <string>nnTestLearn</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="nnTestRun">
-             <property name="text">
-              <string>nnTestRun</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="pushButton_2">
-             <property name="text">
-              <string>Token processor test</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="pushButton">
-             <property name="text">
-              <string>qml test button</string>
              </property>
             </widget>
            </item>
