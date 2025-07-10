@@ -46,19 +46,19 @@ void Highlighter::highlightBlock(const QString &text)
 {
 
 
-    CustomBlockData* userData = (CustomBlockData*)currentBlock().userData();
-    if(userData == nullptr)
-        userData = new CustomBlockData();
+    // CustomBlockData* userData = (CustomBlockData*)currentBlock().userData();
+    // if(userData == nullptr)
+    //     userData = new CustomBlockData();
     int bn = currentBlock().blockNumber();
 
-    if(!updateAllHighlighting && userData->lastText == text && lineInterval.size() > 0 && lineInterval[bn].size()>0 && lineIntervalFormats.size() == lineInterval.size() && lineIntervalFormats[bn].size() == lineInterval[bn].size())
-    {
-        for(int i=0;i< lineInterval[bn].size();i++)
-            setFormat(lineInterval[bn][i].first,lineInterval[bn][i].second, lineIntervalFormats[bn][i]);
+    // if(!updateAllHighlighting && userData->lastText == text && lineInterval.size() > 0 && lineInterval[bn].size()>0 && lineIntervalFormats.size() == lineInterval.size() && lineIntervalFormats[bn].size() == lineInterval[bn].size())
+    // {
+    //     for(int i=0;i< lineInterval[bn].size();i++)
+    //         setFormat(lineInterval[bn][i].first,lineInterval[bn][i].second, lineIntervalFormats[bn][i]);
 
-        return;
-    }
-    currentBlock().setUserData(userData);
+    //     return;
+    // }
+    // currentBlock().setUserData(userData);
 
 
 
@@ -757,13 +757,13 @@ void Highlighter::highlightBlock(const QString &text)
         }
     }
 
-    userData = (CustomBlockData*)currentBlock().userData();
-    if(userData == nullptr)
-        userData = new CustomBlockData();
+    // userData = (CustomBlockData*)currentBlock().userData();
+    // if(userData == nullptr)
+    //     userData = new CustomBlockData();
 
-    userData->lastText = text;
+    // userData->lastText = text;
 
-    currentBlock().setUserData(userData);
+    // currentBlock().setUserData(userData);
 
 }
 
