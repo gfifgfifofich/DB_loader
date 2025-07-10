@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1034</width>
+    <width>1153</width>
     <height>707</height>
    </rect>
   </property>
@@ -237,6 +237,23 @@
               </widget>
              </item>
              <item>
+              <widget class="QLabel" name="exportProgressLabel">
+               <property name="text">
+                <string>ExportProgress:</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QProgressBar" name="exportProgressBar">
+               <property name="value">
+                <number>24</number>
+               </property>
+               <property name="format">
+                <string>%v/%m</string>
+               </property>
+              </widget>
+             </item>
+             <item>
               <widget class="QPushButton" name="pushButton_3">
                <property name="text">
                 <string>Run query</string>
@@ -446,7 +463,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1034</width>
+     <width>1153</width>
      <height>21</height>
     </rect>
    </property>

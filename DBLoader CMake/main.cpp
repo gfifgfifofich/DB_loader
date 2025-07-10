@@ -2,36 +2,26 @@
 
 #include <QApplication>
 #include <QCoreApplication>
-#include <QtQml/qqmlengine.h>
-#include <QtQuick/qquickview.h>
 #include "Patterns.h"
 #include "loaderwidnow.h"
 #include "table.h"
-#include <QQmlApplicationEngine>
-#include "databaseconnection.h"
-#include "tabledata.h"
 #include <QTranslator>
-inline int thrnum;
-
-
 
 inline DataStorage userDS;
-inline DataStorage historyDS;
 inline QString appfilename;
 inline QString usrDir;
 inline QString documentsDir;
-
-inline QQmlApplicationEngine* TestqmlEngine = nullptr;
-
 
 
 int main(int argc, char *argv[])
 {
 
 
-
+    // fill dictionaries of database-specific keywords
     fillPaterns();
-    qDebug()<< "filled patterns";
+
+
+    // get location of "Home"
     QStringList strl = QStandardPaths::standardLocations(QStandardPaths::HomeLocation);
     if(strl.size() > 0)
         usrDir = strl[0];
@@ -47,17 +37,18 @@ int main(int argc, char *argv[])
             }
         }
     }
+    // this didnt fix crash in debug mode. Deleting any QStringList on windows while in debug mode will cause crash.
     strl.clear();
 
-    QStringList strl2 = QStandardPaths::standardLocations(QStandardPaths::DocumentsLocation);
-    if(strl2.size() > 0)
-        documentsDir = strl2[0];
 
+    // get location of "Documents"
+    strl = QStandardPaths::standardLocations(QStandardPaths::DocumentsLocation);
+    if(strl.size() > 0)
+        documentsDir = strl[0];
 
+    //set documents location to be in special for this program directory
     if(!QDir(documentsDir + "/DBLoader").exists())
         QDir().mkdir(documentsDir + "/DBLoader");
-
-
     documentsDir = documentsDir + "/DBLoader";
 
 
@@ -73,13 +64,6 @@ int main(int argc, char *argv[])
     if(!QDir(documentsDir+ "/workspaces").exists())
         QDir().mkdir(documentsDir+ "/workspaces");
 
-
-    if(!QFile(documentsDir + "/sqlHistoryList.txt").exists())
-    {
-        QFile fl(documentsDir + "/sqlHistoryList.txt");
-        fl.open(QFile::OpenModeFlag::ReadWrite);
-        fl.close();
-    }
     if(!QFile(documentsDir + "/userdata.txt").exists())
     {
         QFile fl(documentsDir + "/userdata.txt");
@@ -88,34 +72,33 @@ int main(int argc, char *argv[])
         fl.close();
     }
 
+    // show directories in QDebug, just in case
     qDebug()<< usrDir;
     qDebug()<< documentsDir;
     QDir::setCurrent(usrDir); // set fixed area for .dll's & shit to open .sql files using this app
     qDebug()<< usrDir;
-    bool darktheme = false;
 
+    // load user theme prepass, before app launch
+    bool darktheme = false;
     if(userDS.Load((documentsDir + "/userdata.txt")))
     {
+        // check if launched with file to be opened, if so - set application directory to load all the .dll's from that directory. Otherwise app will not be able to do anything
         if(argc >= 2)
         {
             usrDir = userDS.data["User"]["appdir"];
         }
 
-
         userDS.data["User"]["appdir"] = usrDir;
-
         if(userDS.data["UserTheme"]["Language"].trimmed().size()<=1)
         {
             userDS.data["UserTheme"]["Language"] = "en";
         }
-
         userDS.Save((documentsDir + "/userdata.txt"));
     }
 
 
-
+    // set app to be aware about user color scheme, (light/dark). Force one or another, depending on settings
     QApplication::setDesktopSettingsAware(true);
-
     if(QString(userDS.GetProperty("UserTheme", "DarkMainTheme")).trimmed() == "Dark")
     {
         darktheme = true;
@@ -129,14 +112,14 @@ int main(int argc, char *argv[])
         QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Light);
     }
 
+    // set style
     QApplication app(argc, argv);
     app.setStyle("fusion");
 
-    if(argc > 0)
-    {
-        appfilename = argv[0];
 
-    }
+    // get app file name, and files,passed through command line
+    if(argc > 0)
+        appfilename = argv[0];
     if(argc>1)
     {
         int i =0;
@@ -162,22 +145,10 @@ int main(int argc, char *argv[])
     }
 
 
-    QQmlApplicationEngine eng;
-    TestqmlEngine = &eng;
-    QObject::connect(
-        TestqmlEngine,
-        &QQmlApplicationEngine::objectCreationFailed,
-        &app,
-        []() { qDebug() << "closing qml subapp "; },
-        Qt::QueuedConnection
-        );
 
 
 
-    qmlRegisterType<TableData>("SourceApplication", 1, 0, "TableData");
-    qmlRegisterType<DatabaseConnection>("SourceApplication", 1, 0, "DatabaseConnection");
-
-
+    // choose language
     QTranslator qtTranslator;
     if(userDS.data["UserTheme"]["Language"].trimmed() == "ru")
     if(qtTranslator.load("untitled_ru.qm"))
@@ -189,18 +160,16 @@ int main(int argc, char *argv[])
 
     LoaderWidnow w;
 
+    //if dark theme, need to change some stuff from stock, to be more readable
     if(QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark)
     {
         QPalette palette = w.palette();
-
         // Set the color for a specific role, e.g., background color
         palette.setColor(QPalette::Base, QColor(20, 20, 20)); // Set background to red
         w.setPalette(palette);
-
     }
 
-
-
+    // launch in full screen
     w.showMaximized();
 
 

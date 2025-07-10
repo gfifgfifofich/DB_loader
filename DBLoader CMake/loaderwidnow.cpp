@@ -36,7 +36,7 @@
 +                                          Highlight from bracket to bracket with codeEditor HighLight selection (will highlight background from bracket to bracket)
 +                                          Highlighting of selected token
 +-                                         fix subtables
-+ constant correction                      datatypes
++                                          datatypes
 +                                          tab press reg
 +                                          Timer
 +- reimplement Patterns compleatly through .ds files
@@ -44,8 +44,6 @@
 + open files through cmd
 + Scroll code preview
 
-
-+- Iterate magic/arrays by 10k each -- possible through regular forloops
 
     ui->tabWidget->tabText(ui->tabWidget->currentIndex());
     ui->tabWidget->setTabText(ui->tabWidget->currentIndex(),"asdasda");
@@ -86,14 +84,18 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     ui->setupUi(this);
     ui->stopLoadingQueryButton->hide();
 
+    ui->exportProgressBar->hide();
+    ui->exportProgressLabel->hide();
 
-
-
+    // global pointer to ease modifications of this window from others (find, replace and other tools)
     loadWind  = this;
+
+    // accept drag and drop
+    ui->tableWidget->setAcceptDrops(true);
+    this->setAcceptDrops(true);
 
     // graph window init
     gw.Init();
-
     ui->graph_layout->addLayout(&gw.graph_layout);
 
 
@@ -117,8 +119,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     autolaunchTimer.setSingleShot(false);
     autolaunchTimer.start();
 
-
-
+    //workspace setup. Should be reimplemented due to crash on windows on file deleation from file explorer when app is running. FileSystemModel does the crash
     workspace_model = new QFileSystemModel();
     workspace_tree = new QTreeView();
     workspace_model->setRootPath(documentsDir);
@@ -150,15 +151,8 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     QWidget* wg = new QWidget();
     wg->setWhatsThis(QVariant(0).toString());
 
-
-
     ui->tabWidget->addTab(wg,"New tab" + QVariant(0).toString());
     ui->tabWidget->setTabWhatsThis(ui->tabWidget->tabBar()->count()-1,QVariant(0).toString());
-
-    ui->tableWidget->setAcceptDrops(true);
-    this->setAcceptDrops(true);
-
-
 
     tabDatas.push_back(new tabdata());
     tabDatas.back()->Name = "New tab0";
@@ -288,6 +282,11 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     connect( dc, SIGNAL(queryBeginExecuting()), this, SLOT(onQueryBegin()), Qt::QueuedConnection );
     connect( dc, SIGNAL(querySuccess()), this, SLOT(onQuerySuccess()), Qt::QueuedConnection );
     connect( dc, SIGNAL(execedSql()), this, SLOT(UpdateTable()), Qt::QueuedConnection );
+
+    connect( &dc->data, SIGNAL(ExportedToCSV()), this, SLOT(on_exportDone()), Qt::QueuedConnection );
+    connect( &dc->data, SIGNAL(ExportedToExcel()), this, SLOT(on_exportDone()), Qt::QueuedConnection );
+    connect( &dc->data, SIGNAL(ExportedToSQLiteTable()), this, SLOT(on_exportDone()), Qt::QueuedConnection );
+
     connect( dc, SIGNAL(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList)), this, SLOT(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList)), Qt::QueuedConnection );
 
     // autoexecution
@@ -306,7 +305,6 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 
     //workspace/history change
     //connect( workspace_tree, SIGNAL(activated(QModelIndex&)), this, SLOT(on_TreeItem_Changed(QModelIndex&)), Qt::QueuedConnection );
-
     QItemSelectionModel *selectionModel = workspace_tree->selectionModel();
     connect(selectionModel, &QItemSelectionModel::selectionChanged, this, &LoaderWidnow::on_TreeItem_Changed);
 
@@ -600,7 +598,10 @@ void LoaderWidnow::on_ConnectButton_pressed()
         cd->highlighter->UpdateTableColumns(&dc->db,str);
 
         cd->updateMisc();
-        cd->highlighter->rehighlight();
+
+    cd->highlighter->updateAllHighlighting = true;
+    cd->highlighter->rehighlight();
+    cd->highlighter->updateAllHighlighting = false;
 
         ui->driverComboBox->setCurrentText(dc->driver);
         ui->DBNameComboBox->setCurrentText(dc->dbname);
@@ -609,6 +610,7 @@ void LoaderWidnow::on_ConnectButton_pressed()
     }
     else
         ui->connectionStatusLabel_2->setText("Not connected");
+
 
 }
 
@@ -626,6 +628,11 @@ void LoaderWidnow::on_pushButton_3_pressed()
 void LoaderWidnow::runSqlAsync()
 {
     qDebug()<<"RunSqlAsync()";
+
+    if( dc->data.exporting || dc->executing)
+    {
+        return;
+    }
     cd->setFocus();
     ui->stopLoadingQueryButton->show();
 
@@ -646,6 +653,7 @@ void LoaderWidnow::runSqlAsync()
     {
 
         qDebug() << dc->db.driver()->cancelQuery();
+        ui->stopLoadingQueryButton->hide();
         return;
     }
 
@@ -913,7 +921,21 @@ void LoaderWidnow::autolaunchCheck()
 void LoaderWidnow::executionTimerTimeout()
 {// update label
 
+    if(!dc->executing && dc->data.exporting)
+    {//exporting data;
+        ui->exportProgressBar->show();
+        ui->exportProgressLabel->show();
 
+        ui->exportProgressLabel->setText(QTime::fromMSecsSinceStartOfDay( dc->data.LastSaveDuration.msecsTo(QTime::currentTime())).toString() + "." +  QVariant(dc->data.LastSaveDuration.msecsTo(QTime::currentTime())).toString());
+
+        ui->exportProgressBar->setMaximum(dc->data.saveRowSize);
+        ui->exportProgressBar->setValue(dc->data.saveRowsDone);
+
+        return;
+    }
+
+    ui->exportProgressBar->hide();
+    ui->exportProgressLabel->hide();
 
     QString msg = "";
     if(dc->queryExecutionState >=3)
@@ -1904,53 +1926,166 @@ void LoaderWidnow::CommentSelected()
     cd->CommentSelected();
 }
 
-
-// export
-void LoaderWidnow::on_SaveXLSXButton_pressed()
+void _async_save_to_xlsx(LoaderWidnow* ldw, QString savetext)
 {
     qDebug()<<"on_SaveXLSXButton_pressed()";
     QString str = documentsDir + "/excel/";
 
-    str += userDS.data["ExcelPrefixAliases"][cd->highlighter->dbSchemaName];
-    str += ui->saveLineEdit->text();
+    str += userDS.data["ExcelPrefixAliases"][ldw->cd->highlighter->dbSchemaName];
+    str += savetext;
     if(str.size() > 200)// backup against too long filenames, cuz windosheet
         str.resize(200);
     if(!str.endsWith(".xlsx"))
         str += ".xlsx";
-    dc->data.sqlCode = dc->sqlCode;
-    dc->data.allSqlCode = cd->toPlainText();
+    ldw->dc->data.sqlCode = ldw->dc->sqlCode;
+    ldw->dc->data.allSqlCode = ldw->cd->toPlainText();
 
-    if(dc->data.ExportToExcel(str,0,0,0,0,true))
-        ui->miscStatusLabel->setText(QString("Saved as XLSX ") + str);
-    else
-        ui->miscStatusLabel->setText(QString("Failed to save xlsx, file probably opened") + str);
+    ldw->dc->data.lastExportSuccess = ldw->dc->data.ExportToExcel(str,0,0,0,0,true);
 
+    // if(dc->data.lastExportSuccess)
+    //     ui->miscStatusLabel->setText(QString("Saved as XLSX ") + str);
+    // else
+    //     ui->miscStatusLabel->setText(QString("Failed to save xlsx, file probably opened") + str);
+
+    ldw->executionTimer.stop();
 }
-void LoaderWidnow::on_SaveCSVButton_pressed()
+
+void _async_save_to_csv(LoaderWidnow* ldw, QString savetext)
 {
     qDebug()<<"on_SaveCSVButton_pressed()";
     QString str = documentsDir + "/CSV/";
-    if(!cd->highlighter->dbSchemaName.contains('.'))
-        str += cd->highlighter->dbSchemaName;
-    str += ui->saveLineEdit->text();
+    if(!ldw->cd->highlighter->dbSchemaName.contains('.'))
+        str += ldw->cd->highlighter->dbSchemaName;
+    str += savetext;
     if(str.size() > 200)// backup against too long filenames, cuz windosheet
         str.resize(200);
     if(!str.endsWith(".csv"))
         str += ".csv";
-    if(dc->data.ExportToCSV(str,';',true))
-        ui->miscStatusLabel->setText(QString("Saved as CSV ") + str);
-    else
-        ui->miscStatusLabel->setText(QString("failed to save to CSV, file probably opened") + str);
+
+    ldw->dc->data.lastExportSuccess = ldw->dc->data.ExportToCSV(str,';',true);
+    // if(dc->data.lastExportSuccess)
+    //     ui->miscStatusLabel->setText(QString("Saved as CSV ") + str);
+    // else
+    //     ui->miscStatusLabel->setText(QString("failed to save to CSV, file probably opened") + str);
+
+    ldw->executionTimer.stop();
+}
+
+void _async_save_to_local(LoaderWidnow* ldw, QString savetext)
+{
+    qDebug()<<"on_SaveCSVButton_pressed()";
+    ldw->dc->data.lastExportSuccess = ldw->dc->data.ExportToSQLiteTable(savetext);
+
+
+    // if(dc->data.lastExportSuccess)
+    //     ui->miscStatusLabel->setText(QString("Saved to local database, table:") + str);
+    // else
+    //     ui->miscStatusLabel->setText(QString("Failed to save to local database, table: ") + str);
+
+    ldw->executionTimer.stop();
+}
+// export
+void LoaderWidnow::on_SaveXLSXButton_pressed()
+{
+    qDebug()<<"on_SaveXLSXButton_pressed()";
+
+    if(((*sqlexecThread)!= nullptr && (*sqlexecThread)->isRunning()) || dc->data.exporting || dc->executing)
+    {
+        return;
+    }
+    ui->stopLoadingQueryButton->show();
+    ui->pushButton_3->hide();
+    ui->miscStatusLabel->setText("running sql...");
+    (*sqlexecThread) = QThread::create(_async_save_to_xlsx,this,ui->saveLineEdit->text());
+    (*sqlexecThread)->start();
+    ui->miscStatusLabel->setText("running sql...");
+
+    executionTimer.setSingleShot(false);
+    executionTimer.setTimerType(Qt::CoarseTimer);
+    executionTimer.setInterval(15);
+    executionTimer.start();
+}
+void LoaderWidnow::on_SaveCSVButton_pressed()
+{
+    qDebug()<<"on_SaveCSVButton_pressed()";
+
+    if(((*sqlexecThread)!= nullptr && (*sqlexecThread)->isRunning()) || dc->data.exporting || dc->executing)
+    {
+        return;
+    }
+    ui->stopLoadingQueryButton->show();
+    ui->pushButton_3->hide();
+
+    ui->miscStatusLabel->setText("running sql...");
+    (*sqlexecThread) = QThread::create(_async_save_to_csv,this,ui->saveLineEdit->text());
+    (*sqlexecThread)->start();
+    ui->miscStatusLabel->setText("running sql...");
+
+    executionTimer.setSingleShot(false);
+    executionTimer.setTimerType(Qt::CoarseTimer);
+    executionTimer.setInterval(15);
+    executionTimer.start();
 
 }
 void LoaderWidnow::on_SaveSQLiteButton_pressed()
 {
     qDebug()<<"on_SaveSQLiteButton_pressed()";
-    dc->data.sqlCode = dc->sqlCode;
-    if(dc->data.ExportToSQLiteTable(ui->saveLineEdit->text()))
-        ui->miscStatusLabel->setText(QString("Saved to SQLite table ") + ui->saveLineEdit->text());
-    else
-        ui->miscStatusLabel->setText(QString("Failed to save to SQLite, check colomn names / repetitions") + ui->saveLineEdit->text());
+
+    if(((*sqlexecThread)!= nullptr && (*sqlexecThread)->isRunning()) || dc->data.exporting || dc->executing)
+    {
+        return;
+    }
+    ui->stopLoadingQueryButton->show();
+    ui->pushButton_3->hide();
+    ui->miscStatusLabel->setText("running sql...");
+    (*sqlexecThread) = QThread::create(_async_save_to_local,this,ui->saveLineEdit->text());
+    (*sqlexecThread)->start();
+    ui->miscStatusLabel->setText("running sql...");
+
+    executionTimer.setSingleShot(false);
+    executionTimer.setTimerType(Qt::CoarseTimer);
+    executionTimer.setInterval(15);
+    executionTimer.start();
+
+}
+
+void LoaderWidnow::on_exportDone()
+{
+    executionTimer.stop();
+
+    if(!dc->executing)
+    {
+        ui->stopLoadingQueryButton->hide();
+        ui->pushButton_3->show();
+    }
+    ui->exportProgressBar->hide();
+    if (dc->data.lastexporttype == "csv")
+    {
+        if(dc->data.lastExportSuccess)
+            ui->exportProgressLabel->setText(QString("Saved as CSV ") + ui->saveLineEdit->text()
+                                             + " exporttime: " + dc->data.LastSaveDuration.toString() + "." +  QVariant(dc->data.LastSaveDuration.msec()).toString());
+        else
+            ui->exportProgressLabel->setText(QString("failed to save to CSV, file probably opened") + ui->saveLineEdit->text()
+                                             + " exporttime: " + dc->data.LastSaveDuration.toString() + "." +  QVariant(dc->data.LastSaveDuration.msec()).toString());
+    }
+    else if (dc->data.lastexporttype == "xlsx")
+    {
+        if(dc->data.lastExportSuccess)
+            ui->exportProgressLabel->setText(QString("Saved as XLSX ") + ui->saveLineEdit->text()
+                                             + " exporttime: " + dc->data.LastSaveDuration.toString() + "." +  QVariant(dc->data.LastSaveDuration.msec()).toString());
+        else
+            ui->exportProgressLabel->setText(QString("Failed to save xlsx, file probably opened") + ui->saveLineEdit->text()
+                                             + " exporttime: " + dc->data.LastSaveDuration.toString() + "." +  QVariant(dc->data.LastSaveDuration.msec()).toString());
+    }
+    else if (dc->data.lastexporttype == "Local")
+    {
+        if(dc->data.lastExportSuccess)
+            ui->exportProgressLabel->setText(QString("Saved to local database, table:") + ui->saveLineEdit->text()
+                                             + " exporttime: " + dc->data.LastSaveDuration.toString() + "." +  QVariant(dc->data.LastSaveDuration.msec()).toString());
+        else
+            ui->exportProgressLabel->setText(QString("Failed to save to local database, table: ") + ui->saveLineEdit->text()
+                                             + " exporttime: " + dc->data.LastSaveDuration.toString() + "." +  QVariant(dc->data.LastSaveDuration.msec()).toString());
+    }
 }
 
 void LoaderWidnow::on_ImportFromCSVButton_pressed()
@@ -2048,8 +2183,14 @@ void LoaderWidnow::on_workspaceLineEdit_textChanged(QString arg1)
 }
 void LoaderWidnow::on_TreeItem_Changed(const QItemSelection &selected, const QItemSelection &deselected)
 {
-    ;
+    qDebug() << "selection changed";
 
+    if(selected == deselected || selected.empty())
+    {
+
+        qDebug() << "but selection was not changed";
+        return;
+    }
 
     QString currentText = workspace_model->filePath(selected.back().indexes().back());
 
@@ -2167,7 +2308,7 @@ void LoaderWidnow::on_DBNameComboBox_currentTextChanged(const QString &arg1)
 //Pause execution
 void LoaderWidnow::on_stopLoadingQueryButton_pressed()
 {
-    //if(dc!= nullptr)
+    if(dc!= nullptr)
         dc->stopRunning();
 }
 void LoaderWidnow::on_the500LinesCheckBox_checkStateChanged(const Qt::CheckState &arg1)
@@ -2316,6 +2457,14 @@ void LoaderWidnow::on_tabWidget_currentChanged(int index)
     disconnect( dc, SIGNAL(queryBeginExecuting()), this, SLOT(onQueryBegin()));
     disconnect( dc, SIGNAL(querySuccess()), this, SLOT(onQuerySuccess()));
     disconnect( dc, SIGNAL(execedSql()), this, SLOT(UpdateTable()));
+
+    disconnect( &dc->data, SIGNAL(ExportedToCSV()), this, SLOT(on_exportDone()));
+    disconnect( &dc->data, SIGNAL(ExportedToExcel()), this, SLOT(on_exportDone()));
+    disconnect( &dc->data, SIGNAL(ExportedToSQLiteTable()), this, SLOT(on_exportDone()));
+
+    ui->exportProgressBar->hide();
+    ui->exportProgressLabel->hide();
+
     disconnect( dc, SIGNAL(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList)), this, SLOT(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList)) );
 
 
@@ -2328,6 +2477,12 @@ void LoaderWidnow::on_tabWidget_currentChanged(int index)
     connect( dc, SIGNAL(queryBeginExecuting()), this, SLOT(onQueryBegin()), Qt::QueuedConnection );
     connect( dc, SIGNAL(querySuccess()), this, SLOT(onQuerySuccess()), Qt::QueuedConnection );
     connect( dc, SIGNAL(execedSql()), this, SLOT(UpdateTable()), Qt::QueuedConnection );
+
+    connect( &dc->data, SIGNAL(ExportedToCSV()), this, SLOT(on_exportDone()), Qt::QueuedConnection );
+    connect( &dc->data, SIGNAL(ExportedToExcel()), this, SLOT(on_exportDone()), Qt::QueuedConnection );
+    connect( &dc->data, SIGNAL(ExportedToSQLiteTable()), this, SLOT(on_exportDone()), Qt::QueuedConnection );
+
+
     connect( dc, SIGNAL(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList)), this, SLOT(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList)), Qt::QueuedConnection );
 
     sqlexecThread = &tabDatas[i]->sqlexecThread;
@@ -2354,7 +2509,7 @@ void LoaderWidnow::on_tabWidget_currentChanged(int index)
     ui->tableDBNameLabel->setText(tabDatas[i]->lastTableDBName);
 
     executionTimer.stop();
-    if(!dc->executing)
+    if(!dc->executing && !dc->data.exporting)
     {
         ui->pushButton_3->show();
         ui->stopLoadingQueryButton->hide();
@@ -2363,12 +2518,16 @@ void LoaderWidnow::on_tabWidget_currentChanged(int index)
         queryExecutionState = tabDatas[i]->lastQueryState;
 
     }
+    else if(dc->data.exported && !dc->data.exporting )
+        on_exportDone();
     else
     {
-        ui->tableWidget->clear();
+        if(dc->executing)
+        {
+            ui->tableWidget->clear();
+        }
         ui->pushButton_3->hide();
         ui->stopLoadingQueryButton->show();
-
         executionTimer.setSingleShot(false);
         executionTimer.setTimerType(Qt::CoarseTimer);
         executionTimer.setInterval(15);
@@ -2530,103 +2689,6 @@ void LoaderWidnow::on_pushButton_2_pressed()
     fl.close();
 }
 
-inline float NN_min = 100000;
-
-
-void LoaderWidnow::on_nnTestLearn_pressed()
-{
-    qDebug() << "on_nnTestLearn_pressed undefined";
-
-    if(dc->data.tbldata.size() <=0)
-        return;
-
-    std::vector<float> input;
-    std::vector<float> output;
-    input.resize(dc->data.tbldata[0].size());
-    output.resize(dc->data.tbldata[0].size());
-
-
-    for(int i=0;i < dc->data.tbldata[0].size();i++)
-    {
-        input[i] = ((float)i)/(float) dc->data.tbldata[0].size() ;
-        bool ok = false;
-        output[i] = dc->data.tbldata[0][i].toFloat(&ok);
-        qDebug() << output[i] << " = " << dc->data.tbldata[0][i].toFloat(&ok);
-        if (NN_min > output[i])
-            NN_min = output[i];
-    }
-    for(int i=0;i <output.size();i++)
-    {
-        output[i] = output[i] - NN_min;//(output[i] - NN_min) / (NN_max - NN_min);// put into range(0,1)
-        qDebug() << output[i];
-    }
-
-    int datasizeBuff = dc->data.tbldata[0].size();
-
-    for(int i=0;i<=50000;i++)
-    {
-        float cst = nn.lastCost;
-        if(cst > 1.0f)
-            nn.h = 0.0001f;
-        else
-            nn.h = 0.0001f * cst;
-
-        nn.SetupLearing();
-        float cst2 = nn.Cost(input.data(),output.data(),input.size());
-        while(cst2 <cst)
-        {
-            qDebug() << "cost " <<  cst2;
-            cst=cst2;
-            nn.ApplyGrad();
-            cst2 = nn.Cost(input.data(),output.data(),input.size());
-
-        }
-        if(cst2>=cst)
-            nn.DeApplyGrad();
-        nn.lastCost = cst;
-        if(i%500 == 0)
-        {
-            if(cst > 1.0f)
-                nn.learn(0.00001f,input.data(),output.data(),input.size());
-            else
-                nn.learn(0.0001f * cst,input.data(),output.data(),input.size());
-
-        }
-        if(i%5000 == 0)
-        {
-            int datasize = datasizeBuff * 2.0f;
-
-
-            TableData data;
-            data.headers.clear();
-            data.headers.resize(3);
-            data.headers[0] = "Source";
-            data.headers[1] = "iteration";
-            data.headers[2] = "value";
-            data.tbldata.resize(3);
-            data.tbldata[0].resize(datasize);
-            data.tbldata[1].resize(datasize);
-            data.tbldata[2].resize(datasize);
-
-            for(int a=0;a < datasize;a++)
-            {
-                float input = (((float)a)/(float)datasize) * 2.0f ;
-                nn.Run(&input);
-
-                QString str = QVariant(a).toString();
-                while(str.size()<10)
-                    str = "0" + str;
-                data.tbldata[0][a] = "iteration"  + QVariant(i).toString();
-                data.tbldata[1][a] = str;
-                data.tbldata[2][a] = QVariant(nn.outputs[0]+ NN_min).toString();//(nn.outputs[0] * (NN_max - NN_min)) + NN_min;
-            }
-            data.ExportToSQLiteTable("NN_Learn_Iteration"  + QVariant(i).toString());
-        }
-        qDebug() << "end cost " <<  cst;
-    }
-
-}
-
 
 
 bool _tmp_drag_drop_is_file = false;
@@ -2735,19 +2797,104 @@ void LoaderWidnow::dropEvent(QDropEvent * evt)
 
 
 
+inline float NN_min = 100000;
+void LoaderWidnow::on_nnTestLearn_pressed()
+{
+    qDebug() << "on_nnTestLearn_pressed undefined";
+
+    if(dc->data.tbldata.size() <=0)
+        return;
+
+    std::vector<float> input;
+    std::vector<float> output;
+    input.resize(dc->data.tbldata[0].size());
+    output.resize(dc->data.tbldata[0].size());
 
 
+    for(int i=0;i < dc->data.tbldata[0].size();i++)
+    {
+        input[i] = ((float)i)/(float) dc->data.tbldata[0].size() ;
+        bool ok = false;
+        output[i] = dc->data.tbldata[0][i].toFloat(&ok);
+        qDebug() << output[i] << " = " << dc->data.tbldata[0][i].toFloat(&ok);
+        if (NN_min > output[i])
+            NN_min = output[i];
+    }
+    for(int i=0;i <output.size();i++)
+    {
+        output[i] = output[i] - NN_min;//(output[i] - NN_min) / (NN_max - NN_min);// put into range(0,1)
+        qDebug() << output[i];
+    }
 
-#include <OpenXLSX.hpp>
-#include <cmath>
+    int datasizeBuff = dc->data.tbldata[0].size();
 
-using namespace std;
-using namespace OpenXLSX;
+    for(int i=0;i<=50000;i++)
+    {
+        float cst = nn.lastCost;
+        if(cst > 1.0f)
+            nn.h = 0.0001f;
+        else
+            nn.h = 0.0001f * cst;
 
+        nn.SetupLearing();
+        float cst2 = nn.Cost(input.data(),output.data(),input.size());
+        while(cst2 <cst)
+        {
+            qDebug() << "cost " <<  cst2;
+            cst=cst2;
+            nn.ApplyGrad();
+            cst2 = nn.Cost(input.data(),output.data(),input.size());
+
+        }
+        if(cst2>=cst)
+            nn.DeApplyGrad();
+        nn.lastCost = cst;
+        if(i%500 == 0)
+        {
+            if(cst > 1.0f)
+                nn.learn(0.00001f,input.data(),output.data(),input.size());
+            else
+                nn.learn(0.0001f * cst,input.data(),output.data(),input.size());
+
+        }
+        if(i%5000 == 0)
+        {
+            int datasize = datasizeBuff * 2.0f;
+
+
+            TableData data;
+            data.headers.clear();
+            data.headers.resize(3);
+            data.headers[0] = "Source";
+            data.headers[1] = "iteration";
+            data.headers[2] = "value";
+            data.tbldata.resize(3);
+            data.tbldata[0].resize(datasize);
+            data.tbldata[1].resize(datasize);
+            data.tbldata[2].resize(datasize);
+
+            for(int a=0;a < datasize;a++)
+            {
+                float input = (((float)a)/(float)datasize) * 2.0f ;
+                nn.Run(&input);
+
+                QString str = QVariant(a).toString();
+                while(str.size()<10)
+                    str = "0" + str;
+                data.tbldata[0][a] = "iteration"  + QVariant(i).toString();
+                data.tbldata[1][a] = str;
+                data.tbldata[2][a] = QVariant(nn.outputs[0]+ NN_min).toString();//(nn.outputs[0] * (NN_max - NN_min)) + NN_min;
+            }
+            data.ExportToSQLiteTable("NN_Learn_Iteration"  + QVariant(i).toString());
+        }
+        qDebug() << "end cost " <<  cst;
+    }
+
+}
 
 
 void LoaderWidnow::on_nnTestRun_pressed()
-{
+{/* OpenXLSX test bench. Saves pivot tables, but will requere  a lotof rewriting
     XLDocument doc1;
     doc1.open("./Demo04.xlsx");
     if(!doc1.isOpen())
@@ -2940,5 +3087,5 @@ void LoaderWidnow::on_nnTestRun_pressed()
             "non-ASCII scripts, such as Cyrillic and Greek. NSimSun supports some asian scripts.\n\n";
 
     doc1.close();
-    qDebug() << "on_nnTestRun_pressed undefined";
+    qDebug() << "on_nnTestRun_pressed undefined";*/
 }

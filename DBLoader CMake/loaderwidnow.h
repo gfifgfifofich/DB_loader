@@ -279,6 +279,8 @@ public slots:
     void on_ImportFromCSVButton_pressed();
     void on_importFromExcelButton_pressed();
 
+    void on_exportDone();
+
 
     // Open last saved exel file
     void OpenFile();

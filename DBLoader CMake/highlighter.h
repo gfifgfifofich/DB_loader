@@ -24,6 +24,13 @@ struct S_TextInterval
 inline QVector<TextInterval> textintervals;
 
 
+class CustomBlockData : public QTextBlockUserData
+{
+public:
+    QString lastText = "";
+
+};
+
 
 class Highlighter : public QSyntaxHighlighter
 {
@@ -73,6 +80,8 @@ public:
 
     std::vector<std::vector<std::pair<int,int>>> lineInterval;// start/end per line
     std::vector<std::vector<QColor>> lineIntervalColor;
+    std::vector<std::vector<QTextCharFormat>> lineIntervalFormats;
+    bool updateAllHighlighting = false;
 
     // database specific highlighting
     bool PostgresStyle = false;

@@ -17,12 +17,10 @@
 inline QString documentsDir;
 inline DataStorage userDS;
 
-/*
+/* there is absolutely a better way of checking for type info, but yes. +debt
 QDateTime 16
 double 6
 QString 10
-
-
 */
 
 TableData::TableData(QObject *parent)
@@ -34,12 +32,14 @@ void TableData::Init()
 {
     tbldata.clear();
     headers.clear();
-    types.clear();
+    maxVarTypes.clear();
+    typecount.clear();
 }
 
 // import
 bool TableData::ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHeader)
 {
+    stopNow = false;
     if(fileName.size() < 2)
         return false;
     qDebug()<< " importing "<< fileName;
@@ -129,6 +129,7 @@ bool TableData::ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHe
 }
 bool TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_start,int y_end, bool firstRowHeader)
 {
+    stopNow = false;
     if(fileName.size() < 2)
         return false;
     bool serachall = x_start == 0 && y_start == 0 && x_end == 0 && y_end == 0;
@@ -243,6 +244,7 @@ bool TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_st
 }
 void TableData::ImportFromSQLiteTable(QString fileName, QString tableName)
 {
+    stopNow = false;
     // mostly  pointless in this sort of application
     qDebug()<<"TableData::ImportFromSQLiteTable Unimplemented";
 }
@@ -250,6 +252,26 @@ void TableData::ImportFromSQLiteTable(QString fileName, QString tableName)
 // export
 bool TableData::ExportToCSV(QString fileName, char delimeter, bool firstRowHeader)
 {
+    stopNow = false;
+    lastexporttype = "csv";
+
+    LastSaveEndDate = QTime::currentTime();
+    LastSaveDuration = QTime::currentTime();
+    saveRowsDone = 0;
+    exporting = true;
+    exported = true;
+    if(tbldata.size()>0 && tbldata[0].size()>0)
+        saveRowSize = tbldata[0].size();
+    else
+    {
+        LastSaveDuration.setHMS(0,0,0,0);
+        exporting = false;
+        lastExportSuccess = true;
+        emit ExportedToCSV();
+        return true;// no rows to export, so no point in saving
+    }
+
+
     QFile fl((additionalSaveFileData + fileName));
     if(fl.open(QFile::OpenModeFlag::WriteOnly))
     {
@@ -263,6 +285,16 @@ bool TableData::ExportToCSV(QString fileName, char delimeter, bool firstRowHeade
         if(tbldata.size() > 0 && tbldata[0].size() > 0)
             for(int a=0;a<tbldata[0].size();a++)
             {
+
+                if(stopNow)
+                {
+                    exporting = false;
+                    lastExportSuccess = false;
+                    LastSaveDuration = QTime::fromMSecsSinceStartOfDay(LastSaveDuration.msecsTo(QTime::currentTime()));
+                    emit ExportedToCSV();
+                    return false;
+                }
+
                 for(int i=0;i<tbldata.size();i++)
                 {
                     QString str = tbldata[i][a];
@@ -293,29 +325,61 @@ bool TableData::ExportToCSV(QString fileName, char delimeter, bool firstRowHeade
 
                 }
                 fl.write(QString('\n').toUtf8().constData());
+
+                saveRowsDone++;
             }
     }
     else
     {
         qDebug() <<"failed to open file "<< (additionalSaveFileData + fileName);
+        LastSaveDuration = QTime::fromMSecsSinceStartOfDay(LastSaveDuration.msecsTo(QTime::currentTime()));
+        LastSaveEndDate = QTime::currentTime();
+        exporting = false;
+        lastExportSuccess = false;
+        emit ExportedToCSV();
         return false;
     }
     fl.close();
+
+    LastSaveDuration = QTime::fromMSecsSinceStartOfDay(LastSaveDuration.msecsTo(QTime::currentTime()));
+    LastSaveEndDate = QTime::currentTime();
+    exporting = false;
+    lastExportSuccess = true;
+    emit ExportedToCSV();
     return true;
 }
-
-
 bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_start,int y_end, bool firstRowHeader, QString sheetName, bool append)
 {
-
+    stopNow = false;
     if(append)
     {
         return AppendToExcel(fileName,sheetName);
     }
+    exported = true;
 
+    lastexporttype = "xlsx";
+    LastSaveEndDate = QTime::currentTime();
+    LastSaveDuration = QTime::currentTime();
+    saveRowsDone = 0;
+    exporting = true;
+    if(tbldata.size()>0 && tbldata[0].size()>0)
+        saveRowSize = tbldata[0].size();
+    else
+    {
+        LastSaveDuration.setHMS(0,0,0,0);
+        exporting = false;
+        lastExportSuccess = false;
+        emit ExportedToExcel();
+        return true;// no rows to export, so no point in saving
+    }
 
     if(tbldata.size()<=0)
+    {
+        exporting = false;
+        lastExportSuccess = false;
+        emit ExportedToExcel();
         return false;
+    }
     bool diap = false;
     if(x_start != 0 || x_end != 0 || y_start != 0 || y_end != 0 )
     {// save into diapozon
@@ -367,7 +431,9 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
             xlsxR3.write(1 + y_start,i+1 + x_start,var);
         }
 
-    //int datasaved = 0;
+
+    // for rows done approximation
+    int _tmp_cell_count = 0;
 
     if(tbldata.size() > 0 && tbldata[0].size() <=1'000'000 || diap)
     {
@@ -384,8 +450,26 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                 break;
             for(int a=0;a<tbldata[i].size();a++)
             {
+                if(stopNow)
+                {
+                    exporting = false;
+                    lastExportSuccess = false;
+                    LastSaveDuration = QTime::fromMSecsSinceStartOfDay(LastSaveDuration.msecsTo(QTime::currentTime()));
+                    emit ExportedToExcel();
+                    return false;
+                }
+
                 if(diap && a >= y_end - y_start + 1)
                     break;
+
+                // to approximate row save count
+                _tmp_cell_count++;
+                if(_tmp_cell_count>=tbldata.size())
+                {
+                    _tmp_cell_count = 0;
+                    saveRowsDone++;
+                }
+
                 int row = a + 2 - rowoffset - (!firstRowHeader);
                 int column = i + 1 + column_offset;
 
@@ -469,6 +553,22 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
             {
                 for(int a=start ;a<end ;a++)
                 {
+                    if(stopNow)
+                    {
+                        exporting = false;
+                        lastExportSuccess = false;
+                        LastSaveDuration = QTime::fromMSecsSinceStartOfDay(LastSaveDuration.msecsTo(QTime::currentTime()));
+                        emit ExportedToExcel();
+                        return false;
+                    }
+
+                    // to approximate row save count
+                    _tmp_cell_count++;
+                    if(_tmp_cell_count>=tbldata.size())
+                    {
+                        _tmp_cell_count = 0;
+                        saveRowsDone++;
+                    }
                     int row = a + 2 - start - (!firstRowHeader);
                     int column = i + 1;
 
@@ -569,18 +669,43 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
     if(xlsxR3.saveAs((additionalSaveFileData + fileName)))
     {
         qDebug()<<"saved.";
+        LastSaveDuration = QTime::fromMSecsSinceStartOfDay(LastSaveDuration.msecsTo(QTime::currentTime()));
+        LastSaveEndDate = QTime::currentTime();
+        exporting = false;
+        emit ExportedToExcel();
+        lastExportSuccess = true;
         return true;
     }
     else
     {
         qDebug()<<"failed to save, file probably opened.";
+        LastSaveDuration = QTime::fromMSecsSinceStartOfDay(LastSaveDuration.msecsTo(QTime::currentTime()));
+        LastSaveEndDate = QTime::currentTime();
+        exporting = false;
+        emit ExportedToExcel();
+        lastExportSuccess = false;
         return false;
     }
 }
-
 bool TableData::ExportToSQLiteTable(QString tableName)
 {
-
+    stopNow = false;
+    lastexporttype = "Local";
+    LastSaveEndDate = QTime::currentTime();
+    LastSaveDuration = QTime::currentTime();
+    saveRowsDone = 0;
+    exporting = true;
+    exported = true;
+    if(tbldata.size()>0 && tbldata[0].size()>0)
+        saveRowSize = tbldata[0].size();
+    else
+    {
+        LastSaveDuration.setHMS(0,0,0,0);
+        exporting = false;
+        lastExportSuccess = true;
+        emit ExportedToSQLiteTable();
+        return true;// no rows to export, so no point in saving
+    }
     userDS.Load(documentsDir +"/userdata.txt");
     DatabaseConnection dc;
     dc.nodebug = true;
@@ -656,6 +781,11 @@ bool TableData::ExportToSQLiteTable(QString tableName)
     else
     {
         qDebug()<< "Failed to create sqlite table";
+        LastSaveDuration = QTime::fromMSecsSinceStartOfDay(LastSaveDuration.msecsTo(QTime::currentTime()));
+        LastSaveEndDate = QTime::currentTime();
+        exporting = false;
+        lastExportSuccess = false;
+        emit ExportedToSQLiteTable();
         return false;
     }
 
@@ -730,6 +860,7 @@ bool TableData::ExportToSQLiteTable(QString tableName)
     int lasti=0;
     for(int i=0;i<tbldata[0].size();i++)
     {
+        saveRowsDone++;
         if(!firstVal)
             SQLITE_sql += ",";
         if(firstVal)
@@ -740,6 +871,15 @@ bool TableData::ExportToSQLiteTable(QString tableName)
         bool first = true;
         for(int a=0;a<tbldata.size();a++)
         {
+            if(stopNow)
+            {
+                exporting = false;
+                lastExportSuccess = false;
+                LastSaveDuration = QTime::fromMSecsSinceStartOfDay(LastSaveDuration.msecsTo(QTime::currentTime()));
+                emit ExportedToSQLiteTable();
+                return false;
+            }
+
             if(!first)
                 SQLITE_sql += ",";
             first = false;
@@ -788,6 +928,11 @@ bool TableData::ExportToSQLiteTable(QString tableName)
             if(!dc.execSql(SQLITE_sql))
             {
                 qDebug()<< "Failed to save to LOCAL: " << SQLITE_sql ;
+                LastSaveDuration = QTime::fromMSecsSinceStartOfDay(LastSaveDuration.msecsTo(QTime::currentTime()));
+                LastSaveEndDate = QTime::currentTime();
+                exporting = false;
+                lastExportSuccess = false;
+                emit ExportedToSQLiteTable();
                 return false;
             }
             SQLITE_sql = "Insert into ";
@@ -798,12 +943,18 @@ bool TableData::ExportToSQLiteTable(QString tableName)
     }
     if(!dc.execSql(SQLITE_sql))
         qDebug()<< "Failed to save to LOCAL: " << SQLITE_sql ;
+    LastSaveDuration = QTime::fromMSecsSinceStartOfDay(LastSaveDuration.msecsTo(QTime::currentTime()));
+    LastSaveEndDate = QTime::currentTime();
+    exporting = false;
+    lastExportSuccess = true;
+    emit ExportedToSQLiteTable();
     return true;
 }
 
 
 bool TableData::AppendToCSV(QString fileName, char delimeter)
 {
+    stopNow = false;
     QFile fl((additionalSaveFileData + fileName));
     ;
     if(fl.open(QFile::OpenModeFlag::Append))
@@ -852,10 +1003,9 @@ bool TableData::AppendToCSV(QString fileName, char delimeter)
     fl.close();
     return true;
 }
-
-
 bool TableData::AppendToExcel(QString fileName, QString SheetName )
 {
+    stopNow = false;
 
     if(SheetName== "")
         SheetName = "Sheet1";
@@ -929,24 +1079,19 @@ bool TableData::AppendToExcel(QString fileName, QString SheetName )
     return true;
 }
 
-// QML funtions, QAbstractTableData overrides
 
-// move table(x_s,y_s,x_s,y_s) by dx, dy
-// ExcelMove(0,0,10,10, 5,5); // move block 5 right 5 down
-
+// Trash for QML, probably gonna be compleatly anused
 
 int TableData::getSizeX()
 {
     return tbldata.size();
 }
-
 int TableData::getSizeY()
 {
     if(tbldata.size() > 0)
         return tbldata[0].size();
     else return 0;
 }
-
 QVariant TableData::getObject(int x,int y)
 {
     //qDebug() << tbldata.size() <<tbldata[0].size() << x << y ;
@@ -971,12 +1116,10 @@ int TableData::rowCount(const QModelIndex & ) const
     else
         return tbldata[0].size();
 }
-
 int TableData::columnCount(const QModelIndex &) const
 {
     return tbldata.size();
 }
-
 QVariant TableData::data(const QModelIndex &index, int role) const
 {
 
@@ -984,7 +1127,6 @@ QVariant TableData::data(const QModelIndex &index, int role) const
         return tbldata[index.column()][index.row()];
     return QVariant();
 }
-
 QHash<int, QByteArray> TableData::roleNames() const
 {
     return { {Qt::DisplayRole, "display"} };

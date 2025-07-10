@@ -46,9 +46,23 @@ void Highlighter::highlightBlock(const QString &text)
 {
 
 
-    std::vector<int> tabcount; // count amount of tabs for before each character
+    CustomBlockData* userData = (CustomBlockData*)currentBlock().userData();
+    if(userData == nullptr)
+        userData = new CustomBlockData();
     int bn = currentBlock().blockNumber();
-    currentBlock().setUserState(bn);
+
+    if(!updateAllHighlighting && userData->lastText == text && lineInterval.size() > 0 && lineInterval[bn].size()>0 && lineIntervalFormats.size() == lineInterval.size() && lineIntervalFormats[bn].size() == lineInterval[bn].size())
+    {
+        for(int i=0;i< lineInterval[bn].size();i++)
+            setFormat(lineInterval[bn][i].first,lineInterval[bn][i].second, lineIntervalFormats[bn][i]);
+
+        return;
+    }
+    currentBlock().setUserData(userData);
+
+
+
+    std::vector<int> tabcount; // count amount of tabs for before each character
 
 
 
@@ -57,11 +71,13 @@ void Highlighter::highlightBlock(const QString &text)
     {
         lineInterval.emplace_back();
         lineIntervalColor.emplace_back();
+        lineIntervalFormats.emplace_back();
     }
 
 
     lineInterval[bn].clear();
     lineIntervalColor[bn].clear();
+    lineIntervalFormats[bn].clear();
 
     tokens[bn].clear();
     QStringList words = text.split(' ');
@@ -508,6 +524,7 @@ void Highlighter::highlightBlock(const QString &text)
 
         lineInterval[bn].push_back({tokens[bn][i].start + tabcount[tokens[bn][i].start]*4,tokens[bn][i].end - tokens[bn][i].start+1});
         lineIntervalColor[bn].push_back(format.foreground().color());
+        lineIntervalFormats[bn].push_back(format);
 
     }
 
@@ -529,6 +546,7 @@ void Highlighter::highlightBlock(const QString &text)
 
             lineInterval[bn].push_back({tokens[bn][i].start + tabcount[tokens[bn][i].start]*4,text.size() - tokens[bn][i].start});
             lineIntervalColor[bn].push_back(multiLineCommentFormat.foreground().color());
+            lineIntervalFormats[bn].push_back(multiLineCommentFormat);
 
             break;
         }
@@ -555,6 +573,7 @@ void Highlighter::highlightBlock(const QString &text)
 
                 lineInterval[bn].push_back({quote_start + tabcount[quote_start]*4,(tokens[bn][i].start + 1) - quote_start});
                 lineIntervalColor[bn].push_back(quotationFormat.foreground().color());
+                lineIntervalFormats[bn].push_back(quotationFormat);
                 continue;
             }
         }
@@ -733,10 +752,18 @@ void Highlighter::highlightBlock(const QString &text)
 
             lineInterval[bn].push_back({tokens[bn][i].start  + tabcount[tokens[bn][i].start]*4,tokens[bn][i].text.size()});
             lineIntervalColor[bn].push_back(QColor::fromRgbF(1.0f,0.0f,0.0f,1.0f));
+            lineIntervalFormats[bn].push_back(format);
 
         }
     }
 
+    userData = (CustomBlockData*)currentBlock().userData();
+    if(userData == nullptr)
+        userData = new CustomBlockData();
+
+    userData->lastText = text;
+
+    currentBlock().setUserData(userData);
 
 }
 

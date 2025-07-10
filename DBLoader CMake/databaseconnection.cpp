@@ -846,6 +846,7 @@ bool DatabaseConnection::execSql(QString sql)
     executionTime = QDateTime::currentSecsSinceEpoch();
     executionStart = QDateTime::currentDateTime();
 
+    data.exported = false;
     if(!db.isOpen() && !customOracle && (!(customSQlite)) && !(customPSQL))
     {
         bool ok = db.open();
@@ -2773,6 +2774,9 @@ bool DatabaseConnection::execSql(QString sql)
 void DatabaseConnection::stopRunning()
 {
     qDebug()<<"attempting to stop query";
+
+    data.stopNow = true;
+
     stopNow = true;
     if(subscriptConnesction != nullptr && subscriptConnesction->executing)
     {

@@ -1941,7 +1941,9 @@ void CodeEditor::updateMisc()
     //Scroll bar setup
     highlighter->FontSizeOverride = FontSizeOverride;
     highlighter->updateMisc();
+    highlighter->updateAllHighlighting = true;
     highlighter->rehighlight();
+    highlighter->updateAllHighlighting = false;
 }
 
 

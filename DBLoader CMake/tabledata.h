@@ -30,6 +30,18 @@ public:
     QString allSqlCode = "";
     QString additionalSaveFileData = "";
 
+
+    QTime LastSaveEndDate;
+    QTime LastSaveDuration;
+    quint64 saveRowSize = 0;
+    quint64 saveRowsDone = 0;
+    bool lastExportSuccess = false;
+    bool exporting = false;
+    bool exported = false;
+    QString lastexporttype = "";
+    bool stopNow = false;
+
+
     //Table data
     QVector<QVector<QString>> tbldata;
     QStringList headers;
