@@ -12,6 +12,7 @@
 #include <fstream>
 #include <qdir.h>
 #include "databaseconnection.h"
+#include "xlsxstyles_p.h"
 #include <QInputDialog>
 
 inline QString documentsDir;
@@ -448,6 +449,8 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
         {
             if(diap && i >= x_end - x_start + 1)
                 break;
+            int column = i + 1 + column_offset;
+            int _dt_valid_count = 0;
             for(int a=0;a<tbldata[i].size();a++)
             {
                 if(stopNow)
@@ -471,22 +474,76 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                 }
 
                 int row = a + 2 - rowoffset - (!firstRowHeader);
-                int column = i + 1 + column_offset;
 
                 //6 = double, 10 = QString, 16 = DateTime
                 if(maxVarTypes.size() == tbldata.size())
                 {
-                    if(maxVarTypes[i] == 10 || maxVarTypes[i] == 16)
+                    if(maxVarTypes[i] == 10 || maxVarTypes[i] == QMetaType::QDateTime)
                     {
                         QString str = tbldata[i][a];
                         if(str.size() == 23 || str.size() == 19|| str.size() == 10)
                         {
-                            QDateTime dt = QVariant(tbldata[i][a]).toDateTime();
 
-                            if(dt.isValid() && !dt.isNull())
-                                xlsxR3.write(row,column,dt);
-                            else
-                                xlsxR3.write(row,column,tbldata[i][a]);
+                            //
+                            //2025-01-01 10:10:10.123;
+
+                            //if(dt.isValid())
+
+
+                            if( (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit()//datetime
+                                && str[5].isDigit() && str[6].isDigit()
+                                && str[8].isDigit() && str[9].isDigit()
+
+                                && str[11].isDigit() && str[12].isDigit()
+                                && str[14].isDigit() && str[15].isDigit()
+                                && str[17].isDigit() && str[18].isDigit())
+                                ||
+                                (str.size() == 23 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit()// date time +msec
+                                 && str[5].isDigit() && str[6].isDigit()
+                                 && str[8].isDigit() && str[9].isDigit()
+
+                                 && str[11].isDigit() && str[12].isDigit()
+                                 && str[14].isDigit() && str[15].isDigit()
+                                 && str[17].isDigit() && str[18].isDigit()
+                                 && str[19]== '.' && str[20].isDigit()&& str[21].isDigit()&& str[22].isDigit())
+                                ||
+                                (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() // date
+                                 && str[5].isDigit() && str[6].isDigit()
+                                 && str[8].isDigit() && str[9].isDigit())
+                                )
+                            {
+
+                                _dt_valid_count++;
+                                const int XLSX_ROW_MAX    = 1048576;
+                                const int XLSX_COLUMN_MAX = 16384;
+                                if (!(row > XLSX_ROW_MAX || row < 1 || column > XLSX_COLUMN_MAX || column < 1))
+                                {
+                                    QString year="    ";year[0] = str[0]; year[1] = str[1]; year [2] = str[2]; year[3] = str[3];
+                                    QString month = "  "; month[0] = str[5]; month[1] = str[6];
+                                    QString day = "  "; day[0] = str[8]; day[1] = str[9];
+
+                                    int i_year = year.toInt();
+                                    int i_month = month.toInt();
+                                    int i_day = day.toInt();
+                                    double currentdt = (int(( 1461 * ( i_year + 4800 + int(( i_month - 14 ) / 12) ) ) / 4) +
+                                                        int(( 367 * ( i_month - 2 - 12 * ( ( i_month - 14 ) / 12 ) ) ) / 12) -
+                                                        int(( 3 * ( int(( i_year + 4900 + int(( i_month - 14 ) / 12) ) / 100) ) ) / 4) +
+                                                        i_day - 2415019 - 32075);
+
+                                    if(str.size() >= 19)
+                                    {
+
+                                        QString hour = str[11]; hour += str[12];
+                                        QString minute = str[14]; minute += str[15];
+                                        QString second = str[17]; second += str[18];
+                                        currentdt += (second.toInt() * 1.0  +minute.toInt()*60.0 + hour.toInt()*3600.0)/86400.0;
+                                    }
+                                    double value = currentdt;
+
+                                    xlsxR3.write(row,column,value);
+                                }
+                            }
+                            else xlsxR3.write(row,column,tbldata[i][a]);
                         }
                         else
                             xlsxR3.write(row,column,tbldata[i][a]);
@@ -511,12 +568,67 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                         QString str = tbldata[i][a];
                         if(str.size() == 23 || str.size() == 19|| str.size() == 10)
                         {
-                            QDateTime dt = QVariant(tbldata[i][a]).toDateTime();
 
-                            if(dt.isValid() && !dt.isNull())
-                                xlsxR3.write(row,column,dt);
-                            else
-                                xlsxR3.write(row,column,tbldata[i][a]);
+                                //
+                                //2025-01-01 10:10:10.123;
+
+                            //if(dt.isValid())
+
+
+                            if( (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit()//datetime
+                                 && str[5].isDigit() && str[6].isDigit()
+                                 && str[8].isDigit() && str[9].isDigit()
+
+                                 && str[11].isDigit() && str[12].isDigit()
+                                 && str[14].isDigit() && str[15].isDigit()
+                                 && str[17].isDigit() && str[18].isDigit())
+                                ||
+                                (str.size() == 23 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit()// date time +msec
+                                 && str[5].isDigit() && str[6].isDigit()
+                                 && str[8].isDigit() && str[9].isDigit()
+
+                                 && str[11].isDigit() && str[12].isDigit()
+                                 && str[14].isDigit() && str[15].isDigit()
+                                 && str[17].isDigit() && str[18].isDigit()
+                                 && str[19]== '.' && str[20].isDigit()&& str[21].isDigit()&& str[22].isDigit())
+                                ||
+                                (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() // date
+                                 && str[5].isDigit() && str[6].isDigit()
+                                 && str[8].isDigit() && str[9].isDigit())
+                                )
+                            {
+
+                                _dt_valid_count++;
+                                const int XLSX_ROW_MAX    = 1048576;
+                                const int XLSX_COLUMN_MAX = 16384;
+                                if (!(row > XLSX_ROW_MAX || row < 1 || column > XLSX_COLUMN_MAX || column < 1))
+                                {
+                                    QString year="    ";year[0] = str[0]; year[1] = str[1]; year [2] = str[2]; year[3] = str[3];
+                                    QString month = "  "; month[0] = str[5]; month[1] = str[6];
+                                    QString day = "  "; day[0] = str[8]; day[1] = str[9];
+
+                                    int i_year = year.toInt();
+                                    int i_month = month.toInt();
+                                    int i_day = day.toInt();
+                                    double currentdt = (int(( 1461 * ( i_year + 4800 + int(( i_month - 14 ) / 12) ) ) / 4) +
+                                                        int(( 367 * ( i_month - 2 - 12 * ( ( i_month - 14 ) / 12 ) ) ) / 12) -
+                                                        int(( 3 * ( int(( i_year + 4900 + int(( i_month - 14 ) / 12) ) / 100) ) ) / 4) +
+                                                        i_day - 2415019 - 32075);
+
+                                    if(str.size() >= 19)
+                                    {
+
+                                        QString hour = str[11]; hour += str[12];
+                                        QString minute = str[14]; minute += str[15];
+                                        QString second = str[17]; second += str[18];
+                                        currentdt += (second.toInt() * 1.0  +minute.toInt()*60.0 + hour.toInt()*3600.0)/86400.0;
+                                    }
+                                    double value = currentdt;
+
+                                    xlsxR3.write(row,column,value);
+                                }
+                            }
+                            else xlsxR3.write(row,column,tbldata[i][a]);
                         }
                         else
                             xlsxR3.write(row,column,tbldata[i][a]);
@@ -525,19 +637,82 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                 else
                 {
                     QString str = tbldata[i][a];
-                    if(str.size() == 23 ||str.size() == 19 || str.size() == 10)
+                    if(str.size() == 23 || str.size() == 19|| str.size() == 10)
                     {
-                        QDateTime dt = QVariant(tbldata[i][a]).toDateTime();
 
-                        if(dt.isValid() && !dt.isNull())
-                            xlsxR3.write(row,column,dt);
-                        else
-                            xlsxR3.write(row,column,tbldata[i][a]);
+                            //
+                            //2025-01-01 10:10:10.123;
+
+                        //if(dt.isValid())
+
+
+                        if( (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit()//datetime
+                             && str[5].isDigit() && str[6].isDigit()
+                             && str[8].isDigit() && str[9].isDigit()
+
+                             && str[11].isDigit() && str[12].isDigit()
+                             && str[14].isDigit() && str[15].isDigit()
+                             && str[17].isDigit() && str[18].isDigit())
+                            ||
+                            (str.size() == 23 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit()// date time +msec
+                             && str[5].isDigit() && str[6].isDigit()
+                             && str[8].isDigit() && str[9].isDigit()
+
+                             && str[11].isDigit() && str[12].isDigit()
+                             && str[14].isDigit() && str[15].isDigit()
+                             && str[17].isDigit() && str[18].isDigit()
+                             && str[19]== '.' && str[20].isDigit()&& str[21].isDigit()&& str[22].isDigit())
+                            ||
+                            (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() // date
+                             && str[5].isDigit() && str[6].isDigit()
+                             && str[8].isDigit() && str[9].isDigit())
+                            )
+                        {
+
+                            _dt_valid_count++;
+                            const int XLSX_ROW_MAX    = 1048576;
+                            const int XLSX_COLUMN_MAX = 16384;
+                            if (!(row > XLSX_ROW_MAX || row < 1 || column > XLSX_COLUMN_MAX || column < 1))
+                            {
+                                QString year="    ";year[0] = str[0]; year[1] = str[1]; year [2] = str[2]; year[3] = str[3];
+                                QString month = "  "; month[0] = str[5]; month[1] = str[6];
+                                QString day = "  "; day[0] = str[8]; day[1] = str[9];
+
+                                int i_year = year.toInt();
+                                int i_month = month.toInt();
+                                int i_day = day.toInt();
+                                double currentdt = (int(( 1461 * ( i_year + 4800 + int(( i_month - 14 ) / 12) ) ) / 4) +
+                                                    int(( 367 * ( i_month - 2 - 12 * ( ( i_month - 14 ) / 12 ) ) ) / 12) -
+                                                    int(( 3 * ( int(( i_year + 4900 + int(( i_month - 14 ) / 12) ) / 100) ) ) / 4) +
+                                                    i_day - 2415019 - 32075);
+
+                                if(str.size() >= 19)
+                                {
+
+                                    QString hour = str[11]; hour += str[12];
+                                    QString minute = str[14]; minute += str[15];
+                                    QString second = str[17]; second += str[18];
+                                    currentdt += (second.toInt() * 1.0  +minute.toInt()*60.0 + hour.toInt()*3600.0)/86400.0;
+                                }
+                                double value = currentdt;
+
+                                xlsxR3.write(row,column,value);
+                            }
+                        }
+                        else xlsxR3.write(row,column,tbldata[i][a]);
                     }
                     else
                         xlsxR3.write(row,column,tbldata[i][a]);
                 }
 
+            }
+
+            if(_dt_valid_count > tbldata[i].size()*0.5)
+            {
+                QXlsx::Format fmt = xlsxR3.cellAt(1,column)->format();
+                fmt.setNumberFormat(xlsxR3.workbook()->defaultDateFormat());
+                xlsxR3.setColumnFormat(column,fmt);
+                xlsxR3.setColumnWidth(column,20);
             }
         }
     }
@@ -551,6 +726,8 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
             qDebug()<<start << end;
             for(int i=0;i<tbldata.size();i++)
             {
+                int column = i + 1 + column_offset;
+                int _dt_valid_count = 0;
                 for(int a=start ;a<end ;a++)
                 {
                     if(stopNow)
@@ -570,7 +747,6 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                         saveRowsDone++;
                     }
                     int row = a + 2 - start - (!firstRowHeader);
-                    int column = i + 1;
 
                     //6 = double, 10 = QString, 16 = DateTime
                     if(maxVarTypes.size() == tbldata.size())
@@ -580,12 +756,67 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                             QString str = tbldata[i][a];
                             if(str.size() == 23 || str.size() == 19|| str.size() == 10)
                             {
-                                QDateTime dt = QVariant(tbldata[i][a]).toDateTime();
 
-                                if(dt.isValid() && !dt.isNull())
-                                    xlsxR3.write(row,column,dt);
-                                else
-                                    xlsxR3.write(row,column,tbldata[i][a]);
+                                    //
+                                    //2025-01-01 10:10:10.123;
+
+                                //if(dt.isValid())
+
+
+                                if( (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit()//datetime
+                                     && str[5].isDigit() && str[6].isDigit()
+                                     && str[8].isDigit() && str[9].isDigit()
+
+                                     && str[11].isDigit() && str[12].isDigit()
+                                     && str[14].isDigit() && str[15].isDigit()
+                                     && str[17].isDigit() && str[18].isDigit())
+                                    ||
+                                    (str.size() == 23 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit()// date time +msec
+                                     && str[5].isDigit() && str[6].isDigit()
+                                     && str[8].isDigit() && str[9].isDigit()
+
+                                     && str[11].isDigit() && str[12].isDigit()
+                                     && str[14].isDigit() && str[15].isDigit()
+                                     && str[17].isDigit() && str[18].isDigit()
+                                     && str[19]== '.' && str[20].isDigit()&& str[21].isDigit()&& str[22].isDigit())
+                                    ||
+                                    (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() // date
+                                     && str[5].isDigit() && str[6].isDigit()
+                                     && str[8].isDigit() && str[9].isDigit())
+                                    )
+                                {
+
+                                    _dt_valid_count++;
+                                    const int XLSX_ROW_MAX    = 1048576;
+                                    const int XLSX_COLUMN_MAX = 16384;
+                                    if (!(row > XLSX_ROW_MAX || row < 1 || column > XLSX_COLUMN_MAX || column < 1))
+                                    {
+                                        QString year="    ";year[0] = str[0]; year[1] = str[1]; year [2] = str[2]; year[3] = str[3];
+                                        QString month = "  "; month[0] = str[5]; month[1] = str[6];
+                                        QString day = "  "; day[0] = str[8]; day[1] = str[9];
+
+                                        int i_year = year.toInt();
+                                        int i_month = month.toInt();
+                                        int i_day = day.toInt();
+                                        double currentdt = (int(( 1461 * ( i_year + 4800 + int(( i_month - 14 ) / 12) ) ) / 4) +
+                                                            int(( 367 * ( i_month - 2 - 12 * ( ( i_month - 14 ) / 12 ) ) ) / 12) -
+                                                            int(( 3 * ( int(( i_year + 4900 + int(( i_month - 14 ) / 12) ) / 100) ) ) / 4) +
+                                                            i_day - 2415019 - 32075);
+
+                                        if(str.size() >= 19)
+                                        {
+
+                                            QString hour = str[11]; hour += str[12];
+                                            QString minute = str[14]; minute += str[15];
+                                            QString second = str[17]; second += str[18];
+                                            currentdt += (second.toInt() * 1.0  +minute.toInt()*60.0 + hour.toInt()*3600.0)/86400.0;
+                                        }
+                                        double value = currentdt;
+
+                                        xlsxR3.write(row,column,value);
+                                    }
+                                }
+                                else xlsxR3.write(row,column,tbldata[i][a]);
                             }
                             else
                                 xlsxR3.write(row,column,tbldata[i][a]);
@@ -610,12 +841,67 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                             QString str = tbldata[i][a];
                             if(str.size() == 23 || str.size() == 19|| str.size() == 10)
                             {
-                                QDateTime dt = QVariant(tbldata[i][a]).toDateTime();
 
-                                if(dt.isValid() && !dt.isNull())
-                                    xlsxR3.write(row,column,dt);
-                                else
-                                    xlsxR3.write(row,column,tbldata[i][a]);
+                                    //
+                                    //2025-01-01 10:10:10.123;
+
+                                //if(dt.isValid())
+
+
+                                if( (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit()//datetime
+                                     && str[5].isDigit() && str[6].isDigit()
+                                     && str[8].isDigit() && str[9].isDigit()
+
+                                     && str[11].isDigit() && str[12].isDigit()
+                                     && str[14].isDigit() && str[15].isDigit()
+                                     && str[17].isDigit() && str[18].isDigit())
+                                    ||
+                                    (str.size() == 23 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit()// date time +msec
+                                     && str[5].isDigit() && str[6].isDigit()
+                                     && str[8].isDigit() && str[9].isDigit()
+
+                                     && str[11].isDigit() && str[12].isDigit()
+                                     && str[14].isDigit() && str[15].isDigit()
+                                     && str[17].isDigit() && str[18].isDigit()
+                                     && str[19]== '.' && str[20].isDigit()&& str[21].isDigit()&& str[22].isDigit())
+                                    ||
+                                    (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() // date
+                                     && str[5].isDigit() && str[6].isDigit()
+                                     && str[8].isDigit() && str[9].isDigit())
+                                    )
+                                {
+
+                                    _dt_valid_count++;
+                                    const int XLSX_ROW_MAX    = 1048576;
+                                    const int XLSX_COLUMN_MAX = 16384;
+                                    if (!(row > XLSX_ROW_MAX || row < 1 || column > XLSX_COLUMN_MAX || column < 1))
+                                    {
+                                        QString year="    ";year[0] = str[0]; year[1] = str[1]; year [2] = str[2]; year[3] = str[3];
+                                        QString month = "  "; month[0] = str[5]; month[1] = str[6];
+                                        QString day = "  "; day[0] = str[8]; day[1] = str[9];
+
+                                        int i_year = year.toInt();
+                                        int i_month = month.toInt();
+                                        int i_day = day.toInt();
+                                        double currentdt = (int(( 1461 * ( i_year + 4800 + int(( i_month - 14 ) / 12) ) ) / 4) +
+                                                            int(( 367 * ( i_month - 2 - 12 * ( ( i_month - 14 ) / 12 ) ) ) / 12) -
+                                                            int(( 3 * ( int(( i_year + 4900 + int(( i_month - 14 ) / 12) ) / 100) ) ) / 4) +
+                                                            i_day - 2415019 - 32075);
+
+                                        if(str.size() >= 19)
+                                        {
+
+                                            QString hour = str[11]; hour += str[12];
+                                            QString minute = str[14]; minute += str[15];
+                                            QString second = str[17]; second += str[18];
+                                            currentdt += (second.toInt() * 1.0  +minute.toInt()*60.0 + hour.toInt()*3600.0)/86400.0;
+                                        }
+                                        double value = currentdt;
+
+                                        xlsxR3.write(row,column,value);
+                                    }
+                                }
+                                else xlsxR3.write(row,column,tbldata[i][a]);
                             }
                             else
                                 xlsxR3.write(row,column,tbldata[i][a]);
@@ -624,18 +910,81 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                     else
                     {
                         QString str = tbldata[i][a];
-                        if(str.size() == 23 ||str.size() == 19 || str.size() == 10)
+                        if(str.size() == 23 || str.size() == 19|| str.size() == 10)
                         {
-                            QDateTime dt = QVariant(tbldata[i][a]).toDateTime();
 
-                            if(dt.isValid() && !dt.isNull())
-                                xlsxR3.write(row,column,dt);
-                            else
-                                xlsxR3.write(row,column,tbldata[i][a]);
+                                //
+                                //2025-01-01 10:10:10.123;
+
+                            //if(dt.isValid())
+
+
+                            if( (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit()//datetime
+                                 && str[5].isDigit() && str[6].isDigit()
+                                 && str[8].isDigit() && str[9].isDigit()
+
+                                 && str[11].isDigit() && str[12].isDigit()
+                                 && str[14].isDigit() && str[15].isDigit()
+                                 && str[17].isDigit() && str[18].isDigit())
+                                ||
+                                (str.size() == 23 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit()// date time +msec
+                                 && str[5].isDigit() && str[6].isDigit()
+                                 && str[8].isDigit() && str[9].isDigit()
+
+                                 && str[11].isDigit() && str[12].isDigit()
+                                 && str[14].isDigit() && str[15].isDigit()
+                                 && str[17].isDigit() && str[18].isDigit()
+                                 && str[19]== '.' && str[20].isDigit()&& str[21].isDigit()&& str[22].isDigit())
+                                ||
+                                (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() // date
+                                 && str[5].isDigit() && str[6].isDigit()
+                                 && str[8].isDigit() && str[9].isDigit())
+                                )
+                            {
+
+                                _dt_valid_count++;
+                                const int XLSX_ROW_MAX    = 1048576;
+                                const int XLSX_COLUMN_MAX = 16384;
+                                if (!(row > XLSX_ROW_MAX || row < 1 || column > XLSX_COLUMN_MAX || column < 1))
+                                {
+                                    QString year="    ";year[0] = str[0]; year[1] = str[1]; year [2] = str[2]; year[3] = str[3];
+                                    QString month = "  "; month[0] = str[5]; month[1] = str[6];
+                                    QString day = "  "; day[0] = str[8]; day[1] = str[9];
+
+                                    int i_year = year.toInt();
+                                    int i_month = month.toInt();
+                                    int i_day = day.toInt();
+                                    double currentdt = (int(( 1461 * ( i_year + 4800 + int(( i_month - 14 ) / 12) ) ) / 4) +
+                                                        int(( 367 * ( i_month - 2 - 12 * ( ( i_month - 14 ) / 12 ) ) ) / 12) -
+                                                        int(( 3 * ( int(( i_year + 4900 + int(( i_month - 14 ) / 12) ) / 100) ) ) / 4) +
+                                                        i_day - 2415019 - 32075);
+
+                                    if(str.size() >= 19)
+                                    {
+
+                                        QString hour = str[11]; hour += str[12];
+                                        QString minute = str[14]; minute += str[15];
+                                        QString second = str[17]; second += str[18];
+                                        currentdt += (second.toInt() * 1.0  +minute.toInt()*60.0 + hour.toInt()*3600.0)/86400.0;
+                                    }
+                                    double value = currentdt;
+
+                                    xlsxR3.write(row,column,value);
+                                }
+                            }
+                            else xlsxR3.write(row,column,tbldata[i][a]);
                         }
                         else
                             xlsxR3.write(row,column,tbldata[i][a]);
                     }
+                }
+
+                if(_dt_valid_count > tbldata[i].size()*0.5)
+                {
+                    QXlsx::Format fmt = xlsxR3.cellAt(1,column)->format();
+                    fmt.setNumberFormat(xlsxR3.workbook()->defaultDateFormat());
+                    xlsxR3.setColumnFormat(column,fmt);
+                    xlsxR3.setColumnWidth(column,20);
                 }
             }
 
