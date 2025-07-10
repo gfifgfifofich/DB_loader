@@ -84,8 +84,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     ui->setupUi(this);
     ui->stopLoadingQueryButton->hide();
 
-    ui->exportProgressBar->hide();
-    ui->exportProgressLabel->hide();
+
 
     // global pointer to ease modifications of this window from others (find, replace and other tools)
     loadWind  = this;
@@ -98,6 +97,9 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     gw.Init();
     ui->graph_layout->addLayout(&gw.graph_layout);
 
+    // set progressbar to 0
+    ui->exportProgressBar->setMaximum(1);
+    ui->exportProgressBar->setValue(0);
 
     //hide autolauncher/automation
     ui->timerdayMonthly->hide();
@@ -924,18 +926,26 @@ void LoaderWidnow::executionTimerTimeout()
     if(!dc->executing && dc->data.exporting)
     {//exporting data;
         ui->exportProgressBar->show();
-        ui->exportProgressLabel->show();
+        ui->miscStatusLabel->show();
 
-        ui->exportProgressLabel->setText(QTime::fromMSecsSinceStartOfDay( dc->data.LastSaveDuration.msecsTo(QTime::currentTime())).toString() + "." +  QVariant(dc->data.LastSaveDuration.msecsTo(QTime::currentTime())).toString());
+        ui->miscStatusLabel->setText("Exporting: " + QTime::fromMSecsSinceStartOfDay( dc->data.LastSaveDuration.msecsTo(QTime::currentTime())).toString() + "." +  QVariant(dc->data.LastSaveDuration.msecsTo(QTime::currentTime())).toString());
 
-        ui->exportProgressBar->setMaximum(dc->data.saveRowSize);
+        if(dc->data.saveRowSize>0)
+            ui->exportProgressBar->setMaximum(dc->data.saveRowSize);
+        else
+            ui->exportProgressBar->setMaximum(1);
+
         ui->exportProgressBar->setValue(dc->data.saveRowsDone);
 
         return;
     }
 
-    ui->exportProgressBar->hide();
-    ui->exportProgressLabel->hide();
+    if(dc->data.tbldata.size()>0 && dc->data.tbldata[0].size() > 0 )
+        ui->exportProgressBar->setMaximum(dc->data.tbldata[0].size());
+    else
+        ui->exportProgressBar->setMaximum(1);
+    ui->exportProgressBar->setValue(0);
+
 
     QString msg = "";
     if(dc->queryExecutionState >=3)
@@ -1021,6 +1031,13 @@ void LoaderWidnow::UpdateTable()
         return;
 
     }
+
+    if(dc->data.tbldata.size()>0 && dc->data.tbldata[0].size() > 0 )
+        ui->exportProgressBar->setMaximum(dc->data.tbldata[0].size());
+    else
+        ui->exportProgressBar->setMaximum(1);
+    ui->exportProgressBar->setValue(0);
+
     dc->queryExecutionState = 4;
     queryExecutionState = 4;
     executionTimer.stop();
@@ -2053,37 +2070,43 @@ void LoaderWidnow::on_exportDone()
 {
     executionTimer.stop();
 
+    if(dc->data.saveRowSize >0)
+        ui->exportProgressBar->setMaximum(dc->data.saveRowSize);
+    else
+        ui->exportProgressBar->setMaximum(1);
+    ui->exportProgressBar->setValue(dc->data.saveRowsDone);
+
     if(!dc->executing)
     {
         ui->stopLoadingQueryButton->hide();
         ui->pushButton_3->show();
     }
-    ui->exportProgressBar->hide();
+
     if (dc->data.lastexporttype == "csv")
     {
         if(dc->data.lastExportSuccess)
-            ui->exportProgressLabel->setText(QString("Saved as CSV ") + ui->saveLineEdit->text()
+            ui->miscStatusLabel->setText(QString("Saved as CSV ") + ui->saveLineEdit->text()
                                              + " exporttime: " + dc->data.LastSaveDuration.toString() + "." +  QVariant(dc->data.LastSaveDuration.msec()).toString());
         else
-            ui->exportProgressLabel->setText(QString("failed to save to CSV, file probably opened") + ui->saveLineEdit->text()
+            ui->miscStatusLabel->setText(QString("failed to save to CSV, file probably opened") + ui->saveLineEdit->text()
                                              + " exporttime: " + dc->data.LastSaveDuration.toString() + "." +  QVariant(dc->data.LastSaveDuration.msec()).toString());
     }
     else if (dc->data.lastexporttype == "xlsx")
     {
         if(dc->data.lastExportSuccess)
-            ui->exportProgressLabel->setText(QString("Saved as XLSX ") + ui->saveLineEdit->text()
+            ui->miscStatusLabel->setText(QString("Saved as XLSX ") + ui->saveLineEdit->text()
                                              + " exporttime: " + dc->data.LastSaveDuration.toString() + "." +  QVariant(dc->data.LastSaveDuration.msec()).toString());
         else
-            ui->exportProgressLabel->setText(QString("Failed to save xlsx, file probably opened") + ui->saveLineEdit->text()
+            ui->miscStatusLabel->setText(QString("Failed to save xlsx, file probably opened") + ui->saveLineEdit->text()
                                              + " exporttime: " + dc->data.LastSaveDuration.toString() + "." +  QVariant(dc->data.LastSaveDuration.msec()).toString());
     }
     else if (dc->data.lastexporttype == "Local")
     {
         if(dc->data.lastExportSuccess)
-            ui->exportProgressLabel->setText(QString("Saved to local database, table:") + ui->saveLineEdit->text()
+            ui->miscStatusLabel->setText(QString("Saved to local database, table:") + ui->saveLineEdit->text()
                                              + " exporttime: " + dc->data.LastSaveDuration.toString() + "." +  QVariant(dc->data.LastSaveDuration.msec()).toString());
         else
-            ui->exportProgressLabel->setText(QString("Failed to save to local database, table: ") + ui->saveLineEdit->text()
+            ui->miscStatusLabel->setText(QString("Failed to save to local database, table: ") + ui->saveLineEdit->text()
                                              + " exporttime: " + dc->data.LastSaveDuration.toString() + "." +  QVariant(dc->data.LastSaveDuration.msec()).toString());
     }
 }
@@ -2462,8 +2485,7 @@ void LoaderWidnow::on_tabWidget_currentChanged(int index)
     disconnect( &dc->data, SIGNAL(ExportedToExcel()), this, SLOT(on_exportDone()));
     disconnect( &dc->data, SIGNAL(ExportedToSQLiteTable()), this, SLOT(on_exportDone()));
 
-    ui->exportProgressBar->hide();
-    ui->exportProgressLabel->hide();
+
 
     disconnect( dc, SIGNAL(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList)), this, SLOT(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList)) );
 
@@ -2509,6 +2531,26 @@ void LoaderWidnow::on_tabWidget_currentChanged(int index)
     ui->tableDBNameLabel->setText(tabDatas[i]->lastTableDBName);
 
     executionTimer.stop();
+
+    if(dc->data.exported || dc->data.exporting)
+    {
+
+        if(dc->data.saveRowSize >0)
+            ui->exportProgressBar->setMaximum(dc->data.saveRowSize);
+        else
+            ui->exportProgressBar->setMaximum(1);
+        ui->exportProgressBar->setValue(dc->data.saveRowsDone);
+    }
+    else
+    {
+
+        if(dc->data.tbldata.size()>0 && dc->data.tbldata[0].size() > 0 )
+            ui->exportProgressBar->setMaximum(dc->data.tbldata[0].size());
+        else
+            ui->exportProgressBar->setMaximum(1);
+        ui->exportProgressBar->setValue(0);
+
+    }
     if(!dc->executing && !dc->data.exporting)
     {
         ui->pushButton_3->show();
@@ -2526,6 +2568,7 @@ void LoaderWidnow::on_tabWidget_currentChanged(int index)
         {
             ui->tableWidget->clear();
         }
+
         ui->pushButton_3->hide();
         ui->stopLoadingQueryButton->show();
         executionTimer.setSingleShot(false);
