@@ -2105,6 +2105,8 @@ bool DatabaseConnection::execSql(QString sql)
         int rows = PQntuples(res);
         int cols = PQnfields(res);
 
+        data.saveRowSize = 0;
+        data.saveRowsDone = 0;
         if(!nodebug) qDebug() << rows << cols << "rows << cols";
 
         if(cols <=0)
@@ -2152,6 +2154,7 @@ bool DatabaseConnection::execSql(QString sql)
         }
 
 
+        data.saveRowSize = rows;
         for (int j = 0; j < rows; j++)
         {
 
@@ -2175,6 +2178,7 @@ bool DatabaseConnection::execSql(QString sql)
                 data.typecount[i][fixQStringType_lasttype]++;
 
             }
+            data.saveRowsDone++;
 
         }
         dataDownloading = false;

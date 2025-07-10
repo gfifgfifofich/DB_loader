@@ -940,12 +940,23 @@ void LoaderWidnow::executionTimerTimeout()
         return;
     }
 
-    if(dc->data.tbldata.size()>0 && dc->data.tbldata[0].size() > 0 )
-        ui->exportProgressBar->setMaximum(dc->data.tbldata[0].size());
-    else
-        ui->exportProgressBar->setMaximum(1);
-    ui->exportProgressBar->setValue(0);
 
+    if(dc->dataDownloading && dc->postgre) // since it has ability to count rows, why not show them
+    {
+        if(dc->data.saveRowSize>0)
+            ui->exportProgressBar->setMaximum(dc->data.saveRowSize);
+        else
+            ui->exportProgressBar->setMaximum(1);
+        ui->exportProgressBar->setValue(dc->data.saveRowsDone);
+    }
+    else
+    {
+        if(dc->data.tbldata.size()>0 && dc->data.tbldata[0].size() > 0 )
+            ui->exportProgressBar->setMaximum(dc->data.tbldata[0].size());
+        else
+            ui->exportProgressBar->setMaximum(1);
+        ui->exportProgressBar->setValue(0);
+    }
 
     QString msg = "";
     if(dc->queryExecutionState >=3)
