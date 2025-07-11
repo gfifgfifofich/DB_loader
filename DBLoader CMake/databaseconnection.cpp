@@ -1050,7 +1050,7 @@ bool DatabaseConnection::execSql(QString sql)
                                         varcount++;
                                         saveStart_X = QVariant(s.trimmed()).toInt();
                                         csvDelimeter = s.trimmed()[0].unicode();
-                                        if(subCommandPatterns[i].endsWith("SubexecToExcelWorksheet"))
+                                        if(subCommandPatterns[i].endsWith("ExcelWorksheet"))
                                         {
                                             WorksheetName=s.trimmed();
                                         }
@@ -1059,7 +1059,7 @@ bool DatabaseConnection::execSql(QString sql)
                                     {
                                         varcount++;
                                         saveEnd_X = QVariant(s.trimmed()).toInt();
-                                        if(subCommandPatterns[i].endsWith("SubexecToExcelWorksheet"))
+                                        if(subCommandPatterns[i].endsWith("ExcelWorksheet"))
                                         {
                                             saveStart_X = QVariant(s.trimmed()).toInt();
                                         }
@@ -1068,7 +1068,7 @@ bool DatabaseConnection::execSql(QString sql)
                                     {
                                         varcount++;
                                         saveStart_Y = QVariant(s.trimmed()).toInt();
-                                        if(subCommandPatterns[i].endsWith("SubexecToExcelWorksheet"))
+                                        if(subCommandPatterns[i].endsWith("ExcelWorksheet"))
                                         {
                                             saveEnd_X = QVariant(s.trimmed()).toInt();
                                         }
@@ -1077,14 +1077,14 @@ bool DatabaseConnection::execSql(QString sql)
                                     {
                                         varcount++;
                                         saveEnd_Y = QVariant(s.trimmed()).toInt();
-                                        if(subCommandPatterns[i].endsWith("SubexecToExcelWorksheet"))
+                                        if(subCommandPatterns[i].endsWith("ExcelWorksheet"))
                                         {
                                             saveStart_Y = QVariant(s.trimmed()).toInt();
                                         }
                                     }
                                     else if(varcount == 7)
                                     {
-                                        if(subCommandPatterns[i].endsWith("SubexecToExcelWorksheet"))
+                                        if(subCommandPatterns[i].endsWith("ExcelWorksheet"))
                                         {
                                             saveEnd_Y = QVariant(s.trimmed()).toInt();
                                         }

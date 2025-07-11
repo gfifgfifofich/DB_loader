@@ -719,7 +719,7 @@ void Highlighter::highlightBlock(const QString &text)
         }
 
         if((tokens[bn][i].text.toLower() == "and" || tokens[bn][i].text.toLower() == "or" ) &&
-            (prevToken.toLower() == "and" || prevToken.toLower() == "or" || prevToken.toLower() == "where") )
+            (prevToken.toLower() == "and" || prevToken.toLower() == "or" || prevToken.toLower() == "where" || prevToken.toLower() == "between") )
         {
             markAsError = true;
             markPrevAsError  = true;
@@ -727,14 +727,26 @@ void Highlighter::highlightBlock(const QString &text)
         }
 
         if((tokens[bn][i].text.toLower() == "and" || tokens[bn][i].text.toLower() == "or" ) &&
-            (nextToken.toLower() == "and" || nextToken.toLower() == "or" || nextToken.toLower() == "where") )
+            (nextToken.toLower() == "and" || nextToken.toLower() == "or" || nextToken.toLower() == "where" || nextToken.toLower() == "between") )
         {
             markAsError = true;
             markPrevAsError  = false;
             markNextAsError = true;
         }
 
-        if((tokens[bn][i].text.endsWith('.') || tokens[bn][i].text.endsWith(',')) && (keywordPatterns.contains(nextToken,Qt::CaseInsensitive) && nextToken.size() > 1 && !isWindowFunc(nextToken)))
+        if(tokens[bn][0].text != "--" && tokens[bn][i].text != "--" && isSpecialSymbol(tokens[bn][i].text.back())
+            && tokens[bn][i].text != "type" // way too frequent
+            && !(tokens[bn][i].text.endsWith('\'') ||tokens[bn][i].text.endsWith(')') || tokens[bn][i].text.endsWith('(') || tokens[bn][i].text.endsWith('*')|| tokens[bn][i].text.endsWith(';') || tokens[bn][i].text.endsWith('"'))
+            && !TableColumnMap_lower.contains(nextToken) && !ColumnMap_lower.contains(nextToken) && nextToken.size() > 1 &&
+               (nextToken == "and" ||
+                nextToken == "or" ||
+                nextToken == "where" ||
+                nextToken == "select" ||
+                nextToken == "from" ||
+                nextToken == "where" ||
+                nextToken == "group" ||
+                nextToken == "order"
+                ))
         {
             markAsError = true;
             markPrevAsError  = false;
@@ -753,6 +765,7 @@ void Highlighter::highlightBlock(const QString &text)
             lineInterval[bn].push_back({tokens[bn][i].start  + tabcount[tokens[bn][i].start]*4,tokens[bn][i].text.size()});
             lineIntervalColor[bn].push_back(QColor::fromRgbF(1.0f,0.0f,0.0f,1.0f));
             lineIntervalFormats[bn].push_back(format);
+
 
         }
     }
