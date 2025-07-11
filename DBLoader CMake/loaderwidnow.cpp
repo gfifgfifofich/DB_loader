@@ -85,6 +85,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     ui->stopLoadingQueryButton->hide();
 
 
+    ui->connectionStatusLabel_2->setTextInteractionFlags(Qt::TextSelectableByMouse);
 
     // global pointer to ease modifications of this window from others (find, replace and other tools)
     loadWind  = this;
@@ -611,7 +612,7 @@ void LoaderWidnow::on_ConnectButton_pressed()
         ui->passwordLineEdit->setText(dc->password);
     }
     else
-        ui->connectionStatusLabel_2->setText("Not connected");
+        ui->connectionStatusLabel_2->setText("Not connected: " + dc->Last_ConnectError.trimmed());
 
 
 }

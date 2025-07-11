@@ -115,6 +115,7 @@ thread_local std::vector<std::vector<oracle::occi::MetaData>> mtl;
 
 bool DatabaseConnection::Create(QString driver, QString dbname, QString username, QString password)
 {
+    Last_ConnectError = "";
     if(driver.trimmed() == "LOCAL" || dbname.trimmed() == "LOCAL")
     {
         driver = userDS.data["UserTheme"]["db_drv_Save_table_driver"];
@@ -355,6 +356,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
         }
         catch (oracle::occi::SQLException ex) {
             if(!nodebug) qDebug() << "error creating connection" << ex.getErrorCode() << ex.getMessage();
+            Last_ConnectError = QString().fromStdString(ex.getMessage());
             return false;
         }
 #else
@@ -382,6 +384,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
             if(!nodebug) qDebug() << "Can't open database: " << sqlite3_errmsg(db) ;
             sqlite3_close(db);
             sqlite3DBConnectionIsOpen = false;
+            Last_ConnectError = sqlite3_errmsg(db);
             return false;
         }
         else
@@ -446,6 +449,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
                 {
                     if(!nodebug) qDebug() << "custom Postgres Connection failed: " << PQerrorMessage(conn);
                     PQfinish(conn);
+                    Last_ConnectError = PQerrorMessage(conn);
                     return false;
                 }
                 else
@@ -469,6 +473,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
                 }
             }
 
+            Last_ConnectError = errmsg;
             return false;
         }
         else
@@ -855,7 +860,18 @@ bool DatabaseConnection::execSql(QString sql)
             if(!nodebug) qDebug() << "db opened";
         }
         else
-            if(!nodebug) qDebug() << "nope: "<< db.lastError().text().toStdString();
+        {
+            if(!nodebug) qDebug() << "nope: "<< Last_ConnectError;
+
+            executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
+            executionEnd = QDateTime::currentDateTime();
+            if(!nodebug) qDebug() << "Execd";
+            executing = false;
+            queryExecutionState = 4;
+
+            emit execedSql();
+            return true;
+        }
     }
 
 
@@ -2220,7 +2236,6 @@ bool DatabaseConnection::execSql(QString sql)
     if(customOracle)
     {
 
-        emit queryBeginExecuting();
         try{
 
             OCI_lastenv = oracle::occi::Environment::createEnvironment ( "CL8MSWIN1251", "CL8MSWIN1251",oracle::occi::Environment::Mode::DEFAULT);//oracle::occi::Environment::DEFAULT);
