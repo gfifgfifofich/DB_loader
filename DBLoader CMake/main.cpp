@@ -7,6 +7,7 @@
 #include "table.h"
 #include <QTranslator>
 
+
 inline DataStorage userDS;
 inline QString appfilename;
 inline QString usrDir;
@@ -157,6 +158,14 @@ int main(int argc, char *argv[])
         app.installTranslator(&qtTranslator);
         qDebug() << qtTranslator.language();
     }
+
+
+
+
+
+
+
+
 
     LoaderWidnow w;
 

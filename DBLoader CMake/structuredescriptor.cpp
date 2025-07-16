@@ -189,7 +189,7 @@ void StructureDescriptor::on_lineEdit_textChanged(const QString &arg1)
 {// Describing table name changed
     if(loadWind->cd != nullptr)
     {
-        if(loadWind->dc->dbname == userDS.data["UserTheme"]["db_drv_Save_table_Connection"].replace("documentsDir",documentsDir).trimmed() && loadWind->dc->driver == userDS.data["UserTheme"]["db_drv_Save_table_driver"].trimmed())
+        if(loadWind->dc->dbname == userDS.data["UserTheme"]["db_drv_Save_table_Connection"].replace("documentsDir",documentsDir + "/SQLiteDB.db").trimmed() && loadWind->dc->driver == userDS.data["UserTheme"]["db_drv_Save_table_driver"].trimmed())
         {// in local db
             qDebug() << "in local database";
             DatabaseConnection dc;

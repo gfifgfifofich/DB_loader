@@ -42,6 +42,9 @@ public:
     bool stopNow = false;
 
 
+    QStringList LastExcelImportSheets;
+    bool silentExcelImport = false;
+
     //Table data
     QVector<QVector<QString>> tbldata;
     QStringList headers;
@@ -51,7 +54,7 @@ public:
 
     // import
     Q_INVOKABLE bool ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHeader);
-    Q_INVOKABLE bool ImportFromExcel(QString fileName, int x_start,int x_end,int y_start,int y_end, bool firstRowHeader);
+    Q_INVOKABLE bool ImportFromExcel(QString fileName, int x_start,int x_end,int y_start,int y_end, bool firstRowHeader,QString sheetName = "");
     Q_INVOKABLE void ImportFromSQLiteTable(QString fileName, QString tableName); // load table from sqlite quicker
 
     // export

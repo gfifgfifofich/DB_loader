@@ -18,14 +18,14 @@ void NeuralNetwork::Create(int* Architecture, int archsize)
 	sizeout = Architecture[archsize - 1];
 
 
-	int NN_Size = 0;
+    NN_Size = 0;
+    Weights_Size = 0;
 	for (int i = 0; i < archsize; i++)
 		NN_Size += Architecture[i];
 
 	if (NN_Size == 0)
 		std::cerr << "NN err1: Invalid size";
 
-	int Weights_Size = 0;
 
 	for (int i = 1; i < archsize; i++)
 		Weights_Size += Architecture[i - 1] * Architecture[i];
@@ -49,7 +49,7 @@ void NeuralNetwork::Create(int* Architecture, int archsize)
 	WeightsAmount = Weights_Size;
 
 	Arch = new int[archsize];
-	NodesStep = new int[archsize];
+    NodesStep = new unsigned int[archsize];
 	WeightsStep = new int[archsize];
 	//memcpy(Arch, Architecture, sizeof(int) * archsize);
 
@@ -129,13 +129,9 @@ void NeuralNetwork::Run(float* inputData)
 				sum += weightOutputs[i];
 
 				PrevLayerNode++;
-			}
-            if(n <= size * 0.5f +1)
-                Nodes[n] = sigmoidApprox(sum) + biases[n];
-            else if(n > size * 0.5f +1 && n < size * 0.65f )
-                Nodes[n] = sigmoidApprox(sum) + biases[n];
-            else
-                Nodes[n] = sigmoidApprox(sum) + biases[n];
+            }
+
+            Nodes[n] = sigmoid(sum) + biases[n];
 
             if(i == LayersAmount-1)
             {
@@ -185,6 +181,39 @@ void NeuralNetwork::Run(float ActFunc(float), float* inputData)
 	}
 	for (int i = 0; i < sizeout; i++)
 		outputs[i] = Nodes[PrevNodeStart + i];
+}
+
+
+void NeuralNetwork::ApplyDiff(float* inputData, float* outputFiff, float rate)
+{
+    inputs = inputData;
+
+    for (int i = 0; i < sizein; i++)
+        Nodes[i] = inputData[i];
+
+    int PrevNodeStart = 0;
+    for (int i = 1; i < LayersAmount; i++)
+    {
+        int size = Arch[i];
+        int weightsPerNode = Arch[i - 1];
+        int node = 0;
+        for (int n = NodesStep[i]; n < NodesStep[i] + size; n++)
+        {//each node of layer
+            //WeightsStep[i-1]
+
+            float sum = 0.0f;
+            int start = (WeightsStep[i - 1] + node * weightsPerNode);
+            int PrevLayerNode = 0;
+            for (int w = start; w < start + weightsPerNode; w++)
+            {
+                weights[w] += outputFiff[n -  NodesStep[i]] * rate * Nodes[PrevNodeStart + PrevLayerNode];
+
+                PrevLayerNode++;
+            }
+            node++;
+        }
+        PrevNodeStart = NodesStep[i];
+    }
 }
 
 std::vector<int> rand_ids;

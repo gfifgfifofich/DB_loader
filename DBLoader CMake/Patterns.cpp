@@ -89,6 +89,7 @@ void fillPaterns()
     subCommandPatterns.push_back("ExcelToMagic");
     subCommandPatterns.push_back("ExcelToArray");
     subCommandPatterns.push_back("ExcelToSqliteTable");
+    subCommandPatterns.push_back("ExcelSheetList");
 
     subCommandPatterns.push_back("CSVToMagic");
     subCommandPatterns.push_back("CSVToArray");

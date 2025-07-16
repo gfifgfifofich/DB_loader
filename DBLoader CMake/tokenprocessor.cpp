@@ -28,6 +28,8 @@ void TokenProcessor::addFrequencies()
     bool in_qutes = false;
     bool in_doublequtes = false;
     bool inComment = false;
+    int quotes = 0;
+    int double_quotes = 0;
     for(auto s : tokens)
     {
         // include comments or not
@@ -42,7 +44,7 @@ void TokenProcessor::addFrequencies()
             continue;
 
         // include data from quotes, or not
-        int quotes = s.count('\'');
+        quotes = s.count('\'');
         if(quotes % 2 == 1)
         {
             in_qutes = !in_qutes;
@@ -52,7 +54,7 @@ void TokenProcessor::addFrequencies()
             continue;
 
         // include data from doublequotes, or not
-        int double_quotes = s.count('"');
+        double_quotes = s.count('"');
         if(quotes % 2 == 1)
         {
             in_doublequtes = !in_doublequtes;
@@ -82,7 +84,7 @@ void TokenProcessor::addFrequencies()
                     tokenkey = tokenkey.trimmed();
                     if(wordcount >= 0)
                     {
-                        float val =pow(1.5,a) * 0.1f * sqrt(str.size());
+                        float val =pow(1.5,a) * 0.5f * 0.1f * sqrt(str.size());
                         float freq = freqs[tokenkey][str];//ds.GetPropertyAsFloat(tokenkey.toStdString(),str.toStdString()); // get freq
 
                         freq += val;

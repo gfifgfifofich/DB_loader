@@ -128,7 +128,7 @@ bool TableData::ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHe
         setHeaderData(i,Qt::Horizontal,headers[i]);
     return true;
 }
-bool TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_start,int y_end, bool firstRowHeader)
+bool TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_start,int y_end, bool firstRowHeader,QString sheetName)
 {
     stopNow = false;
     if(fileName.size() < 2)
@@ -153,7 +153,8 @@ bool TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_st
     QVariant lastcellval = xlsxR3.read(1,1);
     int sheetid = 0;
     QStringList sheets = xlsxR3.sheetNames();
-    if(sheets.size()>1)
+    LastExcelImportSheets = xlsxR3.sheetNames();
+    if(sheets.size()>1 && !silentExcelImport && sheetName == "")
     {
         bool ok = true;
         QInputDialog id(loadWind);
@@ -169,7 +170,10 @@ bool TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_st
             qDebug() << "xlsx import failed, user cancel";
             return false;
         }
-
+    }
+    else if (sheets.size()>1 && sheetName != "")
+    {
+        xlsxR3.selectSheet(sheetName);
     }
     else if(sheets.size()<=0)
     {
@@ -389,23 +393,24 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
     }
     // to load only if needed
     QString flopenname = "";
-    if(sheetName!="")
+    if(sheetName!="" || diap)
     {
         flopenname = fileName;
     }
 
     QXlsx::Document xlsxR3(flopenname);
 
-    if(sheetName!="")
+    if(sheetName!="" || diap)
     {
         xlsxR3.load();// load and clear sheet
 
         if(!append && !diap)
+        {
             if(xlsxR3.sheetNames().contains(sheetName))
                 xlsxR3.deleteSheet(sheetName);
 
-        xlsxR3.addSheet(sheetName);
-
+            xlsxR3.addSheet(sheetName);
+        }
 
         xlsxR3.selectSheet(sheetName);
     }
@@ -490,26 +495,26 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                             //if(dt.isValid())
 
 
-                            if( (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit()//datetime
-                                && str[5].isDigit() && str[6].isDigit()
-                                && str[8].isDigit() && str[9].isDigit()
+                            if( (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                                && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                                 && str[8].isDigit() && str[9].isDigit() && !str[10].isDigit()
 
-                                && str[11].isDigit() && str[12].isDigit()
-                                && str[14].isDigit() && str[15].isDigit()
+                                 && str[11].isDigit() && str[12].isDigit() && !str[13].isDigit()
+                                 && str[14].isDigit() && str[15].isDigit() && !str[16].isDigit()
                                 && str[17].isDigit() && str[18].isDigit())
                                 ||
-                                (str.size() == 23 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit()// date time +msec
-                                 && str[5].isDigit() && str[6].isDigit()
-                                 && str[8].isDigit() && str[9].isDigit()
+                                (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                                    && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                                    && str[8].isDigit() && str[9].isDigit() && !str[10].isDigit()
 
-                                 && str[11].isDigit() && str[12].isDigit()
-                                 && str[14].isDigit() && str[15].isDigit()
+                                 && str[11].isDigit() && str[12].isDigit() && !str[13].isDigit()
+                                 && str[14].isDigit() && str[15].isDigit() && !str[16].isDigit()
                                  && str[17].isDigit() && str[18].isDigit()
                                  && str[19]== '.' && str[20].isDigit()&& str[21].isDigit()&& str[22].isDigit())
                                 ||
-                                (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() // date
-                                 && str[5].isDigit() && str[6].isDigit()
-                                 && str[8].isDigit() && str[9].isDigit())
+                                (str.size() == 10 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                                    && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                                    && str[8].isDigit() && str[9].isDigit())
                                 )
                             {
 
@@ -575,27 +580,27 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                             //if(dt.isValid())
 
 
-                            if( (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit()//datetime
-                                 && str[5].isDigit() && str[6].isDigit()
-                                 && str[8].isDigit() && str[9].isDigit()
+                                if( (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                                     && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                                     && str[8].isDigit() && str[9].isDigit() && !str[10].isDigit()
 
-                                 && str[11].isDigit() && str[12].isDigit()
-                                 && str[14].isDigit() && str[15].isDigit()
-                                 && str[17].isDigit() && str[18].isDigit())
-                                ||
-                                (str.size() == 23 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit()// date time +msec
-                                 && str[5].isDigit() && str[6].isDigit()
-                                 && str[8].isDigit() && str[9].isDigit()
+                                     && str[11].isDigit() && str[12].isDigit() && !str[13].isDigit()
+                                     && str[14].isDigit() && str[15].isDigit() && !str[16].isDigit()
+                                     && str[17].isDigit() && str[18].isDigit())
+                                    ||
+                                    (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                                     && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                                     && str[8].isDigit() && str[9].isDigit() && !str[10].isDigit()
 
-                                 && str[11].isDigit() && str[12].isDigit()
-                                 && str[14].isDigit() && str[15].isDigit()
-                                 && str[17].isDigit() && str[18].isDigit()
-                                 && str[19]== '.' && str[20].isDigit()&& str[21].isDigit()&& str[22].isDigit())
-                                ||
-                                (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() // date
-                                 && str[5].isDigit() && str[6].isDigit()
-                                 && str[8].isDigit() && str[9].isDigit())
-                                )
+                                     && str[11].isDigit() && str[12].isDigit() && !str[13].isDigit()
+                                     && str[14].isDigit() && str[15].isDigit() && !str[16].isDigit()
+                                     && str[17].isDigit() && str[18].isDigit()
+                                     && str[19]== '.' && str[20].isDigit()&& str[21].isDigit()&& str[22].isDigit())
+                                    ||
+                                    (str.size() == 10 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                                     && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                                     && str[8].isDigit() && str[9].isDigit())
+                                    )
                             {
 
                                 _dt_valid_count++;
@@ -646,27 +651,27 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                         //if(dt.isValid())
 
 
-                        if( (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit()//datetime
-                             && str[5].isDigit() && str[6].isDigit()
-                             && str[8].isDigit() && str[9].isDigit()
+                            if( (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                                 && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                                 && str[8].isDigit() && str[9].isDigit() && !str[10].isDigit()
 
-                             && str[11].isDigit() && str[12].isDigit()
-                             && str[14].isDigit() && str[15].isDigit()
-                             && str[17].isDigit() && str[18].isDigit())
-                            ||
-                            (str.size() == 23 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit()// date time +msec
-                             && str[5].isDigit() && str[6].isDigit()
-                             && str[8].isDigit() && str[9].isDigit()
+                                 && str[11].isDigit() && str[12].isDigit() && !str[13].isDigit()
+                                 && str[14].isDigit() && str[15].isDigit() && !str[16].isDigit()
+                                 && str[17].isDigit() && str[18].isDigit())
+                                ||
+                                (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                                 && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                                 && str[8].isDigit() && str[9].isDigit() && !str[10].isDigit()
 
-                             && str[11].isDigit() && str[12].isDigit()
-                             && str[14].isDigit() && str[15].isDigit()
-                             && str[17].isDigit() && str[18].isDigit()
-                             && str[19]== '.' && str[20].isDigit()&& str[21].isDigit()&& str[22].isDigit())
-                            ||
-                            (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() // date
-                             && str[5].isDigit() && str[6].isDigit()
-                             && str[8].isDigit() && str[9].isDigit())
-                            )
+                                 && str[11].isDigit() && str[12].isDigit() && !str[13].isDigit()
+                                 && str[14].isDigit() && str[15].isDigit() && !str[16].isDigit()
+                                 && str[17].isDigit() && str[18].isDigit()
+                                 && str[19]== '.' && str[20].isDigit()&& str[21].isDigit()&& str[22].isDigit())
+                                ||
+                                (str.size() == 10 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                                 && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                                 && str[8].isDigit() && str[9].isDigit())
+                                )
                         {
 
                             _dt_valid_count++;
@@ -763,27 +768,27 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                                 //if(dt.isValid())
 
 
-                                if( (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit()//datetime
-                                     && str[5].isDigit() && str[6].isDigit()
-                                     && str[8].isDigit() && str[9].isDigit()
+                                    if( (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                                         && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                                         && str[8].isDigit() && str[9].isDigit() && !str[10].isDigit()
 
-                                     && str[11].isDigit() && str[12].isDigit()
-                                     && str[14].isDigit() && str[15].isDigit()
-                                     && str[17].isDigit() && str[18].isDigit())
-                                    ||
-                                    (str.size() == 23 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit()// date time +msec
-                                     && str[5].isDigit() && str[6].isDigit()
-                                     && str[8].isDigit() && str[9].isDigit()
+                                         && str[11].isDigit() && str[12].isDigit() && !str[13].isDigit()
+                                         && str[14].isDigit() && str[15].isDigit() && !str[16].isDigit()
+                                         && str[17].isDigit() && str[18].isDigit())
+                                        ||
+                                        (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                                         && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                                         && str[8].isDigit() && str[9].isDigit() && !str[10].isDigit()
 
-                                     && str[11].isDigit() && str[12].isDigit()
-                                     && str[14].isDigit() && str[15].isDigit()
-                                     && str[17].isDigit() && str[18].isDigit()
-                                     && str[19]== '.' && str[20].isDigit()&& str[21].isDigit()&& str[22].isDigit())
-                                    ||
-                                    (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() // date
-                                     && str[5].isDigit() && str[6].isDigit()
-                                     && str[8].isDigit() && str[9].isDigit())
-                                    )
+                                         && str[11].isDigit() && str[12].isDigit() && !str[13].isDigit()
+                                         && str[14].isDigit() && str[15].isDigit() && !str[16].isDigit()
+                                         && str[17].isDigit() && str[18].isDigit()
+                                         && str[19]== '.' && str[20].isDigit()&& str[21].isDigit()&& str[22].isDigit())
+                                        ||
+                                        (str.size() == 10 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                                         && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                                         && str[8].isDigit() && str[9].isDigit())
+                                        )
                                 {
 
                                     _dt_valid_count++;
@@ -848,27 +853,27 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                                 //if(dt.isValid())
 
 
-                                if( (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit()//datetime
-                                     && str[5].isDigit() && str[6].isDigit()
-                                     && str[8].isDigit() && str[9].isDigit()
+                                    if( (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                                         && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                                         && str[8].isDigit() && str[9].isDigit() && !str[10].isDigit()
 
-                                     && str[11].isDigit() && str[12].isDigit()
-                                     && str[14].isDigit() && str[15].isDigit()
-                                     && str[17].isDigit() && str[18].isDigit())
-                                    ||
-                                    (str.size() == 23 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit()// date time +msec
-                                     && str[5].isDigit() && str[6].isDigit()
-                                     && str[8].isDigit() && str[9].isDigit()
+                                         && str[11].isDigit() && str[12].isDigit() && !str[13].isDigit()
+                                         && str[14].isDigit() && str[15].isDigit() && !str[16].isDigit()
+                                         && str[17].isDigit() && str[18].isDigit())
+                                        ||
+                                        (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                                         && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                                         && str[8].isDigit() && str[9].isDigit() && !str[10].isDigit()
 
-                                     && str[11].isDigit() && str[12].isDigit()
-                                     && str[14].isDigit() && str[15].isDigit()
-                                     && str[17].isDigit() && str[18].isDigit()
-                                     && str[19]== '.' && str[20].isDigit()&& str[21].isDigit()&& str[22].isDigit())
-                                    ||
-                                    (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() // date
-                                     && str[5].isDigit() && str[6].isDigit()
-                                     && str[8].isDigit() && str[9].isDigit())
-                                    )
+                                         && str[11].isDigit() && str[12].isDigit() && !str[13].isDigit()
+                                         && str[14].isDigit() && str[15].isDigit() && !str[16].isDigit()
+                                         && str[17].isDigit() && str[18].isDigit()
+                                         && str[19]== '.' && str[20].isDigit()&& str[21].isDigit()&& str[22].isDigit())
+                                        ||
+                                        (str.size() == 10 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                                         && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                                         && str[8].isDigit() && str[9].isDigit())
+                                        )
                                 {
 
                                     _dt_valid_count++;
@@ -919,27 +924,27 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                             //if(dt.isValid())
 
 
-                            if( (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit()//datetime
-                                 && str[5].isDigit() && str[6].isDigit()
-                                 && str[8].isDigit() && str[9].isDigit()
+                                if( (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                                     && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                                     && str[8].isDigit() && str[9].isDigit() && !str[10].isDigit()
 
-                                 && str[11].isDigit() && str[12].isDigit()
-                                 && str[14].isDigit() && str[15].isDigit()
-                                 && str[17].isDigit() && str[18].isDigit())
-                                ||
-                                (str.size() == 23 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit()// date time +msec
-                                 && str[5].isDigit() && str[6].isDigit()
-                                 && str[8].isDigit() && str[9].isDigit()
+                                     && str[11].isDigit() && str[12].isDigit() && !str[13].isDigit()
+                                     && str[14].isDigit() && str[15].isDigit() && !str[16].isDigit()
+                                     && str[17].isDigit() && str[18].isDigit())
+                                    ||
+                                    (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                                     && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                                     && str[8].isDigit() && str[9].isDigit() && !str[10].isDigit()
 
-                                 && str[11].isDigit() && str[12].isDigit()
-                                 && str[14].isDigit() && str[15].isDigit()
-                                 && str[17].isDigit() && str[18].isDigit()
-                                 && str[19]== '.' && str[20].isDigit()&& str[21].isDigit()&& str[22].isDigit())
-                                ||
-                                (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() // date
-                                 && str[5].isDigit() && str[6].isDigit()
-                                 && str[8].isDigit() && str[9].isDigit())
-                                )
+                                     && str[11].isDigit() && str[12].isDigit() && !str[13].isDigit()
+                                     && str[14].isDigit() && str[15].isDigit() && !str[16].isDigit()
+                                     && str[17].isDigit() && str[18].isDigit()
+                                     && str[19]== '.' && str[20].isDigit()&& str[21].isDigit()&& str[22].isDigit())
+                                    ||
+                                    (str.size() == 10 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                                     && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                                     && str[8].isDigit() && str[9].isDigit())
+                                    )
                             {
 
                                 _dt_valid_count++;
@@ -1057,7 +1062,7 @@ bool TableData::ExportToSQLiteTable(QString tableName)
     }
     userDS.Load(documentsDir +"/userdata.txt");
     DatabaseConnection dc;
-    dc.nodebug = true;
+    dc.nodebug = false;
     dc.rawquery = true;
     dc.disableSaveToUserDS = true;
     QString driver = userDS.data["UserTheme"]["db_drv_Save_table_driver"];
@@ -1075,7 +1080,11 @@ bool TableData::ExportToSQLiteTable(QString tableName)
     if(!dc.sqlite)
         SQLITE_sql = "Drop table if exists ";
 
+    if(!isWord(tableName) ||tableName.contains(".")|| tableName.contains(" "))
+        SQLITE_sql += "\"";
     SQLITE_sql += tableName;
+    if(!isWord(tableName) ||tableName.contains(".")|| tableName.contains(" "))
+        SQLITE_sql += "\"";
     SQLITE_sql += ";";
     if(dc.execSql(SQLITE_sql))
         qDebug()<< "Dropped sqlite table";
@@ -1084,12 +1093,19 @@ bool TableData::ExportToSQLiteTable(QString tableName)
     if(!dc.sqlite)
         SQLITE_sql = "Create table if not exists ";
 
+    if(!isWord(tableName) ||tableName.contains(".")|| tableName.contains(" "))
+        SQLITE_sql += "\"";
     SQLITE_sql += tableName;
+
+    if(!isWord(tableName) ||tableName.contains(".")|| tableName.contains(" "))
+        SQLITE_sql += "\"";
+
+
     SQLITE_sql += " ( ";
     for(int i=0;i<headers.size();i++)
     {
         bool need_quotation = false;
-        if(!isWord(headers[i]))
+        if(!isWord(headers[i]) || headers[i].contains(".")|| headers[i].contains(" "))
             need_quotation = true;
 
         if(need_quotation) SQLITE_sql += "\"";
@@ -1149,11 +1165,23 @@ bool TableData::ExportToSQLiteTable(QString tableName)
                  " exec_sql text "
                  ")";
 
+    if(dc.sqlite)
+        SQLITE_sql = "create table if not exists user_table_desc ( "
+                 " exec_table_name text, "
+                 " exec_driver text, "
+                 " exec_database text, "
+                 " exec_user_name text, "
+                 " exec_workspace_name text, "
+                 " cre_date text, "
+                 " exec_sql text "
+                 ")";
+
     if(dc.execSql(SQLITE_sql))
         qDebug()<< "Created local table description";
+    else qDebug() << "FAIL: Created local table description";
 
     if(!dc.execSql("select * from  user_table_desc where exec_table_name = '" + tableName + "'"))
-        qDebug()<< "Cant load table description";
+        qDebug()<< "Can't load table description";
     else
     {
         if(dc.data.tbldata.size() >0 && dc.data.tbldata[0].size()<=0)
@@ -1172,13 +1200,17 @@ bool TableData::ExportToSQLiteTable(QString tableName)
             SQLITE_sql += "', '";
             SQLITE_sql += loadWind->LastWorkspaceName;
             SQLITE_sql += "', ";
-            SQLITE_sql += "clock_timestamp ( )";
+            if(dc.postgre)
+                SQLITE_sql += "clock_timestamp ( )";
+            if(dc.sqlite)
+                SQLITE_sql += "datetime ('now')";
             SQLITE_sql += ", '";
             SQLITE_sql += sqlCode.replace("'","''");
             SQLITE_sql += "')";
 
             if(dc.execSql(SQLITE_sql))
                 qDebug()<< "inserted local table description";
+            else qDebug() << "FAIL: inserted local table description";
         }
         else
         {
@@ -1188,20 +1220,32 @@ bool TableData::ExportToSQLiteTable(QString tableName)
             SQLITE_sql += " ,exec_database = '" + LastDatabase + "'";
             SQLITE_sql += " ,exec_user_name = '" + LastUser +"'";
             SQLITE_sql += " ,exec_workspace_name = '" + loadWind->LastWorkspaceName + "' ";
-            SQLITE_sql += " ,cre_date  = clock_timestamp ( )";
+            SQLITE_sql += ", cre_date = ";
+            if(dc.postgre)
+                SQLITE_sql += " clock_timestamp ( )";
+            if(dc.sqlite)
+                SQLITE_sql += " datetime ('now')";
+            SQLITE_sql += " ";
+
             SQLITE_sql += " ,exec_sql = '" +  sqlCode.replace("'","''") + "'";
             SQLITE_sql += " where exec_table_name = '" + tableName + "'";
 
-
+            dc.nodebug = false;
             if(dc.execSql(SQLITE_sql))
                 qDebug()<< "inserted local table description";
+            else qDebug() << "FAIL: inserted local table description ";
+            dc.nodebug = true;
 
         }
     }
 
 
     SQLITE_sql = "Insert into ";
+    if(!isWord(tableName) ||tableName.contains(".")|| tableName.contains(" "))
+        SQLITE_sql += "\"";
     SQLITE_sql += tableName;
+    if(!isWord(tableName) ||tableName.contains(".")|| tableName.contains(" "))
+        SQLITE_sql += "\"";
     SQLITE_sql += " values ";
 
     bool firstVal = true;
@@ -1285,7 +1329,11 @@ bool TableData::ExportToSQLiteTable(QString tableName)
                 return false;
             }
             SQLITE_sql = "Insert into ";
+            if(!isWord(tableName) ||tableName.contains(".")|| tableName.contains(" "))
+                SQLITE_sql += "\"";
             SQLITE_sql += tableName;
+            if(!isWord(tableName) ||tableName.contains(".")|| tableName.contains(" "))
+                SQLITE_sql += "\"";
             SQLITE_sql += " values ";
 
         }
@@ -1395,10 +1443,13 @@ bool TableData::AppendToExcel(QString fileName, QString SheetName )
 
                 if(tbldata[a][i].size() >0)
                 {
-                    if(maxVarTypes[a] != 6)
+
+                    bool ok = false;
+                    tbldata[a][i].toDouble(&ok);
+                    if(maxVarTypes[a] != 6 && !ok)
                         SQLITE_sql += " '";
                     SQLITE_sql += tbldata[a][i];
-                    if(maxVarTypes[a] != 6)
+                    if(maxVarTypes[a] != 6 && !ok)
                         SQLITE_sql += "' ";
                 }
                 else
@@ -1407,11 +1458,16 @@ bool TableData::AppendToExcel(QString fileName, QString SheetName )
             }
             else if(tbldata[a][i].size() >0)
             {
-                SQLITE_sql += " '";
+
+                bool ok = false;
+                tbldata[a][i].toDouble(&ok);
+                if(!ok)
+                    SQLITE_sql += " '";
 
                 SQLITE_sql += tbldata[a][i];
 
-                SQLITE_sql += "' ";
+                if(!ok)
+                    SQLITE_sql += "' ";
             }
             else
                 SQLITE_sql += "null";

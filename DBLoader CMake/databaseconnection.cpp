@@ -1,6 +1,7 @@
 #include "databaseconnection.h"
 #include "datastorage.h"
 #include <qapplication.h>
+#include <qmessagebox.h>
 #include <qsqldriver.h>
 #include <qsqlerror.h>
 #include <qsqlrecord.h>
@@ -600,7 +601,11 @@ QString UnrollAllLoops(QString sql)
                     isAPartOfKeyword = true;
                     localKeywordsMatch[i]++;
 
-                    if(localKeywordsMatch[i] == subCommandPatterns[i].size() && (subCommandPatterns[i].trimmed() == "ForLoop" || subCommandPatterns[i].trimmed() == "QueryForLoop" || (subCommandPatterns[i].trimmed() == "DBLPasteMonth") || (subCommandPatterns[i].trimmed() == "DBLPasteNumMonth")))
+                    if(localKeywordsMatch[i] == subCommandPatterns[i].size() && (subCommandPatterns[i].trimmed() == "ForLoop" ||
+                                                                                  subCommandPatterns[i].trimmed() == "QueryForLoop" ||
+                                                                                  (subCommandPatterns[i].trimmed() == "DBLPasteMonth") ||
+                                                                                  (subCommandPatterns[i].trimmed() == "DBLPasteNumMonth") ||
+                                                                                  subCommandPatterns[i].trimmed() == "ExcelSheetList"))
                     { // detected keyword, implement action
 
                         localKeywordsMatch[i] = 0;
@@ -766,6 +771,18 @@ QString UnrollAllLoops(QString sql)
                             formatedSql += " ";
                         }
 
+
+
+                        if(subCommandPatterns[i].startsWith("ExcelSheetList"))
+                        {
+                            DatabaseConnection dc;
+                            dc.data.silentExcelImport = true;
+                            dc.data.ImportFromExcel(funcVariables[0],0,0,0,0,true);
+                            for(auto x  : dc.data.LastExcelImportSheets)
+                            {
+                                formatedSql += x + ",";
+                            }
+                        }
 
                         // Async execution.
                         //// Start async - start launching each subexec on separate threads.
@@ -1020,7 +1037,7 @@ bool DatabaseConnection::execSql(QString sql)
 
                             if(!nodebug) qDebug()<< "subexec variables " << funcVariables;
                             // recursion does its thing, recursive subexec's are possible and infinite^tm
-                            if(subCommandPatterns[i].startsWith("Subexec") ||subCommandPatterns[i].startsWith("SilentSubexec") || subCommandPatterns[i].startsWith("ExcelTo")|| subCommandPatterns[i].startsWith("CSVTo"))
+                            if(subCommandPatterns[i].startsWith("Subexec") ||subCommandPatterns[i].startsWith("SilentSubexec") || subCommandPatterns[i].startsWith("ExcelTo")|| subCommandPatterns[i].startsWith("ExcelSheetList")|| subCommandPatterns[i].startsWith("CSVTo"))
                             {// its a subexec, crop part from next { to }, exec it in subscriptConnection
                                 if(!nodebug) qDebug()<<"Its SubExec or ExcelTo or CSVTo";
 
@@ -1066,6 +1083,7 @@ bool DatabaseConnection::execSql(QString sql)
                                         varcount++;
                                         saveStart_X = QVariant(s.trimmed()).toInt();
                                         csvDelimeter = s.trimmed()[0].unicode();
+                                        WorksheetName=s.trimmed();
                                         if(subCommandPatterns[i].endsWith("ExcelWorksheet"))
                                         {
                                             WorksheetName=s.trimmed();
@@ -1100,7 +1118,11 @@ bool DatabaseConnection::execSql(QString sql)
                                     }
                                     else if(varcount == 7)
                                     {
-                                        if(subCommandPatterns[i].endsWith("ExcelWorksheet"))
+                                        if(!subCommandPatterns[i].endsWith("ExcelWorksheet"))
+                                        {
+                                            WorksheetName=s.trimmed();
+                                        }
+                                        else
                                         {
                                             saveEnd_Y = QVariant(s.trimmed()).toInt();
                                         }
@@ -1194,6 +1216,7 @@ bool DatabaseConnection::execSql(QString sql)
 
                                 int TableCutoffStart = -1;
                                 int TableCutoffEnd = -1;
+
                                 if(subCommandPatterns[i].startsWith("ExcelTo"))
                                 {
                                     neededMagicColumn=0;// autoselect column 1, if no column selected
@@ -1225,8 +1248,11 @@ bool DatabaseConnection::execSql(QString sql)
                                         subscriptDriver.resize(subscriptDriver.size()-8);
                                         if(!nodebug) qDebug() <<"subscriptDriver" <<subscriptDriver;
                                     }
-
-                                    subscriptConnesction->data.ImportFromExcel(subscriptDriver,0,0,0,0,true);
+                                    subscriptConnesction->data.silentExcelImport = true;
+                                    subscriptConnesction->data.ImportFromExcel(subscriptDriver,0,0,0,0,true,funcVariables[2].trimmed());
+                                    qDebug() << "WorksheetName: "<< funcVariables[2].trimmed();
+                                    qDebug() << "subscriptDriver: "<< subscriptDriver;
+                                    qDebug() << "subscriptDBname: "<< subscriptDBname;
                                     if(subscriptDBname != "NoDatabase")
                                     {// leave only one column
                                         for(int it=0;it<subscriptConnesction->data.headers.size();it++)
@@ -1406,6 +1432,8 @@ bool DatabaseConnection::execSql(QString sql)
                                         if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0 && subscriptConnesction->data.tbldata[0].size() > 0)
                                             if(!subscriptConnesction->data.ExportToExcel(QString(documentsDir + "/" +"excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true))
                                                 saveErrorStr = "Failed to save to excel, probably file is opened";
+
+
 
                                     if (saveErrorStr.size() > 0)
                                     {
@@ -1776,10 +1804,18 @@ bool DatabaseConnection::execSql(QString sql)
                                 }
                                 else if(subCommandPatterns[i] == "ExcelToSqliteTable"|| subCommandPatterns[i] == "CSVToSqliteTable")
                                 {
-
+                                    qDebug() << "subscriptDBname (exceltosqlitetable local table name): " << subscriptDBname;
                                     if(subscriptConnesction->data.headers.size() > 0)
+                                    {
                                         if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
+                                        {
                                             subscriptConnesction->data.ExportToSQLiteTable(subscriptDBname);
+                                        }
+                                        else
+                                            qDebug() << "subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0 Failed";
+                                    }
+                                    else
+                                        qDebug() << "subscriptConnesction->data.headers.size() > 0 Failed";
                                 }
 
                                 if(!nodebug) qDebug() << "closing subconnection";
@@ -2235,6 +2271,7 @@ bool DatabaseConnection::execSql(QString sql)
 #ifdef Oracle_OCI_Driver
     if(customOracle)
     {
+        try{
 
         try{
 
@@ -2598,6 +2635,17 @@ bool DatabaseConnection::execSql(QString sql)
             return false;
         }
 
+
+
+        }
+        catch (...)//  i looove oracle
+        {
+            qDebug() << "unknown error when trying to create error for oracle db";
+            QMessageBox mb;
+            mb.setText("Unknown error when trying to create error for oracle db. Change db");
+            mb.exec();
+            //lasterror = "unknown error when trying to create error for oracle db";
+        }
         if(!nodebug) qDebug() << "oracledb execed";
 
         OCI_lastenv = nullptr;
@@ -2625,7 +2673,7 @@ bool DatabaseConnection::execSql(QString sql)
     emit queryBeginExecuting();
     queryExecutionState = 2;
     qDebug() << q.driver()->hasFeature(QSqlDriver::CancelQuery) << " << QSqlDriver::CancelQuery";
-    if(q.exec(str) && q.isSelect())
+    if(q.exec(str))
     {
         if(!nodebug) qDebug() << "query sucess.  isSelect = " << q.isSelect();
         emit querySuccess();

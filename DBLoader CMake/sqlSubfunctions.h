@@ -33,6 +33,27 @@ inline bool isWord(QString s)
            !s.contains(':') &&
            !s.trimmed().contains(' ');
 }
+inline bool HasLetters(QString s)
+{
+    return (s.count('!') +
+           s.count('=') +
+           s.count('*') +
+           s.count('&') +
+           s.count('%') +
+           s.count('(') +
+           s.count(')') +
+           s.count('-') +
+           s.count('+') +
+           s.count('/') +
+           s.count(',') +
+           s.count('.') +
+           s.count('<') +
+           s.count('>') +
+           s.count(';') +
+            s.count(':') +
+            s.count("\\u") * 2 +
+            s.count(' ')) < s.size();
+}
 inline bool isNumber(QString s)
 {
     if(s.count('.') + s.count(',')>1)
@@ -102,6 +123,8 @@ inline QStringList processBlockToTokens(QString& text)
             inword = false;
             wordend = i;
             tokens.push_back(word);
+            if(text[i] == '\n')
+                tokens.push_back("\n");
             word.clear();
         }
 

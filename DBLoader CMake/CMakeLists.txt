@@ -66,6 +66,9 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         replacedialog.h replacedialog.cpp replacedialog.ui
 
 
+        qtcomputeshader/glwrappers.h
+        qtcomputeshader/glwrappers.cpp
+
         tokenprocessor.h tokenprocessor.cpp
         sqlSubfunctions.h
         NeuralNetwork.h NeuralNetwork.cpp
@@ -80,6 +83,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         structuredescriptor.h structuredescriptor.cpp structuredescriptor.ui
         docwindow.h docwindow.cpp docwindow.ui
         replacewindow.h replacewindow.cpp replacewindow.ui
+
 
     )
     qt_add_translations(untitled)

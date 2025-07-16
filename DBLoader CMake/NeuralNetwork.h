@@ -25,7 +25,7 @@ public:
 
 
 	int* Arch;
-	int* NodesStep;
+    unsigned int* NodesStep;
 	int* WeightsStep;
 
 
@@ -37,6 +37,8 @@ public:
 	int sizeout;
 	int LayersAmount;
 
+    int NN_Size = 0;
+    int Weights_Size = 0;
 	float lastCost = -1.0f;
 
 	float rate = 1.0f;
@@ -48,6 +50,8 @@ public:
 	void Randomize();
 	void Run(float* inputData);
 	void Run(float ActFunc(float), float* inputData);
+    void ApplyDiff(float* inputData, float* outputFiff, float rate = 1.0f);
+
 
 	// inputs an array through a NN and calculates diviation from output 
 	float Cost(float* input, float* output, int amount);
@@ -58,7 +62,7 @@ public:
 	//Setups nn for future learning. After the learning iteration compleated, call ApplyLearning
 	void SetupLearing();
 	void ApplyLearing(float cost);
-	
+
 	//Copies itself into other nn;
 	void CopyInto(NeuralNetwork* target);
 	//Copies itself into other nn;
