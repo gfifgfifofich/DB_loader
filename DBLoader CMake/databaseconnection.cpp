@@ -39,7 +39,8 @@ void DatabaseConnection::Init()
 }
 bool DatabaseConnection::DeleteDbConnection()
 {
-    db.close();
+    if(db.isOpen())
+        db.close();
     if(sqlite3DBConnectionIsOpen && sqlite3DBConnection != nullptr)
     {
         sqlite3_interrupt((sqlite3*) sqlite3DBConnection);// in case if something was running
@@ -2091,7 +2092,7 @@ bool DatabaseConnection::execSql(QString sql)
     if(customPSQL && pg_connected && ptr_PGconn != nullptr)
     {
         if(!nodebug) qDebug() << "in postgres";
-        std::string stdstr = str.toLocal8Bit().toStdString();
+        std::string stdstr = str.toUtf8().toStdString();
         const char *sql = stdstr.c_str();
 
 
@@ -2112,13 +2113,13 @@ bool DatabaseConnection::execSql(QString sql)
 
             data.tbldata.clear();
             data.tbldata.resize(data.headers.size());
-            data.tbldata[0].push_back(QString().fromLocal8Bit(PQresultErrorMessage(res)));
-            data.tbldata[0].push_back(QString().fromLocal8Bit(PQerrorMessage((PGconn*) ptr_PGconn)));
-            data.tbldata[1].push_back(QString().fromLocal8Bit(PQresultErrorField(res,PG_DIAG_STATEMENT_POSITION)));
-            data.tbldata[1].push_back(QString().fromLocal8Bit(PQresultVerboseErrorMessage(res,PGVerbosity::PQERRORS_VERBOSE,PGContextVisibility::PQSHOW_CONTEXT_ERRORS)));
+            data.tbldata[0].push_back(QString().fromUtf8(PQresultErrorMessage(res)));
+            data.tbldata[0].push_back(QString().fromUtf8(PQerrorMessage((PGconn*) ptr_PGconn)));
+            data.tbldata[1].push_back(QString().fromUtf8(PQresultErrorField(res,PG_DIAG_STATEMENT_POSITION)));
+            data.tbldata[1].push_back(QString().fromUtf8(PQresultVerboseErrorMessage(res,PGVerbosity::PQERRORS_VERBOSE,PGContextVisibility::PQSHOW_CONTEXT_ERRORS)));
 
             lastLaunchIsError = true;
-            lastErrorPos = QVariant(QString().fromLocal8Bit(PQresultErrorField(res,PG_DIAG_STATEMENT_POSITION))).toInt();
+            lastErrorPos = QVariant(QString().fromUtf8(PQresultErrorField(res,PG_DIAG_STATEMENT_POSITION))).toInt();
 
 
             data.typecount.clear();
@@ -2170,8 +2171,8 @@ bool DatabaseConnection::execSql(QString sql)
 
             data.tbldata.clear();
             data.tbldata.resize(data.headers.size());
-            data.tbldata[0].push_back(QString().fromLocal8Bit(PQresultErrorMessage(res)));
-            data.tbldata[0].push_back(QString().fromLocal8Bit(PQerrorMessage((PGconn*) ptr_PGconn)));
+            data.tbldata[0].push_back(QString().fromUtf8(PQresultErrorMessage(res)));
+            data.tbldata[0].push_back(QString().fromUtf8(PQerrorMessage((PGconn*) ptr_PGconn)));
 
             data.typecount.clear();
 
@@ -2191,7 +2192,7 @@ bool DatabaseConnection::execSql(QString sql)
 
         for (int j = 0; j < cols; ++j)
         {
-            data.headers << QString().fromLocal8Bit(PQfname(res,j));
+            data.headers << QString().fromUtf8(PQfname(res,j));
 
         }
         data.tbldata.clear();
@@ -2221,7 +2222,7 @@ bool DatabaseConnection::execSql(QString sql)
             {
 
 
-                data.tbldata[i].emplaceBack(fixQStringType(QString().fromLocal8Bit(PQgetvalue(res, j, i))));
+                data.tbldata[i].emplaceBack(fixQStringType(QString().fromUtf8(PQgetvalue(res, j, i))));
 
 
                 while(data.typecount[i].size() <= fixQStringType_lasttype)

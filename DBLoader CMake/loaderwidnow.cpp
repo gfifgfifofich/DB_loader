@@ -358,6 +358,8 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     connect( &gw.dataColumnsb, SIGNAL(valueChanged(int)), this, SLOT(on_graph_data_change(int)), Qt::QueuedConnection );
 
 
+    connect( ui->tableWidget, SIGNAL(ui->tableWidget->verticalHeader()->sectionDoubleClicked(int)),this, SLOT(tableHeaderDoubleClicked(int)), Qt::QueuedConnection );
+
     //workspace/history change
     //connect( workspace_tree, SIGNAL(activated(QModelIndex&)), this, SLOT(on_TreeItem_Changed(QModelIndex&)), Qt::QueuedConnection );
     QItemSelectionModel *selectionModel = workspace_tree->selectionModel();
@@ -502,8 +504,11 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     // nn setup. Currently used to learn first column of data, repeat + extrapolate on run
 
     // QFile fl ((documentsDir + "/" +"FrequencyMaps/tokens.txt"));
+    // uniqueTokens.Load((documentsDir + "/" +"FrequencyMaps/asdzxcasd.txt"));
     uniqueTokens.Load((documentsDir + "/" +"FrequencyMaps/tokens.txt"));
     // uniqueTokens.Save((documentsDir + "/" +"FrequencyMaps/tokenstest.txt"));
+
+    qDebug() << uniqueTokens.data["tokens"].size() << "uniqueTokens.data[\"tokens\"].size()";
 
     int arch[2] = {1,1};
     arch[0] = uniqueTokens.data["tokens"].size();
@@ -511,10 +516,11 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     nn.Create(arch,2);
     nn.lastCost = 10000000;
 
-
     for (int i=0; i<nn.Weights_Size; i++) {
         nn.weights[i] = 0.0f;
     }
+    nn.Randomize();
+    //nn.LoadFrom((documentsDir + "/nntest_RunTest.nn").toStdString());
 }
 
 
@@ -525,11 +531,6 @@ LoaderWidnow::~LoaderWidnow()
     _tab_failsave=false;
 
     dc->DeleteDbConnection();
-
-    while (ui->tabWidget->tabBar()->count()>0)
-    {
-        on_tabWidget_tabCloseRequested(0);
-    }
 
     qDebug()<<"closed tabs";
     // a mess to have more chances of actually terminating all db connections
@@ -544,12 +545,23 @@ LoaderWidnow::~LoaderWidnow()
                 dc->stopNow = true;
                 dc->stopRunning();
                 dc->stopRunning();
-                dc->db.close();
+                dc->DeleteDbConnection();
             } catch (...){}
         }
 
     }
+    while (ui->tabWidget->tabBar()->count()>0)
+    {
+        on_tabWidget_tabCloseRequested(0);
+    }
+
     delete ui;
+}
+
+
+void LoaderWidnow::tableHeaderDoubleClicked(int id)
+{
+    qDebug() << "clicked on "<< id << ui->tableWidget->verticalHeaderItem(id)->text();
 }
 
 inline int _dbconnectcount = 0;
@@ -2153,6 +2165,7 @@ void LoaderWidnow::on_exportDone()
         ui->pushButton_3->show();
     }
 
+
     if (dc->data.lastexporttype == "csv")
     {
         if(dc->data.lastExportSuccess)
@@ -2184,15 +2197,20 @@ void LoaderWidnow::on_exportDone()
 
 void LoaderWidnow::on_ImportFromCSVButton_pressed()
 {
+
+    dc->data.silentExcelImport=false;
     dc->data.ImportFromCSV(QFileDialog::getOpenFileName(this, tr("Select csv file")),';',true);
     UpdateTable();
     ui->tableDBNameLabel->setText("Imported from csv");
+    dc->data.silentExcelImport=true;
 }
 void LoaderWidnow::on_importFromExcelButton_pressed()
 {
+    dc->data.silentExcelImport=false;
     dc->data.ImportFromExcel(QFileDialog::getOpenFileName(),0,0,0,0,true);
     UpdateTable();
     ui->tableDBNameLabel->setText("Imported from Excel");
+    dc->data.silentExcelImport=true;
 }
 
 //Workspaces, history
@@ -2831,7 +2849,11 @@ void LoaderWidnow::dragEnterEvent(QDragEnterEvent * evt)
 void LoaderWidnow::dropEvent(QDropEvent * evt)
 {
 
+
+    dc->data.silentExcelImport=false;
     const QMimeData *mimeData = evt->mimeData();
+
+
 
     dc->executionStart = QDateTime::currentDateTime();
     if(mimeData->hasFormat("application/x-qt-windosheet-mime;value=\"Csv\"")|| mimeData->hasFormat("application/x-qt-windows-mime;value=\"Csv\""))// if file is dropped from microsoft app, like attachment from Outlook
@@ -2917,6 +2939,7 @@ void LoaderWidnow::dropEvent(QDropEvent * evt)
 
     }
     dc->executionEnd = QDateTime::currentDateTime();
+    dc->data.silentExcelImport=true;
 }
 
 
@@ -3020,122 +3043,73 @@ void LoaderWidnow::on_nnTestLearn_pressed()
     std::vector<float> input(nn.sizein);
     std::vector<float> output(nn.sizeout);
 
-    uniqueTokenIdMap.clear();
 
-    int uniqueTokenIdMap_iter =  0;
+    // uniqueTokenIdMap.clear();
+
+    // int uniqueTokenIdMap_iter =  0;
+    // for(auto x : uniqueTokens.data["tokens"])
+    // {
+    //     uniqueTokenIdMap[uniqueTokenIdMap_iter] = x.first;
+    // }
+
+
+    for(int i=0;i < nn.sizein;i++)
+    {
+        input[i]= 0;
+        output[i]= 0;
+    }
+
+    int input_iter = 0;
+    QStringList strl = cd->GetTokensUnderCursor();
+    qDebug() << "gor tokems";
+    for(auto in_tok : strl)
+    {
+        if(uniqueTokens.data["tokens"].count(in_tok)>0)
+            input[uniqueTokens.data["tokens"][in_tok].toInt()] += (float)(strl.size() - input_iter)/(float)strl.size();
+        input_iter++;
+    }
+
+    qDebug() << "runing" << input.size() << nn.sizein << uniqueTokens.data["tokens"].size();
+    nn.Run(input.data());
+    qDebug() << "ran";
+
+
+    int maxI = 0;
+    for(int i=0;i < nn.sizeout;i++)
+    {
+        if(nn.outputs[maxI]<nn.outputs[i] )
+            maxI = i;
+    }
+
+    QString maxToken = "";
+    int map_iter = 0;
     for(auto x : uniqueTokens.data["tokens"])
     {
-        uniqueTokenIdMap[uniqueTokenIdMap_iter] = x.first;
-    }
-
-
-    int maxiter = 0;
-    for(auto obj : tokenProcessor.ds.data)
-    {
-        maxiter++;
-        if(maxiter>100)
-            return;
-
-        int line_size = obj.first.split(" ").size();
-        if(line_size>0)
+        if(map_iter == maxI)
         {
-
-            for(int i=0;i < nn.sizein;i++)
-            {
-                input[i]= 0;
-                output[i]= 0;
-            }
-
-            int input_iter = 0;
-            for(auto in_tok : obj.first.split(" "))
-            {
-                input[uniqueTokens.data["tokens"][in_tok].toInt()] += (float)(line_size - input_iter)/(float)line_size;
-                input_iter++;
-            }
-
-
-            QString trgToken = "";
-            float trgToken_maxval = 0;
-            int outputSize = 0;
-            for(auto dat : obj.second)
-            {
-                outputSize++;
-                bool ok = false;
-                output[uniqueTokens.data["tokens"][dat.first].toInt()] += dat.second.toFloat(&ok);
-
-                if(trgToken_maxval<dat.second.toDouble())
-                {
-                    trgToken_maxval = dat.second.toDouble();
-                    trgToken = dat.first;
-                }
-            }
-            if(outputSize<2 || trgToken_maxval < 2.0f)
-                continue;
-            float inv_trgToken_maxval = 1.0f/trgToken_maxval;// normalize outputs
-            for(int i=0;i < nn.sizeout;i++)
-                output[i] *= inv_trgToken_maxval;
-
-            //nn.Run(input.data());
-
-            std::vector<float> nnoutputDiffs(nn.sizeout);
-
-            int maxI = 0;
-            for(int i=0;i < nn.sizeout;i++)
-            {
-                nnoutputDiffs[i] = output[i] - nn.outputs[i];
-
-
-                if(nn.outputs[maxI]<nn.outputs[i] )
-                    maxI = i;
-            }
-
-            //nn.ApplyDiff(input.data(),nnoutputDiffs.data(),0.05f);
-
-            QString maxToken = "";
-            int map_iter = 0;
-            for(auto x : uniqueTokens.data["tokens"])
-            {
-                if(map_iter == maxI)
-                {
-                    maxToken = x.first;
-                    break;
-                }
-                map_iter++;
-            }
-
-            //long long long int;
-
-
-
-
-            qDebug() <<maxiter  << "       nn.outputs[maxI] = " << nn.outputs[maxI] << "/" << output[maxI] <<  maxToken  << "        trgToken: " << trgToken << 1;
-
+            maxToken = x.first;
+            break;
         }
-        if(maxiter % 100'000 == 0)
-            nn.SaveTo((documentsDir + "/nntest"+ QVariant(maxiter).toString() +".nn").toStdString());
+        map_iter++;
     }
-    nn.SaveTo((documentsDir + "/nntest"+ QVariant(maxiter).toString() +".nn").toStdString());
+    cd->textCursor().insertText(maxToken);
+
+
+
 }
 
 int iteration_counter = 0;
 bool AI_CyberDimentia = true;
+int correct_word_count = 0;
 
 #include "sqlSubfunctions.h"
 
 void LoaderWidnow::on_nnTestRun_pressed()
 {
 
+    uniqueTokens.Load((documentsDir + "/" +"FrequencyMaps/tokens.txt"));
 
-    //Set buffers for computation
-    //As you see, we use array of 23 floats, together with std430 layout specifier
-    //in shader's buffer declaration.
-    //Such array works and we are not required to align data to 4*float.
-    //But nevertheless you should't use vec3 anyway in shader buffer,
-    //because it's aligned itself to 16 floats anyway!
-    //See details here:
-    //https://stackoverflow.com/questions/38172696/should-i-ever-use-a-vec3-inside-of-a-uniform-buffer-or-shader-storage-buffer-o
-
-
+    // lower size to tokens after filters. Use same filters in token processor, cuz why not.
 
     ShaderBuffer Input_Buf, Output_Buf, Ranked_Output_Buf, arch_Buf, biases_Buf, NodesStep_Buf, WeightsStep_Buf,Weights_Buf, Trg_Output_Buf;
 
@@ -3184,6 +3158,8 @@ void LoaderWidnow::on_nnTestRun_pressed()
 
 
 
+    DataStorage new_uniqueTokens;
+    new_uniqueTokens.data["tokens"];
 
     std::vector<QString> lines;
     std::vector<QString> trg_tokens;
@@ -3230,6 +3206,7 @@ void LoaderWidnow::on_nnTestRun_pressed()
             int input_iter = 0;
             bool brek = false;
             int non_letter_counter = 0;
+            QStringList intoklist;
             for(auto in_tok : obj.first.split(" "))
             {
                 if(!HasLetters(in_tok))
@@ -3242,11 +3219,17 @@ void LoaderWidnow::on_nnTestRun_pressed()
                     brek = true;
                     break;
                 }
-                input[uniqueTokens.data["tokens"][in_tok].toInt()] += ((float)(line_size - input_iter)/(float)line_size) ;
-                input_iter++;
+
+                if(uniqueTokens.data["tokens"].count(in_tok)>0)
+                {
+                    input[uniqueTokens.data["tokens"][in_tok].toInt()] += ((float)(input_iter)/(float)line_size) * ((float)(input_iter)/(float)line_size);
+                    intoklist.push_back(in_tok);
+                    input_iter++;
+                }
             }
             if(brek)
                 continue;
+
 
             QString trgToken = "";
             float trgToken_maxval = 0;
@@ -3255,7 +3238,11 @@ void LoaderWidnow::on_nnTestRun_pressed()
             {
                 outputSize++;
                 bool ok = false;
-                output[uniqueTokens.data["tokens"][dat.first].toInt()] += dat.second.toFloat(&ok);
+                if(uniqueTokens.data["tokens"].count(dat.first)>0)
+                {
+                    output[uniqueTokens.data["tokens"][dat.first].toInt()] += dat.second.toFloat(&ok);
+                    intoklist.push_back(dat.first);
+                }
 
                 if(trgToken_maxval<dat.second.toDouble())
                 {
@@ -3263,22 +3250,24 @@ void LoaderWidnow::on_nnTestRun_pressed()
                     trgToken = dat.first;
                 }
             }
-            if(outputSize<5 || trgToken_maxval < 500.0f)
+            if(outputSize<3 || trgToken_maxval < 50.0f)
                 continue;
 
+            for(auto x : intoklist)
+            {
+
+                if(uniqueTokens.data["tokens"].count(x)<=0)
+                {
+                    qDebug() << "not found "<< x;
+                    return;
+                }
+
+                new_uniqueTokens.data["tokens"][x];
+            }
+            intoklist.clear();
+
+
             ranked_output.resize(output.size());
-            // for(int i = 0; i< output.size();i++)
-            // {
-            //     float val = output[i];
-            //     float counter = 0;
-            //     if(val >0.0f)
-            //         for(int a = 0; a < output.size(); a++)
-            //         {
-            //             if(output[a] < val)
-            //                 counter += 1.0f;
-            //         }
-            //     ranked_output[i] = counter / output.size();
-            // }
 
             int max_out_id = 0;
             for(int i = 0; i< output.size();i++)
@@ -3289,9 +3278,10 @@ void LoaderWidnow::on_nnTestRun_pressed()
             for(int i = 0; i< output.size();i++)
             {
                 if(i == max_out_id)
-                    ranked_output[i] = 1;
+                    ranked_output[i] = 1.0f;
                 else
                     ranked_output[i] = 0;
+                //ranked_output[i] = output[i] / output[max_out_id];
             }
 
             //nn.Run(input.data());
@@ -3305,11 +3295,20 @@ void LoaderWidnow::on_nnTestRun_pressed()
             lines.push_back(obj.first);
             trg_tokens.push_back(trgToken);
             qDebug() <<datasAmount << input_buff.size() << output_buff.size();//<< "       nn.outputs[maxI] = " << nn.outputs[maxI] << "/" << output[maxI] <<"  "<<obj.first <<  maxToken  << "   trgToken: " << trgToken << 1;
-            if(datasAmount >=200)
-                break;
+            // if(datasAmount >=256)
+            //     break;
         }
     }
     //Weights_Buf.read_to_cpu(nn.weights,sizeof(float) * nn.Weights_Size);
+
+    // int tmp_cntr=0;
+    // for(auto x : new_uniqueTokens.data["tokens"])
+    // {
+    //     new_uniqueTokens.data["tokens"][x.first] = QVariant(tmp_cntr).toString();
+    //     tmp_cntr++;
+    // }
+
+    // new_uniqueTokens.Save(documentsDir + "/FrequencyMaps/new_tokens.txt");
 
     result_output_buff.resize(output_buff.size());
     ranked_output_buff.resize(output_buff.size());
@@ -3340,9 +3339,9 @@ void LoaderWidnow::on_nnTestRun_pressed()
     int tmp_buffer = datasAmount;
     iteration_counter = 0;
 
+    float lastbest = 0.0f;
 
-
-    while (iteration_counter < 250)
+    while (iteration_counter < 500)
     {
         datasAmount = tmp_buffer;
         //Compute
@@ -3356,24 +3355,6 @@ void LoaderWidnow::on_nnTestRun_pressed()
             gl_compute_shader.end();
             // qDebug() << "iteratiron[" << iteration_counter << "] processed 128: " << datasAmount << "left";
 
-
-            // qDebug() << "done, launching script 2";
-            gl_compute_shader_rank.begin();
-            gl_compute_shader_rank.program().setUniformValue("datasAmount",tmp_datasAmount);
-            gl_compute_shader_rank.program().setUniformValue("dataSize",(int)nn.sizein);
-            gl_compute_shader_rank.compute(128);
-            gl_compute_shader_rank.end();
-
-
-            // qDebug() << "done, launching script 3";
-            gl_compute_shader_learn.begin();
-            gl_compute_shader_learn.program().setUniformValue("datasAmount",tmp_datasAmount);
-            gl_compute_shader_learn.program().setUniformValue("dataSize",(int)nn.sizein);
-            gl_compute_shader_learn.program().setUniformValue("CyberDimentia",AI_CyberDimentia);
-            gl_compute_shader_learn.compute(nn.sizein,128);
-            gl_compute_shader_learn.end();
-            // qDebug() << "iteratiron[" << iteration_counter << "] processedv3 128: " << datasAmount << "left";
-
             tmp_datasAmount+= 128;
             datasAmount-= 128;
         }
@@ -3386,6 +3367,23 @@ void LoaderWidnow::on_nnTestRun_pressed()
             gl_compute_shader.compute(nn.sizein,datasAmount);
             gl_compute_shader.end();
 
+        }
+        tmp_datasAmount = 0;
+        datasAmount = tmp_buffer;
+        while(datasAmount > 128)
+        {
+            // qDebug() << "done, launching script 2";
+            gl_compute_shader_rank.begin();
+            gl_compute_shader_rank.program().setUniformValue("datasAmount",tmp_datasAmount);
+            gl_compute_shader_rank.program().setUniformValue("dataSize",(int)nn.sizein);
+            gl_compute_shader_rank.compute(128);
+            gl_compute_shader_rank.end();
+
+            tmp_datasAmount+= 128;
+            datasAmount-= 128;
+        }
+        if(datasAmount>0)
+        {
             //qDebug() << "done, launching script 2";
             gl_compute_shader_rank.begin();
             gl_compute_shader_rank.program().setUniformValue("datasAmount",tmp_datasAmount);
@@ -3394,12 +3392,35 @@ void LoaderWidnow::on_nnTestRun_pressed()
             gl_compute_shader_rank.end();
 
 
+        }
+        tmp_datasAmount = 0;
+        datasAmount = tmp_buffer;
+        while(datasAmount > 128)
+        {
+            // qDebug() << "done, launching script 3";
+            gl_compute_shader_learn.begin();
+            gl_compute_shader_learn.program().setUniformValue("datasAmount",tmp_datasAmount);
+            gl_compute_shader_learn.program().setUniformValue("dataSize",(int)nn.sizein);
+            gl_compute_shader_learn.program().setUniformValue("CyberDimentia",AI_CyberDimentia);
+            gl_compute_shader_learn.program().setUniformValue("CyberDimentiaMult",(1.0f - (float)correct_word_count/(float)datasAmount) );
+            gl_compute_shader_learn.compute(nn.sizein,128);
+            gl_compute_shader_learn.end();
+            // qDebug() << "iteratiron[" << iteration_counter << "] processedv3 128: " << datasAmount << "left";
+
+            tmp_datasAmount+= 128;
+            datasAmount-= 128;
+        }
+
+
+        if(datasAmount>0)
+        {
 
             //qDebug() << "done, launching script 3";
             gl_compute_shader_learn.begin();
             gl_compute_shader_learn.program().setUniformValue("datasAmount",tmp_datasAmount);
             gl_compute_shader_learn.program().setUniformValue("dataSize",(int)nn.sizein);
             gl_compute_shader_learn.program().setUniformValue("CyberDimentia",AI_CyberDimentia);
+            gl_compute_shader_learn.program().setUniformValue("CyberDimentiaMult",(1.0f - (float)correct_word_count/(float)datasAmount) );
             gl_compute_shader_learn.compute(nn.sizein,datasAmount);
             gl_compute_shader_learn.end();
 
@@ -3409,8 +3430,7 @@ void LoaderWidnow::on_nnTestRun_pressed()
 
         Weights_Buf.read_to_cpu(nn.weights,sizeof(float) * nn.Weights_Size);
         Output_Buf.read_to_cpu(result_output_buff.data(), sizeof(float) * result_output_buff.size());
-
-        int correct_word_count = 0;
+        correct_word_count = 0;
         for(int a =0;a < datasAmount && a < lines.size() && a < trg_tokens.size(); a++)
         {
             for(int i = 0; i < nn.sizein && i + a * nn.sizein < output_buff.max_size()&& i + a * nn.sizein < result_output_buff.max_size(); i ++)
@@ -3448,19 +3468,27 @@ void LoaderWidnow::on_nnTestRun_pressed()
                 }
                 map_iter++;
             }
-            qDebug() << iteration_counter <<a  << "nn.outputs[maxI] = " << nn.outputs[maxI] << "/" << output[maxI] <<"  "<< lines[a] <<  maxToken  << "   trgToken: " << trg_tokens[a];
             if(maxToken == trg_tokens[a])
+            {
+                qDebug() << iteration_counter <<a  << "nn.outputs[maxI] = " << nn.outputs[maxI] << "/" << output[maxI] <<"  "<< lines[a] <<  maxToken  << "   trgToken: " << trg_tokens[a];
                 correct_word_count++;
-
+            }
         }
-        qDebug() << "correct count: " << correct_word_count << "/" << datasAmount << "(" << ((float)correct_word_count/(float)datasAmount * 100) << "%)";
-        if(correct_word_count >= datasAmount * 0.35f)
+        qDebug() << iteration_counter << "correct count: " << correct_word_count << "/" << datasAmount << "(" << ((float)correct_word_count/(float)datasAmount * 100) << "%) +" << ((float)correct_word_count/(float)datasAmount * 100) - lastbest << "%" << "AI_CyberDimentia = " << AI_CyberDimentia;
+        if(((float)correct_word_count/(float)datasAmount * 100) - lastbest > 1.5f )
+        {
+            lastbest = ((float)correct_word_count/(float)datasAmount * 100);
+
+            if(((float)correct_word_count/(float)datasAmount * 100) > 30.0f)
+                nn.SaveTo((documentsDir + "/nntest_"+ QVariant(lastbest).toString() +".nn").toStdString());
+        }
+        if ((correct_word_count >= datasAmount * 0.40f))//
             AI_CyberDimentia = false;
         // if(iteration_counter%5 == 0)
         //     nn.SaveTo((documentsDir + "/nntest_"+ QVariant(iteration_counter).toString() +".nn").toStdString());
         iteration_counter++;
     }
-    nn.SaveTo((documentsDir + "/nntest_"+ QVariant("result").toString() +".nn").toStdString());
+    //nn.SaveTo((documentsDir + "/nntest_"+ QVariant("result").toString() +".nn").toStdString());
 
     /* OpenXLSX test bench. Saves pivot tables, but will requere  a lotof rewriting
     XLDocument doc1;

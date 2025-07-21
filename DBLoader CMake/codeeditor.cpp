@@ -1004,6 +1004,7 @@ void CodeEditor::FindNext(QString _what)
 
 }
 
+
 void CodeEditor::suggestName()
 {
 

@@ -303,6 +303,11 @@ public slots:
     void CopySelectionFormTable();
     void CopySelectionFormTableSql();
 
+    void tableHeaderDoubleClicked(int id);
+
+
+
+
     void CopyLastLaunchedSql();
 
     // SubWindow switches

@@ -43,7 +43,8 @@ public:
 
 
     QStringList LastExcelImportSheets;
-    bool silentExcelImport = false;
+    bool silentExcelImport = true;
+
 
     //Table data
     QVector<QVector<QString>> tbldata;

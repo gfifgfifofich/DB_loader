@@ -14,7 +14,8 @@
 #include "databaseconnection.h"
 #include "xlsxstyles_p.h"
 #include <QInputDialog>
-
+#include <QMessageBox>
+#include <map>
 inline QString documentsDir;
 inline DataStorage userDS;
 
@@ -44,6 +45,103 @@ bool TableData::ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHe
     if(fileName.size() < 2)
         return false;
     qDebug()<< " importing "<< fileName;
+
+    if(tbldata.size()>0 && tbldata[0].size()>0 && !silentExcelImport)
+    {
+        // ask user if he wants to merge table data
+
+        if(QMessageBox::question(loadWind, "Merge?", "Do you want to merge with existing data?",QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes)
+        {
+            TableData td;
+            td.ImportFromCSV(fileName,delimeter,firstRowHeader);
+
+            bool ok = false;
+            QInputDialog id(loadWind);
+            id.setLabelText("Current column");
+            id.setComboBoxItems(headers);
+            ok = id.exec();
+            if(!ok)
+                return false;
+            QString header1 = id.textValue();
+
+            ok = false;
+            QInputDialog idd(loadWind);
+            idd.setLabelText("Column in file");
+            idd.setComboBoxItems(td.headers);
+            ok = idd.exec();
+            if(!ok)
+                return false;
+            QString header2 = idd.textValue();
+
+            int id1 = -1;
+            int id2 = -1;
+            for(int i =0;i<headers.size();i++)
+                if(headers[i]==header1)
+                {
+                    id1 = i;
+                    break;
+                }
+            for(int i =0;i<td.headers.size();i++)
+                if(td.headers[i]==header2)
+                {
+                    id2 = i;
+                    break;
+                }
+            if(id1<0 || id2 <0)
+                return false;
+
+            int sizebuf = tbldata.size();
+            tbldata.resize(tbldata.size()+ td.tbldata.size());
+            for(int i = sizebuf; i < tbldata.size();i++)
+                tbldata[i].resize(tbldata[0].size());
+
+            headers.resize(headers.size()+ td.headers.size());
+            for(int i = sizebuf; i < headers.size();i++)
+                headers[i] = td.headers[i - sizebuf];
+
+            std::map<QString,int> idmap;
+            for(int i =0;i < tbldata[id1].size();i++)
+            {
+                idmap[tbldata[id1][i]] = i;
+                //qDebug() <<"idmap" << td.tbldata[id1][i] << idmap[tbldata[id1][i]];
+            }
+            std::map<QString,int> idmap2;
+            for(int i =0;i < td.tbldata[id2].size();i++)
+            {
+                idmap2[td.tbldata[id2][i]] = i;
+                //qDebug() <<"idmap2" << td.tbldata[id2][i] << idmap2[td.tbldata[id2][i]];
+            }
+
+            qDebug() << idmap2.size() << idmap.size();
+            for(auto x : idmap)
+            {
+                if(idmap2.count(x.first) )
+                {
+                    int i = x.second;
+                    int a = idmap2[x.first];
+                    //qDebug() << x.first << " joined " << i << a;
+                    for(int j = 0;j < td.tbldata.size();j++)
+                        tbldata[sizebuf + j][i] = td.tbldata[j][a];
+                }
+            }
+
+            // for(int i =0;i < tbldata[id1].size();i++)
+            // {
+            //     for(int a =0;a < td.tbldata[id2].size();a++)
+            //     {
+            //         if(td.tbldata[id2][a] == tbldata[id1][i])
+            //         {
+            //             for(int j = 0;j < td.tbldata.size();j++)
+            //                 tbldata[sizebuf + j][i] = td.tbldata[j][a];
+            //             break;
+            //         }
+            //     }
+            // }
+
+
+            return true;
+        }
+    }
 
     tbldata.clear();
     headers.clear();
@@ -135,10 +233,6 @@ bool TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_st
         return false;
     bool serachall = x_start == 0 && y_start == 0 && x_end == 0 && y_end == 0;
 
-    tbldata.clear();
-    headers.clear();
-    typecount.clear();
-    maxVarTypes.clear();
     QXlsx::Document xlsxR3(fileName);
     qDebug() << "importing excel table from " << fileName;
     if(!xlsxR3.load())
@@ -150,10 +244,13 @@ bool TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_st
         qDebug()<< "xlsxR3.load() success";
 
 
-    QVariant lastcellval = xlsxR3.read(1,1);
     int sheetid = 0;
     QStringList sheets = xlsxR3.sheetNames();
     LastExcelImportSheets = xlsxR3.sheetNames();
+    bool userControlled = false;
+
+    if(!silentExcelImport && sheetName == "")
+        userControlled = true;
     if(sheets.size()>1 && !silentExcelImport && sheetName == "")
     {
         bool ok = true;
@@ -164,6 +261,7 @@ bool TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_st
 
         QString text = id.textValue();
         xlsxR3.selectSheet(text);
+        sheetName = text;
         qDebug() << text;
         if(!ok)
         {
@@ -180,6 +278,112 @@ bool TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_st
         qDebug() << "xlsx import failed, no sheets in excel table";
         return false;
     }
+
+
+
+    if(userControlled && tbldata.size()>0 && tbldata[0].size()>0&& !silentExcelImport)
+    {
+        // ask user if he wants to merge table data
+
+        if(QMessageBox::question(loadWind, "Merge?", "Do you want to merge with existing data?",QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes)
+        {
+            TableData td;
+            td.ImportFromExcel(fileName,x_start,x_end,y_start,y_end,firstRowHeader,sheetName);
+
+            bool ok = false;
+            QInputDialog id(loadWind);
+            id.setLabelText("Current column");
+            id.setComboBoxItems(headers);
+            ok = id.exec();
+            if(!ok)
+                return false;
+            QString header1 = id.textValue();
+
+            ok = false;
+            QInputDialog idd(loadWind);
+            idd.setLabelText("Column in file");
+            idd.setComboBoxItems(td.headers);
+            ok = idd.exec();
+            if(!ok)
+                return false;
+            QString header2 = idd.textValue();
+
+            int id1 = -1;
+            int id2 = -1;
+            for(int i =0;i<headers.size();i++)
+                if(headers[i]==header1)
+                {
+                    id1 = i;
+                    break;
+                }
+            for(int i =0;i<td.headers.size();i++)
+                if(td.headers[i]==header2)
+                {
+                    id2 = i;
+                    break;
+                }
+            if(id1<0 || id2 <0)
+                return false;
+
+            int sizebuf = tbldata.size();
+            tbldata.resize(tbldata.size()+ td.tbldata.size());
+            for(int i = sizebuf; i < tbldata.size();i++)
+                tbldata[i].resize(tbldata[0].size());
+
+            headers.resize(headers.size()+ td.headers.size());
+            for(int i = sizebuf; i < headers.size();i++)
+                headers[i] = td.headers[i - sizebuf];
+
+            std::map<QString,int> idmap;
+            for(int i =0;i < tbldata[id1].size();i++)
+            {
+                idmap[tbldata[id1][i]] = i;
+                //qDebug() <<"idmap" << td.tbldata[id1][i] << idmap[tbldata[id1][i]];
+            }
+            std::map<QString,int> idmap2;
+            for(int i =0;i < td.tbldata[id2].size();i++)
+            {
+                idmap2[td.tbldata[id2][i]] = i;
+                //qDebug() <<"idmap2" << td.tbldata[id2][i] << idmap2[td.tbldata[id2][i]];
+            }
+
+            qDebug() << idmap2.size() << idmap.size();
+            for(auto x : idmap)
+            {
+                if(idmap2.count(x.first) )
+                {
+                    int i = x.second;
+                    int a = idmap2[x.first];
+                    //qDebug() << x.first << " joined " << i << a;
+                    for(int j = 0;j < td.tbldata.size();j++)
+                        tbldata[sizebuf + j][i] = td.tbldata[j][a];
+                }
+            }
+
+            // for(int i =0;i < tbldata[id1].size();i++)
+            // {
+            //     for(int a =0;a < td.tbldata[id2].size();a++)
+            //     {
+            //         if(td.tbldata[id2][a] == tbldata[id1][i])
+            //         {
+            //             for(int j = 0;j < td.tbldata.size();j++)
+            //                 tbldata[sizebuf + j][i] = td.tbldata[j][a];
+            //             break;
+            //         }
+            //     }
+            // }
+
+
+            return true;
+        }
+    }
+
+    tbldata.clear();
+    headers.clear();
+    typecount.clear();
+    maxVarTypes.clear();
+
+    QVariant lastcellval = xlsxR3.read(1,1);
     int column = 1;
     while(lastcellval.toString().size()>0)
     {
@@ -1062,7 +1266,7 @@ bool TableData::ExportToSQLiteTable(QString tableName)
     }
     userDS.Load(documentsDir +"/userdata.txt");
     DatabaseConnection dc;
-    dc.nodebug = false;
+    dc.nodebug = true;
     dc.rawquery = true;
     dc.disableSaveToUserDS = true;
     QString driver = userDS.data["UserTheme"]["db_drv_Save_table_driver"];
