@@ -23,6 +23,19 @@ public:
     void Init(QString selecteWord);
 
 
+
+    struct ChainCell
+    {
+
+        QString prevtable = "";
+        QString thistable = "";
+        QString forceJoinColumn = "";
+
+    };
+    QString chainJoinTable = "";
+    QVector<ChainCell> chain;
+
+
     QString tableStr = "";
     QString columnStr = "";
     void updateTableSearch();
@@ -41,6 +54,12 @@ private slots:
     void on_lineEdit_3_textChanged(const QString &arg1);
 
     void on_listWidget_2_itemDoubleClicked(QListWidgetItem *item);
+
+    void on_pasteChainButton_pressed();
+
+    void on_clearChainButton_pressed();
+
+    void on_listWidget_itemDoubleClicked(QListWidgetItem *item);
 
 private:
     Ui::StructureDescriptor *ui;

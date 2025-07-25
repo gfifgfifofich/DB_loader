@@ -535,6 +535,7 @@
     <addaction name="actionNN_Learn_first_column"/>
     <addaction name="actionNN_Run"/>
     <addaction name="actionOpen_QML_form"/>
+    <addaction name="actionSplit_column"/>
    </widget>
    <widget class="QMenu" name="menuCode">
     <property name="title">
@@ -1020,6 +1021,11 @@
   <action name="actionCopy_last_launched_sql">
    <property name="text">
     <string>Copy last launched sql</string>
+   </property>
+  </action>
+  <action name="actionSplit_column">
+   <property name="text">
+    <string>Split column</string>
    </property>
   </action>
  </widget>

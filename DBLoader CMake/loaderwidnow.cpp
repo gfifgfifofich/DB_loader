@@ -27,6 +27,8 @@
 #include <QDockWidget>
 #include "docwindow.h"
 #include "qtcomputeshader/glwrappers.h"
+#include <QInputDialog>
+#include <QMessageBox>
 
 /*
 +                                          add togglable "add db name into file name" // feature added, not togglable
@@ -282,6 +284,13 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     });
 
 
+    // comment code
+    connect(ui->actionSplit_column,  &QAction::triggered, this, [this]() {
+        splitColumn();
+    });
+
+
+
     // copy from tableview
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_C), this, SLOT(CopySelectionFormTable()));
     new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_C), this, SLOT(CopySelectionFormTableSql()));
@@ -530,9 +539,7 @@ LoaderWidnow::~LoaderWidnow()
 
     _tab_failsave=false;
 
-    dc->DeleteDbConnection();
 
-    qDebug()<<"closed tabs";
     // a mess to have more chances of actually terminating all db connections
     for(int i=0;i < tabDatas.size();i++)
     {
@@ -543,16 +550,25 @@ LoaderWidnow::~LoaderWidnow()
             try
             {
                 dc->stopNow = true;
-                dc->stopRunning();
-                dc->stopRunning();
-                dc->DeleteDbConnection();
+                if(dc->executing)
+                    dc->stopRunning();
+                if(dc->executing)
+                    dc->stopRunning();
             } catch (...){}
         }
 
     }
+    qDebug()<<"closing tabs";
+    int tmpcnt = ui->tabWidget->tabBar()->count();
     while (ui->tabWidget->tabBar()->count()>0)
     {
         on_tabWidget_tabCloseRequested(0);
+        if(tmpcnt == ui->tabWidget->tabBar()->count())
+        {
+            ui->tabWidget->removeTab(0);
+
+            tmpcnt = ui->tabWidget->tabBar()->count();
+        }
     }
 
     delete ui;
@@ -1114,7 +1130,6 @@ void LoaderWidnow::UpdateTable()
         return;
 
     }
-
     if(dc->data.tbldata.size()>0 && dc->data.tbldata[0].size() > 0 )
         ui->exportProgressBar->setMaximum(dc->data.tbldata[0].size());
     else
@@ -1146,7 +1161,6 @@ void LoaderWidnow::UpdateTable()
 
     ui->stopLoadingQueryButton->hide();
     ui->pushButton_3->show();
-    dc->tableDataMutex.lock();
     ui->miscStatusLabel->setText("updating table data...");
     ui->tableWidget->clear();
     ui->tableWidget->setColumnCount(dc->data.headers.size());
@@ -1208,7 +1222,6 @@ void LoaderWidnow::UpdateTable()
     ui->miscStatusLabel->setText(QString("data downloaded ") + msg);
     ui->dataSizeLabel_2->setText(msg);
     ui->tableDBNameLabel->setText(dc->dbname);
-    dc->tableDataMutex.unlock();
 
     on_graph_group_change(gw.groupBysb.value());
     on_graph_separator_change(gw.separateBysb.value());
@@ -2941,6 +2954,75 @@ void LoaderWidnow::dropEvent(QDropEvent * evt)
     dc->executionEnd = QDateTime::currentDateTime();
     dc->data.silentExcelImport=true;
 }
+
+
+
+
+void LoaderWidnow::splitColumn()
+{
+    int sizebuff = dc->data.tbldata.size();
+
+    if(dc->data.tbldata.size()>0)
+    {
+        QString columnname = "";
+        QString splitstr = ",";
+        int columnid = 0;
+
+        QInputDialog id(loadWind);
+        id.setLabelText("Select column");
+        id.setComboBoxItems(dc->data.headers);
+        bool ok = id.exec();
+        if(!ok)
+            return;
+        columnname = id.textValue();
+
+        for(int i=0;i < dc->data.headers.size();i++)
+            if(dc->data.headers[i] == columnname)
+            {
+                columnid = i;
+            }
+
+
+
+        splitstr = QInputDialog::getText (
+            this, tr ("Devide by"),
+            tr ("Devide each string by text"),
+            QLineEdit::Normal,
+            ",",
+            &ok);
+
+        std::vector<QStringList> v_strl;
+        int maxsize = 0;
+        for(int i=0;i<dc->data.tbldata[columnid].size();i++)
+        {
+            v_strl.push_back(dc->data.tbldata[columnid][i].split(splitstr));
+            if(v_strl.back().size()>maxsize)
+                maxsize = v_strl.back().size();
+        }
+
+        dc->data.tbldata.resize(sizebuff + maxsize);
+        dc->data.headers.resize(sizebuff + maxsize);
+        for(int i=sizebuff;i < sizebuff + maxsize;i++)
+        {
+            dc->data.tbldata[i].resize(dc->data.tbldata[columnid].size());
+            dc->data.headers[i] = "Column_" + QVariant(i-sizebuff).toString();
+        }
+        int it = 0;
+        for(auto x : v_strl)
+        {
+            for (int i=0;i < x.size() && i < maxsize;i++)
+            {
+                dc->data.tbldata[i + sizebuff][it] = x[i].trimmed();
+            }
+            it++;
+
+        }
+    }
+    UpdateTable();
+}
+
+
+
 
 
 

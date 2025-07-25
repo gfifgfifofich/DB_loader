@@ -72,7 +72,7 @@ public:
     QVariant data(const QModelIndex &index, int role) const override;
     QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
-
+    void FixTypeInfo();
 
 
     //QML pass through of QXlsx functions

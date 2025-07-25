@@ -111,7 +111,7 @@ inline QString lastOracleError = "";
 /*Oracle straight up crashes whole app if you try doing that when there are more than some amount of columns. Storing MetaData untill very end will delay crash to when user will want to close app, so works. But app will crash instead of closing if user used Oracle driver(
 yep, imma gonna shart into memory, and not deal with crashes when attempting to clear MetaData.
 */
-thread_local std::vector<std::vector<oracle::occi::MetaData>> mtl;
+// thread_local std::vector<std::vector<oracle::occi::MetaData>> mtl;
 
 #endif
 
@@ -565,6 +565,7 @@ void _dc_AsyncFunc(DatabaseConnection* tmpcon, QString sql)
 
     qDebug() << "Async: running " << tmpcon->dbname<<tmpcon->driver;
     tmpcon->execSql(sql);
+    tmpcon->DeleteDbConnection();
     qDebug() << "Async: ran";
 }
 
@@ -1168,6 +1169,8 @@ bool DatabaseConnection::execSql(QString sql)
 
                                             asyncExecution_Formats.push_back(funcVariables);
                                             asyncExecution_databaseConnections.push_back(subscriptConnesction);
+                                            subscriptConnesction->nodebug = true;
+                                            subscriptConnesction->disableSaveToUserDS = true;
                                             asyncExecution_commandIds.push_back(i);
                                             asyncExecution_threads.push_back(QThread::create(_dc_AsyncFunc,subscriptConnesction,scriptCommand.trimmed()));
                                             asyncExecution_threads.back()->start();
@@ -2048,6 +2051,15 @@ bool DatabaseConnection::execSql(QString sql)
 
             }
         }
+        for(int i=0;i < data.typecount.size();i++)
+        {
+            if(data.typecount[i].size()>10)
+            {
+                if(data.typecount[i][10] > 0)
+                    data.maxVarTypes[i] = 10;
+
+            }
+        }
 
         dataDownloading = false;
 
@@ -2254,6 +2266,15 @@ bool DatabaseConnection::execSql(QString sql)
 
             }
         }
+        for(int i=0;i < data.typecount.size();i++)
+        {
+            if(data.typecount[i].size()>10)
+            {
+                if(data.typecount[i][10] > 0)
+                    data.maxVarTypes[i] = 10;
+
+            }
+        }
 
         dataDownloading = false;
         PQclear(res);
@@ -2296,33 +2317,101 @@ bool DatabaseConnection::execSql(QString sql)
                 queryExecutionState = 3;
                 dataDownloading = true;
 
-                mtl.push_back(rset->getColumnListMetaData());
                 std::vector<int> types;
                 int type = 0;
-                if(!nodebug) qDebug() << mtl.back().size();
-                types.resize(mtl.back().size());
-                data.headers.clear();
-                data.headers.resize(mtl.back().size());
-                data.tbldata.clear();
-                data.tbldata.resize(mtl.back().size());
-                data.typecount.clear();
-                data.typecount.resize(mtl.back().size());
 
-                for(int i=0;i < mtl.back().size(); i++)
+                int columnCount = 0;
+                if(true)
                 {
-                    types[i] = detectType(mtl.back()[i].getInt(oracle::occi::MetaData::ATTR_DATA_TYPE));
-                    data.headers[i] = QString().fromLocal8Bit(mtl.back()[i].getString(oracle::occi::MetaData::ATTR_NAME).c_str());
+                    // std::vector<oracle::occi::MetaData> mtl = rset->getColumnListMetaData();
 
-                    while(data.typecount[i].size() <= types[i])
-                        data.typecount[i].emplace_back();
-
-                    data.typecount[i][types[i]]++;
+                    static OCIError *errhp = NULL;
+                    (void) OCIHandleAlloc( (dvoid *) ((oracle::occi::Environment*)OCI_lastenv)->getOCIEnvironment(), (dvoid **) &errhp, OCI_HTYPE_ERROR, (size_t) 0, (dvoid **) 0);
 
 
+
+
+                    OCIParam     *mypard = (OCIParam *) 0;
+                    ub2          dtype =0;
+                    text         *col_name = 0;
+                    ub4          counter, col_name_len, char_semantics;
+
+                    counter = 1;
+                    int parm_status = OCIParamGet(((oracle::occi::Statement*)OCI_laststmt)->getOCIStatement(), OCI_HTYPE_STMT, errhp,
+                                              (void **)&mypard, (ub4) counter);
+
+                    /* Loop only if a descriptor was successfully retrieved for
+                       current position, starting at 1 */
+
+                    data.headers.clear();
+                    columnCount = 0;
+                    while (parm_status == OCI_SUCCESS) {
+                        /* Retrieve the data type attribute */
+                        columnCount++;
+
+                        OCIAttrGet((void*) mypard, (ub4) OCI_DTYPE_PARAM,
+                                                   (void*) &dtype,(ub4 *) 0, (ub4) OCI_ATTR_DATA_TYPE,
+                                                   (OCIError *) errhp  );
+
+                        /* Retrieve the column name attribute */
+                        col_name_len = 0;
+                        text* nulltxt = 0;
+                        col_name = nulltxt;
+                        OCIAttrGet((void*) mypard, (ub4) OCI_DTYPE_PARAM,
+                                                   (void**) &col_name, (ub4 *) &col_name_len, (ub4) OCI_ATTR_NAME,
+                                                   (OCIError *) errhp );
+
+                        /* Retrieve the length semantics for the column */
+                        char_semantics = 0;
+                        OCIAttrGet((void*) mypard, (ub4) OCI_DTYPE_PARAM,
+                                                   (void*) &char_semantics,(ub4 *) 0, (ub4) OCI_ATTR_CHAR_USED,
+                                                   (OCIError *) errhp  );
+                        int col_width = 0;
+                        if (char_semantics)
+                            /* Retrieve the column width in characters */
+                            OCIAttrGet((void*) mypard, (ub4) OCI_DTYPE_PARAM,
+                                                       (void*) &col_width, (ub4 *) 0, (ub4) OCI_ATTR_CHAR_SIZE,
+                                                       (OCIError *) errhp  );
+                        else
+                            /* Retrieve the column width in bytes */
+                            OCIAttrGet((void*) mypard, (ub4) OCI_DTYPE_PARAM,
+                                                       (void*) &col_width,(ub4 *) 0, (ub4) OCI_ATTR_DATA_SIZE,
+                                                       (OCIError *) errhp  );
+
+                        types.push_back(0);
+                        data.headers.push_back(0);
+                        types.back() = detectType(dtype);
+                        data.headers.back() = QString().fromLocal8Bit((const char*)col_name,col_name_len);
+
+
+                        /* increment counter and get next descriptor, if there is one */
+                        counter++;
+                        parm_status = OCIParamGet((void *)((oracle::occi::Statement*)OCI_laststmt)->getOCIStatement(), OCI_HTYPE_STMT, errhp,
+                                                  (void **)&mypard, (ub4) counter);
+                    } /* while */
+
+
+                    if(!nodebug) qDebug() << columnCount;
+                    types.resize(columnCount);
+                    data.tbldata.clear();
+                    data.tbldata.resize(columnCount);
+                    data.typecount.clear();
+                    data.typecount.resize(columnCount);
+                    data.maxVarTypes.clear();
+                    data.maxVarTypes.resize( columnCount);
+
+                    try
+                    {
+                        OCIHandleFree(errhp,OCI_HTYPE_ERROR);
+                        //con->terminateStatement(stmt);
+
+                        //env->terminateConnection(con);
+                    }
+                    catch(oracle::occi::SQLException ex)
+                    {
+                        qDebug() << ex.getErrorCode() << ex.getMessage();
+                    }
                 }
-
-                data.maxVarTypes.clear();
-                data.maxVarTypes.resize( data.typecount.size());
 
                 for(int i=0;i < data.typecount.size();i++)
                 {
@@ -2337,15 +2426,23 @@ bool DatabaseConnection::execSql(QString sql)
 
                     }
                 }
+                for(int i=0;i < data.typecount.size();i++)
+                {
+                    if(data.typecount[i].size()>10)
+                    {
+                        if(data.typecount[i][10] > 0)
+                            data.maxVarTypes[i] = 10;
 
+                    }
+                }
                 int ccnt = 0;
 
 
 
-                while (rset->next () && mtl.back().size() > 0)
+                while (rset->next() && columnCount > 0)
                 {
                     ccnt ++;
-                    for(int i=0;i < mtl.back().size(); i ++)
+                    for(int i=0;i < columnCount; i ++)
                     {
 
                         if(types[i]!=16)
@@ -2384,9 +2481,8 @@ bool DatabaseConnection::execSql(QString sql)
                         break;
                     }
                 }
+                //mtl.pop_back();
 
-
-                qDebug() << "max types:";
                 for(auto x : data.maxVarTypes)
                     qDebug() << x;
 
@@ -2563,12 +2659,11 @@ bool DatabaseConnection::execSql(QString sql)
             }
             OCI_lastenv = nullptr;
             OCI_lastcon = nullptr;
-
             executing = false;
             executionEnd = QDateTime::currentDateTime();
             executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
-            emit execedSql();
             queryExecutionState = 4;
+            emit execedSql();
             return true;
         }
         catch (oracle::occi::SQLException ex){

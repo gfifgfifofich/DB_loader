@@ -51,8 +51,19 @@ inline bool HasLetters(QString s)
            s.count('>') +
            s.count(';') +
             s.count(':') +
-            s.count("\\u") * 2 +
-            s.count(' ')) < s.size();
+            s.count('0') +
+            s.count('1') +
+            s.count('2') +
+            s.count('3') +
+            s.count('4') +
+            s.count('5') +
+            s.count('6') +
+            s.count('7') +
+            s.count('8') +
+            s.count('9') +
+            s.count('e') +
+            s.count('E') +
+            s.count(' ')) < s.size() || s.count('E')>1|| s.count('e')>1;
 }
 inline bool isNumber(QString s)
 {
@@ -345,8 +356,7 @@ inline QString fixQStringType(QString str)
     }
     else
     {// string or date
-
-        if(str.size() == 19 || str.size() == 23 || str.size() == 10)//2000-01-01 10:10:10 || 2000-01-01 10:10:10.000 || 2000-01-01
+        if(str.size() == 19 || str.size() == 23 || str.size() == 10)
         {
             if((str[4] == '-' || str[4] == '.') && (str[7] == '-' || str[7] == '.'))
             {
@@ -372,7 +382,6 @@ inline QString fixQStringType(QString str)
         }
         return str;
     }
-
     return str;
 }
 

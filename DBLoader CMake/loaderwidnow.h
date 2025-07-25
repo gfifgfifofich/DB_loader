@@ -238,6 +238,7 @@ public:
 public slots:
     void sendMail(QString host, QString Sender, QString SenderName, QStringList to,QStringList cc, QString Subject, QString messageText, QStringList attachments);
 
+    void splitColumn();
 
     void openDescriptorWindow();
 

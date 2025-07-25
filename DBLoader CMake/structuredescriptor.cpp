@@ -246,11 +246,122 @@ void StructureDescriptor::on_listWidget_2_currentTextChanged(const QString &curr
 
 void StructureDescriptor::on_listWidget_2_itemDoubleClicked(QListWidgetItem *item)
 {
+    if(ui->recordChainCheckBox->isChecked())
+    {
+        chain.push_back({chainJoinTable,ui->lineEdit->text(),item->text()});
+        Qt::KeyboardModifiers modifiers  = QApplication::queryKeyboardModifiers ();
+        if(!modifiers.testFlag(Qt::KeyboardModifier::ControlModifier))
+        {
+            chainJoinTable = ui->lineEdit->text();
+            ui->chainLabel->setText(ui->chainLabel->text() + "->" + ui->lineEdit->text());
+        }
+        else
+        {
+            ui->chainLabel->setText(ui->chainLabel->text() + "+" + ui->lineEdit->text());
+            return;
+        }
+    }
+
     QString str = ui->lineEdit->text();
 
     ui->lineEdit_3->setText(item->text());
     ui->lineEdit_2->setText("");
 
     ui->lineEdit->setText(str);
+}
+
+void StructureDescriptor::on_listWidget_itemDoubleClicked(QListWidgetItem *item)
+{
+    if(ui->recordChainCheckBox->isChecked())
+    {
+        chain.push_back({chainJoinTable,item->text(),""});
+        Qt::KeyboardModifiers modifiers  = QApplication::queryKeyboardModifiers ();
+        if(!modifiers.testFlag(Qt::KeyboardModifier::ControlModifier))
+        {
+            chainJoinTable = ui->lineEdit->text();
+            ui->chainLabel->setText(ui->chainLabel->text() + "->" + item->text());
+        }
+        else
+            ui->chainLabel->setText(ui->chainLabel->text() + "+" + item->text());
+    }
+}
+
+void StructureDescriptor::on_pasteChainButton_pressed()
+{
+    QMap<QString,QString> aliases;
+    for(int i=0;i<chain.size();i++)
+    {
+        QString alias = "alias";
+        alias+= QVariant(i).toString();
+        aliases[chain[i].thistable] = alias;
+
+        QString sqlstr = "";
+
+        if(i == 0)
+        {
+            sqlstr = "select *\nfrom ";
+            if(ui->chainPrefixLineEdit->text().size()>0)
+                sqlstr += ui->chainPrefixLineEdit->text() + ".";
+            sqlstr +=  chain[i].thistable + " " + alias;
+        }
+        else
+        {
+            sqlstr = "\ninner join " ;
+            if(ui->chainPrefixLineEdit->text().size()>0)
+                sqlstr += ui->chainPrefixLineEdit->text() + ".";
+            sqlstr += chain[i].thistable + " " + alias ;
+
+            if(chain[i].forceJoinColumn!="")
+            {
+                sqlstr+= " on ";
+                sqlstr+= aliases[chain[i].prevtable] + "." + chain[i].forceJoinColumn + " = " + alias + "." + chain[i].forceJoinColumn ;
+            }
+            else
+            {
+                bool first = true;
+                for(auto y : loadWind->cd->highlighter->TableColumnDS.data[chain[i].thistable.trimmed()])
+                {
+                    QString word = y.first.trimmed() +' '+ y.second;
+                    if(y.second.trimmed().size()<=0)
+                        word = y.first;
+                    word = word.trimmed();
+                    // ui->listWidget_2->addItem((word));
+
+                    for(auto y : loadWind->cd->highlighter->TableColumnDS.data[chain[i].prevtable.trimmed()])
+                    {
+                        QString word2 = y.first.trimmed() +' '+ y.second;
+                        if(y.second.trimmed().size()<=0)
+                            word2 = y.first;
+                        word2 = word2.trimmed();
+                        if(word == word2)
+                        {
+
+                            if(first)
+                            {
+                                first = false;
+                                sqlstr+= " on ";
+                            }
+                            else
+                                sqlstr+= " and ";
+
+                            sqlstr += aliases[chain[i].prevtable] + "." + word+ " = " + alias + "." + word ;
+
+
+
+                        }
+                    }
+                }
+            }
+        }
+
+        loadWind->cd->textCursor().insertText(sqlstr);
+    }
+
+}
+
+void StructureDescriptor::on_clearChainButton_pressed()
+{
+    chain.clear();
+    ui->chainLabel->clear();
 }
 

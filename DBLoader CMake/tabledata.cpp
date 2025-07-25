@@ -38,6 +38,61 @@ void TableData::Init()
     typecount.clear();
 }
 
+
+
+void TableData::FixTypeInfo()
+{
+    typecount.clear();
+    typecount.resize( tbldata.size());
+    for(int i=0;i<tbldata.size();i++)
+    {
+        for(int a = 0; a < tbldata[i].size();a++)
+        {
+            tbldata[i][a] = fixQStringType(tbldata[i][a]);
+
+            while(typecount[i].size() <= fixQStringType_lasttype)
+                typecount[i].emplace_back();
+
+            if(HasLetters(tbldata[i][a]))
+                fixQStringType_lasttype=10;
+
+            typecount[i][fixQStringType_lasttype]++;
+        }
+    }
+
+
+    maxVarTypes.clear();
+    maxVarTypes.resize( typecount.size());
+
+
+    for(int i=0;i < typecount.size();i++)
+    {
+        int maxvt = 0;
+        for(int a  = 0; a < typecount[i].size();a++)
+        {
+            if(a == 0 || maxvt <= typecount[i][a])
+            {
+                maxVarTypes[i] = a;
+                maxvt = typecount[i][a];
+            }
+        }
+    }
+    for(int i=0;i < typecount.size();i++)
+    {
+        if(typecount[i].size()>10)
+        {
+            if(typecount[i][10] > 0)
+                maxVarTypes[i] = 10;
+
+        }
+    }
+    for(int i=0;i<headers.size();i++)
+    {
+        setHeaderData(i,Qt::Horizontal,headers[i]);
+        //qDebug()<<headerData(0,Qt::Horizontal);
+    }
+}
+
 // import
 bool TableData::ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHeader)
 {
@@ -138,7 +193,7 @@ bool TableData::ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHe
             //     }
             // }
 
-
+            FixTypeInfo();
             return true;
         }
     }
@@ -224,6 +279,7 @@ bool TableData::ImportFromCSV(QString fileName, QChar delimeter, bool firstRowHe
 
     for(int i=0;i<headers.size();i++)
         setHeaderData(i,Qt::Horizontal,headers[i]);
+    FixTypeInfo();
     return true;
 }
 bool TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_start,int y_end, bool firstRowHeader,QString sheetName)
@@ -360,20 +416,10 @@ bool TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_st
                 }
             }
 
-            // for(int i =0;i < tbldata[id1].size();i++)
-            // {
-            //     for(int a =0;a < td.tbldata[id2].size();a++)
-            //     {
-            //         if(td.tbldata[id2][a] == tbldata[id1][i])
-            //         {
-            //             for(int j = 0;j < td.tbldata.size();j++)
-            //                 tbldata[sizebuf + j][i] = td.tbldata[j][a];
-            //             break;
-            //         }
-            //     }
-            // }
 
 
+
+            FixTypeInfo();
             return true;
         }
     }
@@ -449,6 +495,8 @@ bool TableData::ImportFromExcel(QString fileName, int x_start,int x_end,int y_st
         setHeaderData(i,Qt::Horizontal,headers[i]);
         //qDebug()<<headerData(0,Qt::Horizontal);
     }
+
+    FixTypeInfo();
     return true;
 }
 void TableData::ImportFromSQLiteTable(QString fileName, QString tableName)
@@ -759,16 +807,25 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                     }
                     else if(maxVarTypes[i] == 6)
                     {
-                        bool ok = false;
-                        QVariant vardoubl = tbldata[i][a].toDouble(&ok);
-                        if(ok)
-                            xlsxR3.write(row,column,vardoubl);
-                        else {
-                            QVariant varint = tbldata[i][a].toLongLong(&ok);
+
+                        if(tbldata[i][a].startsWith('0') && !tbldata[i][a].startsWith("0."))
+                        {
+                            xlsxR3.write(row,column,tbldata[i][a]);
+                        }
+                        else
+                        {
+
+                            bool ok = false;
+                            QVariant vardoubl = tbldata[i][a].toDouble(&ok);
                             if(ok)
-                                xlsxR3.write(row,column,varint);
+                                xlsxR3.write(row,column,vardoubl);
                             else {
-                                xlsxR3.write(row,column,tbldata[i][a]);
+                                QVariant varint = tbldata[i][a].toLongLong(&ok);
+                                if(ok)
+                                    xlsxR3.write(row,column,varint);
+                                else {
+                                    xlsxR3.write(row,column,tbldata[i][a]);
+                                }
                             }
                         }
                     }
@@ -1032,16 +1089,24 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                         }
                         else if(maxVarTypes[i] == 6)
                         {
-                            bool ok = false;
-                            QVariant vardoubl = tbldata[i][a].toDouble(&ok);
-                            if(ok)
-                                xlsxR3.write(row,column,vardoubl);
-                            else {
-                                QVariant varint = tbldata[i][a].toLongLong(&ok);
+                            if(tbldata[i][a].startsWith('0') && !tbldata[i][a].startsWith("0."))
+                            {
+                                xlsxR3.write(row,column,tbldata[i][a]);
+                            }
+                            else
+                            {
+
+                                bool ok = false;
+                                QVariant vardoubl = tbldata[i][a].toDouble(&ok);
                                 if(ok)
-                                    xlsxR3.write(row,column,varint);
+                                    xlsxR3.write(row,column,vardoubl);
                                 else {
-                                    xlsxR3.write(row,column,tbldata[i][a]);
+                                    QVariant varint = tbldata[i][a].toLongLong(&ok);
+                                    if(ok)
+                                        xlsxR3.write(row,column,varint);
+                                    else {
+                                        xlsxR3.write(row,column,tbldata[i][a]);
+                                    }
                                 }
                             }
                         }
@@ -1492,10 +1557,10 @@ bool TableData::ExportToSQLiteTable(QString tableName)
 
                 if(tbldata[a][i].size() >0)
                 {
-                    if(maxVarTypes[a] != 6)
+                    if(maxVarTypes[a] != 6  || (typecount[a].size()>10 && typecount[a][10]>0))
                         SQLITE_sql += " '";
                     SQLITE_sql += tbldata[a][i].replace("'","''");
-                    if(maxVarTypes[a] != 6)
+                    if(maxVarTypes[a] != 6  || (typecount[a].size()>10 && typecount[a][10]>0))
                         SQLITE_sql += "' ";
                 }
                 else
