@@ -472,7 +472,9 @@ void CodeEditor::drawPreview(QPaintEvent *event)
         end_at_mult = end_at;
     end_at = end_at_mult * end_at;
 
-    if(b_codePreview && (bottomblock - topblock < 0.0f || end_at_mult >= 11 || end_at >= this->blockCount()))
+    end_at = size().height() / 2.0f;
+
+    if(b_codePreview && (bottomblock - topblock < 0.0f || end_at_mult >= 5 || end_at >= this->blockCount()))
     {
 
 

@@ -2051,15 +2051,15 @@ bool DatabaseConnection::execSql(QString sql)
 
             }
         }
-        for(int i=0;i < data.typecount.size();i++)
-        {
-            if(data.typecount[i].size()>10)
-            {
-                if(data.typecount[i][10] > 0)
-                    data.maxVarTypes[i] = 10;
+        // for(int i=0;i < data.typecount.size();i++)
+        // {
+        //     if(data.typecount[i].size()>10)
+        //     {
+        //         if(data.typecount[i][10] > 0)
+        //             data.maxVarTypes[i] = 10;
 
-            }
-        }
+        //     }
+        // }
 
         dataDownloading = false;
 
@@ -2266,15 +2266,15 @@ bool DatabaseConnection::execSql(QString sql)
 
             }
         }
-        for(int i=0;i < data.typecount.size();i++)
-        {
-            if(data.typecount[i].size()>10)
-            {
-                if(data.typecount[i][10] > 0)
-                    data.maxVarTypes[i] = 10;
+        // for(int i=0;i < data.typecount.size();i++)
+        // {
+        //     if(data.typecount[i].size()>10)
+        //     {
+        //         if(data.typecount[i][10] > 0)
+        //             data.maxVarTypes[i] = 10;
 
-            }
-        }
+        //     }
+        // }
 
         dataDownloading = false;
         PQclear(res);
@@ -2344,6 +2344,7 @@ bool DatabaseConnection::execSql(QString sql)
                        current position, starting at 1 */
 
                     data.headers.clear();
+                    data.typecount.clear();
                     columnCount = 0;
                     while (parm_status == OCI_SUCCESS) {
                         /* Retrieve the data type attribute */
@@ -2381,7 +2382,15 @@ bool DatabaseConnection::execSql(QString sql)
                         types.push_back(0);
                         data.headers.push_back(0);
                         types.back() = detectType(dtype);
+                        qDebug() << QString().fromLocal8Bit((const char*)col_name,col_name_len) << " type = " <<dtype << types.back();
                         data.headers.back() = QString().fromLocal8Bit((const char*)col_name,col_name_len);
+
+
+                        data.typecount.emplace_back();
+                        while(data.typecount.back().size() <= types.back())
+                            data.typecount.back().emplace_back();
+
+                        data.typecount.back()[types.back()]++;
 
 
                         /* increment counter and get next descriptor, if there is one */
@@ -2392,11 +2401,8 @@ bool DatabaseConnection::execSql(QString sql)
 
 
                     if(!nodebug) qDebug() << columnCount;
-                    types.resize(columnCount);
                     data.tbldata.clear();
                     data.tbldata.resize(columnCount);
-                    data.typecount.clear();
-                    data.typecount.resize(columnCount);
                     data.maxVarTypes.clear();
                     data.maxVarTypes.resize( columnCount);
 
@@ -2426,15 +2432,15 @@ bool DatabaseConnection::execSql(QString sql)
 
                     }
                 }
-                for(int i=0;i < data.typecount.size();i++)
-                {
-                    if(data.typecount[i].size()>10)
-                    {
-                        if(data.typecount[i][10] > 0)
-                            data.maxVarTypes[i] = 10;
+                // for(int i=0;i < data.typecount.size();i++)
+                // {
+                //     if(data.typecount[i].size()>10)
+                //     {
+                //         if(data.typecount[i][10] > 0)
+                //             data.maxVarTypes[i] = 10;
 
-                    }
-                }
+                //     }
+                // }
                 int ccnt = 0;
 
 

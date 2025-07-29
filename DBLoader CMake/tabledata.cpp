@@ -708,6 +708,7 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                 break;
             int column = i + 1 + column_offset;
             int _dt_valid_count = 0;
+            int _empty_count = 0;
             for(int a=0;a<tbldata[i].size();a++)
             {
                 if(stopNow)
@@ -732,6 +733,8 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
 
                 int row = a + 2 - rowoffset - (!firstRowHeader);
 
+                if(tbldata[i][a].size() == 0 || tbldata[i][a] == " ")
+                    _empty_count++;
                 //6 = double, 10 = QString, 16 = DateTime
                 if(maxVarTypes.size() == tbldata.size())
                 {
@@ -973,7 +976,7 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
 
             }
 
-            if(_dt_valid_count > tbldata[i].size()*0.5)
+            if(_dt_valid_count > (tbldata[i].size() - _empty_count)*0.5)
             {
                 QXlsx::Format fmt = xlsxR3.cellAt(1,column)->format();
                 fmt.setNumberFormat(xlsxR3.workbook()->defaultDateFormat());
@@ -994,6 +997,7 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
             {
                 int column = i + 1 + column_offset;
                 int _dt_valid_count = 0;
+                int _empty_count = 0;
                 for(int a=start ;a<end ;a++)
                 {
                     if(stopNow)
@@ -1014,6 +1018,8 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                     }
                     int row = a + 2 - start - (!firstRowHeader);
 
+                    if(tbldata[i][a].size() == 0 || tbldata[i][a] == " ")
+                        _empty_count++;
                     //6 = double, 10 = QString, 16 = DateTime
                     if(maxVarTypes.size() == tbldata.size())
                     {
@@ -1253,7 +1259,7 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                     }
                 }
 
-                if(_dt_valid_count > tbldata[i].size()*0.5)
+                if(_dt_valid_count > (tbldata[i].size() - _empty_count)*0.5)
                 {
                     QXlsx::Format fmt = xlsxR3.cellAt(1,column)->format();
                     fmt.setNumberFormat(xlsxR3.workbook()->defaultDateFormat());
@@ -1750,6 +1756,8 @@ bool TableData::AppendToExcel(QString fileName, QString SheetName )
             qDebug()<< "Failed to save to Excel: " << SQLITE_sql << dc.db.lastError().text();
         }
     }
+
+    dc.DeleteDbConnection();
     return true;
 }
 

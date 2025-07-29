@@ -377,12 +377,12 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 
 
     //maximize code editor
-    ui->splitter->setSizes({1,2000,1});
+    ui->splitter->setSizes({1,2000});
 
 
 
 
-    ui->CodeEditorSplitter->setSizes({0,2000,0});
+    ui->CodeEditorSplitter->setSizes({0,2000});
 
     // load last database/driver
     if(userDS.Load((documentsDir + "/userdata.txt")))
@@ -1446,19 +1446,13 @@ void LoaderWidnow::ShowTimerWindow()
         ui->timerMainLabel->hide();
         ui->timerRemainingTime->hide();
         ui->timerLastLaunchTime->hide();
-        QList<int> sizes = ui->CodeEditorSplitter->sizes();
-        if(sizes[2] > 0)
-        {
-            sizes[2] =  0;
-        }
-        ui->CodeEditorSplitter->setSizes(sizes);
     }
     else
     {
         QList<int> sizes = ui->CodeEditorSplitter->sizes();
-        if(sizes[2] < 100)
+        if(sizes[0] < 100)
         {
-            sizes[2] =  100;
+            sizes[0] =  100;
         }
         ui->CodeEditorSplitter->setSizes(sizes);
         ui->timerdayMonthly->show();
