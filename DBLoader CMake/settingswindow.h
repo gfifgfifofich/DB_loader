@@ -34,6 +34,7 @@ private slots:
     void cancel();
     void save();
     void cb_pressed(QString whats_this);
+    void cb_pressed(QLabel* trg);
 
 };
 

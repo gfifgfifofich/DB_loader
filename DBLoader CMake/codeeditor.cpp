@@ -286,8 +286,6 @@ CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent)
     connect( this, SIGNAL(tabDetected()), this, SLOT(fillName()), Qt::QueuedConnection );
     setTabStopDistance(QFontMetricsF(this->font()).horizontalAdvance(' ') * 4);
 
-
-
     updateMisc();
 
 
@@ -310,7 +308,10 @@ int CodeEditor::lineNumberAreaWidth()
 void CodeEditor::updateLineNumberAreaWidth(int  /*newBlockCount */)
 {
     if(b_codePreview)
-        setViewportMargins(lineNumberAreaWidth(), 0, 190, 0);
+    {
+        int codePreviewWidth = userDS.data["UserTheme"]["codePreviewWidth"].toInt();
+        setViewportMargins(lineNumberAreaWidth(), 0, codePreviewWidth -10, 0);
+    }
     else
         setViewportMargins(lineNumberAreaWidth(), 0, 0, 0);
 
@@ -322,15 +323,17 @@ void CodeEditor::updateLineNumberArea(const QRect &rect, int dy)
     else
         lineNumberArea->update(0, rect.y(), lineNumberArea->width(), rect.height());
 
+
     if (rect.contains(viewport()->rect()))
         updateLineNumberAreaWidth(0);
 
     if(b_codePreview)
     {
+        int codePreviewWidth = userDS.data["UserTheme"]["codePreviewWidth"].toInt();
         if (dy)
-            codePreview->scroll(viewport()->rect().left() - 200, dy);
+            codePreview->scroll(viewport()->rect().left() - codePreviewWidth, dy);
         else
-            codePreview->update(viewport()->rect().left() - 200, rect.y(), 200, rect.height());
+            codePreview->update(viewport()->rect().left() - codePreviewWidth, rect.y(), codePreviewWidth, rect.height());
     }
 
     if(b_showSuggestion)
@@ -350,7 +353,10 @@ void CodeEditor::resizeEvent(QResizeEvent *e)
     lineNumberArea->setGeometry(QRect(cr.left(), cr.top(), lineNumberAreaWidth(), cr.height()));
 
     if(b_codePreview)
-        codePreview->setGeometry(QRect(cr.right()-200, cr.top(), 200, cr.height()));
+    {
+        int codePreviewWidth = userDS.data["UserTheme"]["codePreviewWidth"].toInt();
+        codePreview->setGeometry(QRect(cr.right()-codePreviewWidth, cr.top(), codePreviewWidth, cr.height()));
+    }
 }
 void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
 {
@@ -472,7 +478,9 @@ void CodeEditor::drawPreview(QPaintEvent *event)
         end_at_mult = end_at;
     end_at = end_at_mult * end_at;
 
-    end_at = size().height() / 2.0f;
+
+    float codePreviewLineScale = userDS.data["UserTheme"]["codePreviewLineScale"].toFloat();
+    end_at = size().height() / codePreviewLineScale;
 
     if(b_codePreview && (bottomblock - topblock < 0.0f || end_at_mult >= 5 || end_at >= this->blockCount()))
     {

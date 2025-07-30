@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>447</width>
+    <width>537</width>
     <height>610</height>
    </rect>
   </property>
@@ -498,17 +498,607 @@
    </palette>
   </property>
   <property name="windowTitle">
-   <string>SettingsWindow</string>
+   <string>Settings</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <layout class="QVBoxLayout" name="verticalLayout"/>
+   <layout class="QHBoxLayout" name="horizontalLayout_19">
+    <item>
+     <layout class="QVBoxLayout" name="verticalLayout_2">
+      <property name="leftMargin">
+       <number>5</number>
+      </property>
+      <property name="topMargin">
+       <number>5</number>
+      </property>
+      <property name="rightMargin">
+       <number>5</number>
+      </property>
+      <property name="bottomMargin">
+       <number>5</number>
+      </property>
+      <item>
+       <widget class="QScrollArea" name="scrollArea">
+        <property name="widgetResizable">
+         <bool>true</bool>
+        </property>
+        <widget class="QWidget" name="scrollAreaWidgetContents">
+         <property name="geometry">
+          <rect>
+           <x>0</x>
+           <y>0</y>
+           <width>493</width>
+           <height>837</height>
+          </rect>
+         </property>
+         <layout class="QHBoxLayout" name="horizontalLayout_18">
+          <item>
+           <layout class="QVBoxLayout" name="verticalLayout">
+            <property name="leftMargin">
+             <number>5</number>
+            </property>
+            <property name="topMargin">
+             <number>5</number>
+            </property>
+            <property name="rightMargin">
+             <number>5</number>
+            </property>
+            <property name="bottomMargin">
+             <number>5</number>
+            </property>
+            <item>
+             <layout class="QVBoxLayout" name="verticalLayout_12">
+              <item>
+               <widget class="QLabel" name="languageLabel">
+                <property name="maximumSize">
+                 <size>
+                  <width>150</width>
+                  <height>20</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>Language</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_17">
+                <item>
+                 <widget class="QComboBox" name="languageComboBox">
+                  <property name="currentText">
+                   <string/>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="Line" name="line_4">
+                <property name="orientation">
+                 <enum>Qt::Orientation::Horizontal</enum>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <layout class="QVBoxLayout" name="verticalLayout_3">
+              <item>
+               <widget class="QLabel" name="labelLocalDBSection">
+                <property name="maximumSize">
+                 <size>
+                  <width>150</width>
+                  <height>20</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>Local database:</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_2">
+                <item>
+                 <widget class="QComboBox" name="LocalDBDriverComboBox">
+                  <property name="minimumSize">
+                   <size>
+                    <width>75</width>
+                    <height>0</height>
+                   </size>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>16777215</width>
+                    <height>25</height>
+                   </size>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QComboBox" name="LocalDBNameComboBox">
+                  <property name="maximumSize">
+                   <size>
+                    <width>16777215</width>
+                    <height>25</height>
+                   </size>
+                  </property>
+                  <property name="editable">
+                   <bool>true</bool>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="Line" name="line">
+                <property name="orientation">
+                 <enum>Qt::Orientation::Horizontal</enum>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <layout class="QVBoxLayout" name="verticalLayout_4">
+              <item>
+               <widget class="QCheckBox" name="codeSuggestionCheckBox">
+                <property name="text">
+                 <string>Show code suggestions</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="codePreviewLabel">
+                <property name="maximumSize">
+                 <size>
+                  <width>150</width>
+                  <height>20</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>Code preview</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_3">
+                <item>
+                 <widget class="QCheckBox" name="codePreviewCheckBox">
+                  <property name="text">
+                   <string>Enable code preview</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="codePreviewAntialiasingCheckBox">
+                  <property name="text">
+                   <string>Antialiasing</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_7">
+                <item>
+                 <widget class="QLabel" name="codePreviewHorizontalSizeLabel">
+                  <property name="text">
+                   <string>Preview width</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QDoubleSpinBox" name="codePreviewWidth">
+                  <property name="minimum">
+                   <double>10.000000000000000</double>
+                  </property>
+                  <property name="maximum">
+                   <double>500.000000000000000</double>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLabel" name="codePreviewLineScaleLabel">
+                  <property name="text">
+                   <string>Vertical Scale</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QDoubleSpinBox" name="codePreviewLineScale">
+                  <property name="minimum">
+                   <double>0.100000000000000</double>
+                  </property>
+                  <property name="maximum">
+                   <double>10.000000000000000</double>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="Line" name="line_2">
+                <property name="orientation">
+                 <enum>Qt::Orientation::Horizontal</enum>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <layout class="QVBoxLayout" name="verticalLayout_7">
+              <item>
+               <widget class="QLabel" name="themeLabel">
+                <property name="maximumSize">
+                 <size>
+                  <width>150</width>
+                  <height>20</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>Theme</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_6">
+                <item>
+                 <widget class="QComboBox" name="themeComboBox">
+                  <property name="placeholderText">
+                   <string>Theme</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QFontComboBox" name="themeFontComboBox"/>
+                </item>
+                <item>
+                 <widget class="QLabel" name="themeFontSizeLabel">
+                  <property name="text">
+                   <string>Font size</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QSpinBox" name="themeFontSize">
+                  <property name="value">
+                   <number>8</number>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QVBoxLayout" name="verticalLayout_11">
+                <item>
+                 <widget class="QLabel" name="themeTableNameLabel">
+                  <property name="maximumSize">
+                   <size>
+                    <width>150</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                  <property name="text">
+                   <string>Table name</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <layout class="QHBoxLayout" name="horizontalLayout_15">
+                  <item>
+                   <widget class="QLabel" name="themeTableNameColorLabel">
+                    <property name="text">
+                     <string>Color</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="themeTableNameColorButton">
+                    <property name="text">
+                     <string>Pick color</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+                <item>
+                 <layout class="QHBoxLayout" name="horizontalLayout_16">
+                  <item>
+                   <widget class="QCheckBox" name="themeTableNameItalicCheckBox">
+                    <property name="text">
+                     <string>Italic</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QCheckBox" name="themeTableNameBoldCheckBox">
+                    <property name="text">
+                     <string>Bold</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QVBoxLayout" name="verticalLayout_10">
+                <item>
+                 <widget class="QLabel" name="themeColumnNameLabel">
+                  <property name="maximumSize">
+                   <size>
+                    <width>150</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                  <property name="text">
+                   <string>Column name</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <layout class="QHBoxLayout" name="horizontalLayout_13">
+                  <item>
+                   <widget class="QLabel" name="themeColumnNameColorLabel">
+                    <property name="text">
+                     <string>Color</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="themeColumnNameColorButton">
+                    <property name="text">
+                     <string>Pick color</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+                <item>
+                 <layout class="QHBoxLayout" name="horizontalLayout_14">
+                  <item>
+                   <widget class="QCheckBox" name="themeColumnNameItalicCheckBox">
+                    <property name="text">
+                     <string>Italic</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QCheckBox" name="themeColumnNameBoldCheckBox">
+                    <property name="text">
+                     <string>Bold</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QVBoxLayout" name="verticalLayout_9">
+                <item>
+                 <widget class="QLabel" name="themeCommentLabel">
+                  <property name="maximumSize">
+                   <size>
+                    <width>150</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                  <property name="text">
+                   <string>Comment</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <layout class="QHBoxLayout" name="horizontalLayout_11">
+                  <item>
+                   <widget class="QLabel" name="themeCommentColorLabel">
+                    <property name="text">
+                     <string>Color</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="themeCommentColorButton">
+                    <property name="text">
+                     <string>Pick color</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+                <item>
+                 <layout class="QHBoxLayout" name="horizontalLayout_12">
+                  <item>
+                   <widget class="QCheckBox" name="themeCommentItalicCheckBox">
+                    <property name="text">
+                     <string>Italic</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QCheckBox" name="themeCommentBoldCheckBox">
+                    <property name="text">
+                     <string>Bold</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QVBoxLayout" name="verticalLayout_8">
+                <item>
+                 <widget class="QLabel" name="themeQuotationLabel">
+                  <property name="maximumSize">
+                   <size>
+                    <width>150</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                  <property name="text">
+                   <string>Quotation</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <layout class="QHBoxLayout" name="horizontalLayout_9">
+                  <item>
+                   <widget class="QLabel" name="themeQuotationColorLabel">
+                    <property name="text">
+                     <string>Color</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="themeQuotationColorButton">
+                    <property name="text">
+                     <string>Pick color</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+                <item>
+                 <layout class="QHBoxLayout" name="horizontalLayout_10">
+                  <item>
+                   <widget class="QCheckBox" name="themeQuotationItalicCheckBox">
+                    <property name="text">
+                     <string>Italic</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QCheckBox" name="themeQuotationBoldCheckBox">
+                    <property name="text">
+                     <string>Bold</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QVBoxLayout" name="verticalLayout_6">
+                <item>
+                 <widget class="QLabel" name="themeKeywordLabel">
+                  <property name="maximumSize">
+                   <size>
+                    <width>150</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                  <property name="text">
+                   <string>Keywords</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <layout class="QHBoxLayout" name="horizontalLayout_5">
+                  <item>
+                   <widget class="QLabel" name="themeKeywordColorLabel">
+                    <property name="text">
+                     <string>Color</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="themeKeywordColorButton">
+                    <property name="text">
+                     <string>Pick color</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+                <item>
+                 <layout class="QHBoxLayout" name="horizontalLayout_8">
+                  <item>
+                   <widget class="QCheckBox" name="themeKeywordItalicCheckBox">
+                    <property name="text">
+                     <string>Italic</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QCheckBox" name="themeKeywordBoldCheckBox">
+                    <property name="text">
+                     <string>Bold</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="Line" name="line_5">
+                <property name="orientation">
+                 <enum>Qt::Orientation::Horizontal</enum>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <layout class="QVBoxLayout" name="verticalLayout_5">
+              <item>
+               <widget class="QLabel" name="label_3">
+                <property name="maximumSize">
+                 <size>
+                  <width>150</width>
+                  <height>20</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>Directories</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_4">
+                <item>
+                 <widget class="QLabel" name="label">
+                  <property name="text">
+                   <string>Workspace directory</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLineEdit" name="lineEdit">
+                  <property name="text">
+                   <string>documents</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="Line" name="line_3">
+                <property name="orientation">
+                 <enum>Qt::Orientation::Horizontal</enum>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </widget>
+      </item>
+     </layout>
+    </item>
+   </layout>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>447</width>
+     <width>537</width>
      <height>21</height>
     </rect>
    </property>

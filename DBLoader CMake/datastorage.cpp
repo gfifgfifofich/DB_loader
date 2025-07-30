@@ -98,7 +98,10 @@ void DataStorage::SetProperty(QString ObjectName,QString Property, float value)
 
 void DataStorage::Save(QString filename)
 {
+
+
     QFile File(filename);
+    File.remove();
 
     if(!File.open(QFile::OpenModeFlag::ReadWrite))
     {
