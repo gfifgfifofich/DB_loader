@@ -83,8 +83,16 @@ void fillPaterns()
     subCommandPatterns.push_back("SubexecToMagic");
     subCommandPatterns.push_back("SubexecToArray");
 
+    subCommandPatterns.push_back("DBLPasteYearMonthOffset");
+    subCommandPatterns.push_back("DBLPasteYearDayOffset");
+    subCommandPatterns.push_back("DBLPasteDaysInMonth");
+    subCommandPatterns.push_back("DBLPasteDaysInMonthDayOffset");
+    subCommandPatterns.push_back("DBLPasteDayOfMonth");
+    subCommandPatterns.push_back("DBLPasteMonthDayOffset");
+    subCommandPatterns.push_back("DBLPasteNumMonthDayOffset");
     subCommandPatterns.push_back("DBLPasteMonth");
     subCommandPatterns.push_back("DBLPasteNumMonth");
+
 
     subCommandPatterns.push_back("ExcelToMagic");
     subCommandPatterns.push_back("ExcelToArray");

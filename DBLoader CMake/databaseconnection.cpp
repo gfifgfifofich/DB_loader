@@ -593,22 +593,59 @@ QString UnrollAllLoops(QString sql)
         localKeywordsMatch.resize(subCommandPatterns.size());
         loopcount++;
         reset = false;
+
+
         for(int a=0;a < sql.size();a++)
         {
             bool isAPartOfKeyword = false;
             for(int i=0;i<subCommandPatterns.size();i++)
             {
-                if(subCommandPatterns[i][localKeywordsMatch[i]].toLower() == sql[a].toLower())
+                if(localKeywordsMatch[i] < subCommandPatterns[i].size() && subCommandPatterns[i][localKeywordsMatch[i]].toLower() == sql[a].toLower())
                 {
                     isAPartOfKeyword = true;
                     localKeywordsMatch[i]++;
 
                     if(localKeywordsMatch[i] == subCommandPatterns[i].size() && (subCommandPatterns[i].trimmed() == "ForLoop" ||
                                                                                   subCommandPatterns[i].trimmed() == "QueryForLoop" ||
-                                                                                  (subCommandPatterns[i].trimmed() == "DBLPasteMonth") ||
-                                                                                  (subCommandPatterns[i].trimmed() == "DBLPasteNumMonth") ||
+                                                                                  (subCommandPatterns[i].trimmed() ==  "DBLPasteYearMonthOffset") ||
+                                                                                  (subCommandPatterns[i].trimmed() ==  "DBLPasteYearDayOffset") ||
+                                                                                  (subCommandPatterns[i].trimmed() ==  "DBLPasteDaysInMonth") ||
+                                                                                  (subCommandPatterns[i].trimmed() ==  "DBLPasteDaysInMonthDayOffset") ||
+                                                                                  (subCommandPatterns[i].trimmed() ==  "DBLPasteDayOfMonth") ||
+                                                                                  (subCommandPatterns[i].trimmed() ==  "DBLPasteMonthDayOffset") ||
+                                                                                  (subCommandPatterns[i].trimmed() ==  "DBLPasteNumMonthDayOffset") ||
+                                                                                  (subCommandPatterns[i].trimmed() ==  "DBLPasteMonth") ||
+                                                                                  (subCommandPatterns[i].trimmed() ==  "DBLPasteNumMonth") ||
                                                                                   subCommandPatterns[i].trimmed() == "ExcelSheetList"))
                     { // detected keyword, implement action
+                        qDebug() << "possibly a "<<subCommandPatterns[i].trimmed();
+                        bool good = false;
+                        for(int it = a +1; it < sql.size();it++)
+                        {
+                            if(sql[it] == '{')
+                            {
+                                good = true;
+                                break;
+                            }
+                            else if(sql[it] == ' ' || sql[it] == "   ")
+                                continue;
+                            else break;
+                        }
+                        if(!good)
+                        {
+                            localKeywordsMatch[i] = 0;
+                            continue; // break out of commands loop, to go to next char
+                        }
+
+
+                        keywordbuff += sql[a];
+
+
+                        while(localKeywordsMatch[i] < keywordbuff.size())
+                        {
+                            formatedSql+= keywordbuff[0];
+                            keywordbuff.remove(0,1);
+                        }
 
                         localKeywordsMatch[i] = 0;
                         int buff_a = a;
@@ -633,15 +670,16 @@ QString UnrollAllLoops(QString sql)
                                 inlineVariables = false;
                             if(inlineVariables)
                             {
-                                if(bracketValue > 1 &&  sql[buff_a] != '{'&& sql[buff_a] != '}' && sql[buff_a] != '\t'&& sql[buff_a] != '\t'&& sql[buff_a] != '\r')
-                                {
-                                    lastVar += sql[buff_a];
-                                }
-                                if(sql[buff_a] == '}')
+
+                                if(sql[buff_a] == '}' && bracketValue < 3)
                                 {
                                     lastVar = lastVar.trimmed();
                                     funcVariables  << lastVar;
                                     lastVar = "";
+                                }
+                                else if(bracketValue > 1 && sql[buff_a] != '\t'&& sql[buff_a] != '\t'&& sql[buff_a] != '\r')
+                                {
+                                    lastVar += sql[buff_a];
                                 }
                             }
                             if(sql[buff_a]== '{')
@@ -677,7 +715,7 @@ QString UnrollAllLoops(QString sql)
                             }
 
 
-                            if(beginSubscriptSQL)
+                            if(beginSubscriptSQL && !inlineVariables)
                                 scriptCommand.push_back(sql[buff_a]);
 
 
@@ -704,18 +742,24 @@ QString UnrollAllLoops(QString sql)
                             bool isIteration = false;
                             for(auto s : funcVariables)
                             {
+                                if(s.trimmed().size() <1)
+                                    continue;
+                                QString tmpvar = UnrollAllLoops(s).trimmed();
+                                while(tmpvar.endsWith(QChar('\u0000')))
+                                    tmpvar.resize(tmpvar.size()-1);
+                                qDebug() << tmpvar << "  from  "<< s;
                                 if(fillStage  == 0)
                                 {
                                     fillStage++;
-                                    replValue = s.trimmed();
+                                    replValue = tmpvar;
                                 }else if(fillStage  == 1)
                                 {
                                     fillStage++;
-                                    replStart = QVariant(s.trimmed()).toInt(&toIntStart);
-                                    valueRuquieredSize = s.trimmed().size();
+                                    replStart = QVariant(tmpvar).toInt(&toIntStart);
+                                    valueRuquieredSize = tmpvar.size();
                                     if(!toIntStart)
                                     {
-                                        iterateValues = s.trimmed().split(',');
+                                        iterateValues = tmpvar.split(',');
                                         if(iterateValues.size()>0)
                                             isIteration = true;
                                     }
@@ -723,18 +767,20 @@ QString UnrollAllLoops(QString sql)
                                 }else if(fillStage  == 2)
                                 {
                                     fillStage++;
-                                    replEnd = QVariant(s.trimmed()).toInt();
+                                    replEnd = QVariant(tmpvar).toInt();
                                 }else if(fillStage  == 3)
                                 {
                                     fillStage++;
-                                    replStep = QVariant(s.trimmed()).toInt();
+                                    replStep = QVariant(tmpvar).toInt();
                                 }
                                 else
                                     break;
                             }
 
                             if(!isIteration)
-                            {for(int iter = replStart; iter <= replEnd; iter += replStep)
+                            {
+                                qDebug() << "replStart " << replStart << "replEnd "<< replEnd << "replStep "<< replStep;
+                                for(int iter = replStart; iter <= replEnd; iter += replStep)
                                 {
                                     if(iter != replStart)
                                     {
@@ -747,7 +793,9 @@ QString UnrollAllLoops(QString sql)
                                         replString = '0' + replString;
 
                                     fmiterSql = fmiterSql.replace(replValue, replString);
+                                    qDebug() << fmiterSql;
                                     formatedSql += fmiterSql;
+                                    qDebug() << formatedSql;
 
                                 }
                             }else
@@ -793,7 +841,135 @@ QString UnrollAllLoops(QString sql)
                         // subCommandPatterns.push_back("StartAsyncExecution");
                         // subCommandPatterns.push_back("AwaitAsyncExecution");
 
+                        if(subCommandPatterns[i].trimmed() == "DBLPasteYearMonthOffset")
+                        {
+                            QString str;
+                            QDateTime::currentDateTime().date().month();
+                            int monthnum = QDateTime::currentDateTime().date().daysInMonth();
+                            if(funcVariables.size() > 0)
+                            {
+                                int offset = 0;
+                                bool ok = false;
+                                offset = QVariant(funcVariables[0]).toInt(&ok);
+                                if(ok)
+                                    monthnum = QDateTime::currentDateTime().date().addMonths(offset).year();
+                            }
+                            str = QVariant(monthnum).toString();
 
+                            formatedSql += str;
+                        }
+
+                        if(subCommandPatterns[i].trimmed() == "DBLPasteYearDayOffset")
+                        {
+                            QString str;
+                            QDateTime::currentDateTime().date().month();
+                            int monthnum = QDateTime::currentDateTime().date().daysInMonth();
+                            if(funcVariables.size() > 0)
+                            {
+                                int offset = 0;
+                                bool ok = false;
+                                offset = QVariant(funcVariables[0]).toInt(&ok);
+                                if(ok)
+                                    monthnum = QDateTime::currentDateTime().date().addDays(offset).year();
+                            }
+                            str = QVariant(monthnum).toString();
+
+                            formatedSql += str;
+                        }
+
+
+                        if(subCommandPatterns[i].trimmed() == "DBLPasteDaysInMonth")
+                        {
+                            QString str;
+                            QDateTime::currentDateTime().date().month();
+                            int monthnum = QDateTime::currentDateTime().date().daysInMonth();
+                            if(funcVariables.size() > 0)
+                            {
+                                int offset = 0;
+                                bool ok = false;
+                                offset = QVariant(funcVariables[0]).toInt(&ok);
+                                if(ok)
+                                    monthnum = QDateTime::currentDateTime().date().addMonths(offset).daysInMonth();
+                            }
+                            str = QVariant(monthnum).toString();
+
+                            formatedSql += str;
+                        }
+                        if(subCommandPatterns[i].trimmed() == "DBLPasteDaysInMonthDayOffset")
+                        {
+                            QString str;
+                            QDateTime::currentDateTime().date().month();
+                            int monthnum = QDateTime::currentDateTime().date().daysInMonth();
+                            if(funcVariables.size() > 0)
+                            {
+                                int offset = 0;
+                                bool ok = false;
+                                offset = QVariant(funcVariables[0]).toInt(&ok);
+                                if(ok)
+                                    monthnum = QDateTime::currentDateTime().date().addDays(offset).daysInMonth();
+                            }
+                            str = QVariant(monthnum).toString();
+
+                            formatedSql += str;
+                        }
+
+
+                        if(subCommandPatterns[i].trimmed() == "DBLPasteDayOfMonth")
+                        {
+                            QString str;
+                            QDateTime::currentDateTime().date().month();
+                            int monthnum = QDateTime::currentDateTime().date().day();
+                            if(funcVariables.size() > 0)
+                            {
+                                int offset = 0;
+                                bool ok = false;
+                                offset = QVariant(funcVariables[0]).toInt(&ok);
+                                if(ok)
+                                    monthnum = QDateTime::currentDateTime().date().addDays(offset).day();
+                            }
+                            str = QVariant(monthnum).toString();
+
+                            formatedSql += str;
+                        }
+
+
+                        if(subCommandPatterns[i].trimmed() == "DBLPasteMonthDayOffset")
+                        {
+                            QString str;
+                            QDateTime::currentDateTime().date().month();
+                            int monthnum = QDateTime::currentDateTime().date().month();
+                            if(funcVariables.size() > 0)
+                            {
+                                int offset = 0;
+                                bool ok = false;
+                                offset = QVariant(funcVariables[0]).toInt(&ok);
+                                if(ok)
+                                    monthnum = QDateTime::currentDateTime().date().addDays(offset).month();
+                            }
+                            str = QVariant(monthnum).toString();
+                            if(str.size() == 1)
+                                str = "0" + str;
+
+                            formatedSql += str;
+                        }
+
+                        if(subCommandPatterns[i].trimmed() == "DBLPasteNumMonthDayOffset")
+                        {
+                            QString str;
+                            QDateTime::currentDateTime().date().month();
+                            int monthnum = QDateTime::currentDateTime().date().month();
+                            if(funcVariables.size() > 0)
+                            {
+                                int offset = 0;
+                                bool ok = false;
+                                offset = QVariant(funcVariables[0]).toInt(&ok);
+                                if(ok)
+                                    monthnum = QDateTime::currentDateTime().date().addDays(offset).month();
+                            }
+                            str = QVariant(monthnum).toString();
+
+                            formatedSql += str;
+                        }
                         if(subCommandPatterns[i].trimmed() == "DBLPasteMonth")
                         {
                             QString str;
@@ -805,7 +981,7 @@ QString UnrollAllLoops(QString sql)
                                 bool ok = false;
                                 offset = QVariant(funcVariables[0]).toInt(&ok);
                                 if(ok)
-                                    monthnum +=offset;
+                                    monthnum = QDateTime::currentDateTime().date().addMonths(offset).month();
                             }
                             str = QVariant(monthnum).toString();
                             if(str.size() == 1)
@@ -825,13 +1001,13 @@ QString UnrollAllLoops(QString sql)
                                 bool ok = false;
                                 offset = QVariant(funcVariables[0]).toInt(&ok);
                                 if(ok)
-                                    monthnum +=offset;
+                                    monthnum = QDateTime::currentDateTime().date().addMonths(offset).month();
                             }
                             str = QVariant(monthnum).toString();
 
                             formatedSql += str;
                         }
-
+                        qDebug() << "keywordbuff "<<keywordbuff  ;
                         keywordbuff = "";
                     }
                 }
@@ -945,6 +1121,34 @@ bool DatabaseConnection::execSql(QString sql)
 
                         if(localKeywordsMatch[i] == subCommandPatterns[i].size())
                         { // detected keyword, implement action
+
+
+                            bool good = false;
+                            for(int it = a +1; it < sql.size();it++)
+                            {
+                                if(sql[it] == '{')
+                                {
+                                    good = true;
+                                    break;
+                                }
+                                else if(sql[it] == ' ' || sql[it] == "   ")
+                                    continue;
+                                else break;
+                            }
+                            if(!good)
+                            {
+                                localKeywordsMatch[i] = 0;
+                                continue; // break out of commands loop, to go to next char
+                            }
+
+
+                            keywordbuff += sql[a];
+                            while(localKeywordsMatch[i] < keywordbuff.size())
+                            {
+                                formatedSql+= keywordbuff[0];
+                                keywordbuff.remove(0,1);
+                            }
+
                             if(!nodebug) qDebug()<<"Detected keyword \"" << subCommandPatterns[i] <<"\"";
                             localKeywordsMatch[i] = 0;
                             scriptCommand = subCommandPatterns[i];
@@ -1066,67 +1270,73 @@ bool DatabaseConnection::execSql(QString sql)
                                 int varcount = 0;
                                 for(auto s : funcVariables)
                                 {
+                                    if(s.trimmed().size() <1)
+                                        continue;
+                                    QString tmpvar = UnrollAllLoops(s).trimmed();
+                                    while(tmpvar.endsWith(QChar('\u0000')))
+                                        tmpvar.resize(tmpvar.size()-1);
+
                                     if(varcount == 0)
                                     {
                                         varcount++;
-                                        subscriptDriver = s.trimmed();
+                                        subscriptDriver = tmpvar;
                                     }else if(varcount == 1)
                                     {
                                         varcount++;
-                                        subscriptDBname = s.trimmed();
+                                        subscriptDBname = tmpvar;
                                     }
                                     else if(varcount == 2)
                                     {
                                         varcount++;
-                                        saveName = s.trimmed();
+                                        saveName = tmpvar;
                                     }
                                     else if(varcount == 3)
                                     {
                                         varcount++;
-                                        saveStart_X = QVariant(s.trimmed()).toInt();
-                                        csvDelimeter = s.trimmed()[0].unicode();
-                                        WorksheetName=s.trimmed();
+                                        saveStart_X = QVariant(tmpvar).toInt();
+                                        csvDelimeter = tmpvar[0].unicode();
+                                        WorksheetName=tmpvar;
                                         if(subCommandPatterns[i].endsWith("ExcelWorksheet"))
                                         {
-                                            WorksheetName=s.trimmed();
+                                            WorksheetName=tmpvar;
                                         }
                                     }
                                     else if(varcount == 4)
                                     {
                                         varcount++;
-                                        saveEnd_X = QVariant(s.trimmed()).toInt();
+                                        saveEnd_X = QVariant(tmpvar).toInt();
                                         if(subCommandPatterns[i].endsWith("ExcelWorksheet"))
                                         {
-                                            saveStart_X = QVariant(s.trimmed()).toInt();
+                                            saveStart_X = QVariant(tmpvar).toInt();
                                         }
                                     }
                                     else if(varcount == 5)
                                     {
                                         varcount++;
-                                        saveStart_Y = QVariant(s.trimmed()).toInt();
+                                        saveStart_Y = QVariant(tmpvar).toInt();
                                         if(subCommandPatterns[i].endsWith("ExcelWorksheet"))
                                         {
-                                            saveEnd_X = QVariant(s.trimmed()).toInt();
+                                            saveEnd_X = QVariant(tmpvar).toInt();
                                         }
                                     }
                                     else if(varcount == 6)
                                     {
                                         varcount++;
-                                        saveEnd_Y = QVariant(s.trimmed()).toInt();
+                                        saveEnd_Y = QVariant(tmpvar).toInt();
                                         if(subCommandPatterns[i].endsWith("ExcelWorksheet"))
                                         {
-                                            saveStart_Y = QVariant(s.trimmed()).toInt();
+                                            saveStart_Y = QVariant(tmpvar).toInt();
                                         }
                                     }
                                     else if(varcount == 7)
                                     {
                                         if(!subCommandPatterns[i].endsWith("ExcelWorksheet"))
                                         {
-                                            WorksheetName=s.trimmed();
+                                            WorksheetName=tmpvar;
                                         }
                                         else
                                         {
-                                            saveEnd_Y = QVariant(s.trimmed()).toInt();
+                                            saveEnd_Y = QVariant(tmpvar).toInt();
                                         }
 
                                     }
@@ -1175,7 +1385,7 @@ bool DatabaseConnection::execSql(QString sql)
                                             asyncExecution_threads.push_back(QThread::create(_dc_AsyncFunc,subscriptConnesction,scriptCommand.trimmed()));
                                             asyncExecution_threads.back()->start();
                                             keywordbuff = "";
-                                            formatedSql+= "_DBL_AsyncExecutionTempValue {-- {} {} \n}";//{-- {} {} \n}
+                                            formatedSql+= "_DBL_AsyncExecutionTempValue {{}}";//{-- {} {} \n}
                                             reset = true;
                                             break;
 
@@ -2297,7 +2507,7 @@ bool DatabaseConnection::execSql(QString sql)
 
         try{
 
-            OCI_lastenv = oracle::occi::Environment::createEnvironment ( "CL8MSWIN1251", "CL8MSWIN1251",oracle::occi::Environment::Mode::DEFAULT);//oracle::occi::Environment::DEFAULT);
+            OCI_lastenv = oracle::occi::Environment::createEnvironment ( "CL8MSWIN1251", "CL8MSWIN1251",oracle::occi::Environment::Mode::THREADED_MUTEXED);//oracle::occi::Environment::DEFAULT);
 
             QString connection_string ="(DESCRIPTION=(ADDRESS=(PROTOCOL=tcp) (HOST=" + ipAddres.trimmed() + ") (PORT=" + port.trimmed() + "))(CONNECT_DATA=(SERVICE_NAME=" + schemaName.trimmed() + ")))";
             OCI_lastcon = ((oracle::occi::Environment*)OCI_lastenv)->createConnection (usrname.trimmed().toStdString(),password.trimmed().toStdString(),connection_string.toStdString());
