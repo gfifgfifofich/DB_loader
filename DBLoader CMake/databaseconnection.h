@@ -110,6 +110,7 @@ public:
     int scriptReturnPosition = 0;
     QString scriptCommand = "";
     DatabaseConnection* subscriptConnesction = nullptr;
+    QList<DatabaseConnection*> asyncExecution_databaseConnections;
 
     void stopRunning();
 

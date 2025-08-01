@@ -1097,7 +1097,7 @@ bool DatabaseConnection::execSql(QString sql)
         QList<QStringList> asyncExecution_Formats;
         QList<int> asyncExecution_commandIds;
         QList<QThread*> asyncExecution_threads;
-        QList<DatabaseConnection*> asyncExecution_databaseConnections;
+        asyncExecution_databaseConnections.clear();
 
 
         // loop while keywords can be possible in code (due to nested loops and other syntax)
@@ -1168,22 +1168,22 @@ bool DatabaseConnection::execSql(QString sql)
                                 {
                                     beginSubscriptSQL = false;
                                     a = buff_a;
-                                    if(!nodebug) qDebug()<< a;
                                     break;
                                 }
                                 if(justOutOfBrackets && sql[buff_a] != '-'&& sql[buff_a] != '{'&& sql[buff_a] != '}'&& sql[buff_a] != ' '&& sql[buff_a] != '\t'&& sql[buff_a] != '\n'&& sql[buff_a] != '\t'&& sql[buff_a] != '\r')
                                     inlineVariables = false;
                                 if(inlineVariables)
                                 {
-                                    if(bracketValue > 1 &&  sql[buff_a] != '{'&& sql[buff_a] != '}' && sql[buff_a] != '\t'&& sql[buff_a] != '\t'&& sql[buff_a] != '\r')
-                                    {
-                                        lastVar += sql[buff_a];
-                                    }
-                                    if(sql[buff_a] == '}')
+
+                                    if(sql[buff_a] == '}' && bracketValue < 3)
                                     {
                                         lastVar = lastVar.trimmed();
                                         funcVariables  << lastVar;
                                         lastVar = "";
+                                    }
+                                    else if(bracketValue > 1 && sql[buff_a] != '\t'&& sql[buff_a] != '\t'&& sql[buff_a] != '\r')
+                                    {
+                                        lastVar += sql[buff_a];
                                     }
                                 }
                                 if(sql[buff_a]== '{')
@@ -1219,7 +1219,7 @@ bool DatabaseConnection::execSql(QString sql)
                                 }
 
 
-                                if(beginSubscriptSQL)
+                                if(beginSubscriptSQL && !inlineVariables)
                                     scriptCommand.push_back(sql[buff_a]);
 
 
@@ -3155,6 +3155,11 @@ void DatabaseConnection::stopRunning()
     qDebug()<<"attempting to stop query";
 
     data.stopNow = true;
+
+    for(int i=0;i<asyncExecution_databaseConnections.size();i++)
+    {
+        asyncExecution_databaseConnections[i]->stopRunning();
+    }
 
     stopNow = true;
     if(subscriptConnesction != nullptr && subscriptConnesction->executing)
