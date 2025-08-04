@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Sql)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Sql Test)
 find_package(Qt6 REQUIRED COMPONENTS Charts)
 find_package(Qt6 REQUIRED COMPONENTS Graphs)
 find_package(Qt6 REQUIRED COMPONENTS Quick)
@@ -44,6 +44,7 @@ LINK_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/lib)
 # add sqlite source directly
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/sqlite_amalgamation)
 
+enable_testing(true)
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     set(app_icon_resource_windows "${CMAKE_CURRENT_SOURCE_DIR}/resources/app.rc")
     qt_add_executable(untitled
@@ -79,10 +80,16 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
 
         colorbutton.h colorbutton.cpp
         sqlite_amalgamation/sqlite3.c
+
+
         settingswindow.h settingswindow.cpp settingswindow.ui
         structuredescriptor.h structuredescriptor.cpp structuredescriptor.ui
         docwindow.h docwindow.cpp docwindow.ui
         replacewindow.h replacewindow.cpp replacewindow.ui
+        testing.h
+
+
+
 
 
     )
@@ -114,7 +121,14 @@ target_link_libraries(untitled PRIVATE Qt6::Charts)
 target_link_libraries(untitled PRIVATE Qt6::Graphs)
 target_link_libraries(untitled PRIVATE Qt6::Quick)
 target_link_libraries(untitled PRIVATE Qt6::QuickControls2)
+target_link_libraries(untitled PRIVATE Qt6::Test)
 
+
+add_test(testname untitled test)
+add_test(test_const_fail untitled test fail)
+add_test(test_xlsxReadWrite untitled test xlsxReadWrite)
+add_test(test_csvReadWrite untitled test csvReadWrite)
+add_test(test_LocalDBReadWrite untitled test LocalDBReadWrite)
 
 
 if(Oracle_OCI_Driver)

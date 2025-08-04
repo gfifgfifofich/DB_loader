@@ -7,15 +7,17 @@
 #include "table.h"
 #include <QTranslator>
 
-
 inline DataStorage userDS;
 inline QString appfilename;
 inline QString usrDir;
 inline QString documentsDir;
 
+#include "testing.h"
 
 int main(int argc, char *argv[])
 {
+
+
 
 
     // fill dictionaries of database-specific keywords
@@ -98,6 +100,21 @@ int main(int argc, char *argv[])
     }
 
 
+
+    if(argc>1 && QString(argv[1]) == "test")
+    {
+        qDebug() << "testing, yep";
+        if(argc>2)
+        {
+            qDebug() << "passed data";
+            return testFunc(QString(argv[2]));
+        }
+        qDebug() << "exit without data";
+        return 0;
+    }
+
+
+
     // set app to be aware about user color scheme, (light/dark). Force one or another, depending on settings
     QApplication::setDesktopSettingsAware(true);
     if(QString(userDS.GetProperty("UserTheme", "DarkMainTheme")).trimmed() == "Dark")
@@ -177,6 +194,7 @@ int main(int argc, char *argv[])
         palette.setColor(QPalette::Base, QColor(20, 20, 20)); // Set background to red
         w.setPalette(palette);
     }
+
 
     // launch in full screen
     w.showMaximized();

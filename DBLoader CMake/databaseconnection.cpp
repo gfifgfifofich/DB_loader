@@ -610,6 +610,7 @@ QString UnrollAllLoops(QString sql)
                                                                                   (subCommandPatterns[i].trimmed() ==  "DBLPasteYearMonthOffset") ||
                                                                                   (subCommandPatterns[i].trimmed() ==  "DBLPasteYearDayOffset") ||
                                                                                   (subCommandPatterns[i].trimmed() ==  "DBLPasteDaysInMonth") ||
+                                                                                  (subCommandPatterns[i].trimmed() ==  "DBLPasteDaysInMonthByMonth") ||
                                                                                   (subCommandPatterns[i].trimmed() ==  "DBLPasteDaysInMonthDayOffset") ||
                                                                                   (subCommandPatterns[i].trimmed() ==  "DBLPasteDayOfMonth") ||
                                                                                   (subCommandPatterns[i].trimmed() ==  "DBLPasteMonthDayOffset") ||
@@ -913,6 +914,39 @@ QString UnrollAllLoops(QString sql)
                             formatedSql += str;
                         }
 
+                        if(subCommandPatterns[i].trimmed() == "DBLPasteDaysInMonthByMonth")
+                        {
+                            QString str;
+                            QDate dt = QDate::currentDate();
+                            dt.setDate(QDateTime::currentDateTime().date().year(),1,1);
+                            int monthnum = dt.daysInMonth();
+                            if(funcVariables.size() > 0)
+                            {
+                                int offset = 0;
+                                bool ok = false;
+                                offset = QVariant(funcVariables[0]).toInt(&ok);
+                                if(ok)
+                                {
+                                    dt.setDate(QDate::currentDate().year(),offset,1);
+                                    monthnum = dt.daysInMonth();
+                                }
+
+
+                                if(funcVariables.size() > 1)
+                                {
+                                    int offset2 = QVariant(funcVariables[1]).toInt(&ok);
+                                    if(ok)
+                                    {
+                                        dt.setDate(offset2,offset,1);
+                                        monthnum = dt.daysInMonth();
+                                    }
+                                }
+                            }
+                            str = QVariant(monthnum).toString();
+
+                            formatedSql += str;
+                        }
+
 
                         if(subCommandPatterns[i].trimmed() == "DBLPasteDayOfMonth")
                         {
@@ -1170,7 +1204,7 @@ bool DatabaseConnection::execSql(QString sql)
                                     a = buff_a;
                                     break;
                                 }
-                                if(justOutOfBrackets && sql[buff_a] != '-'&& sql[buff_a] != '{'&& sql[buff_a] != '}'&& sql[buff_a] != ' '&& sql[buff_a] != '\t'&& sql[buff_a] != '\n'&& sql[buff_a] != '\t'&& sql[buff_a] != '\r')
+                                if(justOutOfBrackets  && sql[buff_a] != '{'&& sql[buff_a] != '}'&& sql[buff_a] != ' '&& sql[buff_a] != '\t'&& sql[buff_a] != '\n'&& sql[buff_a] != '\t'&& sql[buff_a] != '\r')
                                     inlineVariables = false;
                                 if(inlineVariables)
                                 {
@@ -1390,12 +1424,27 @@ bool DatabaseConnection::execSql(QString sql)
                                             break;
 
                                         }
-                                        else
+                                        else if (!reset)
                                         {
                                             if(!nodebug) qDebug()<< "executing sql";
                                             subscriptConnesction->execSql(scriptCommand.trimmed());
                                             subscriptConnesction->data.sqlCode = scriptCommand.trimmed();
                                             if(!nodebug) qDebug()<< "sql execd";
+                                        }
+                                        else
+                                        {
+                                            formatedSql+= keywordbuff;
+                                            formatedSql+= "{";
+
+                                            for(auto s : funcVariables)
+                                                formatedSql+= "{" + s + "}";
+                                            formatedSql+= "\n";
+
+                                            formatedSql+= scriptCommand.trimmed();
+
+                                            formatedSql+= "}";
+                                            keywordbuff = "";
+                                            break;
                                         }
                                     }
                                 subscriptConnesction->data.allSqlCode = this->data.allSqlCode;
@@ -1525,8 +1574,11 @@ bool DatabaseConnection::execSql(QString sql)
                                     }
                                 }
 
+
+
+
                                 // silent exporting
-                                if(subCommandPatterns[i] == "SilentSubexecToSqliteTable")
+                                if(subCommandPatterns[i] == "SilentSubexecToSqliteTable" || subCommandPatterns[i] == "SilentSubexecToLocalDBTable")
                                 {
                                     savefilecount++;
                                     if(!nodebug) qDebug() << "silent exporting to SQLite " << saveName;
@@ -1581,7 +1633,7 @@ bool DatabaseConnection::execSql(QString sql)
                                 }
 
                                 // non silent exporting
-                                else if(subCommandPatterns[i] == "SubexecToSqliteTable")
+                                else if(subCommandPatterns[i] == "SubexecToSqliteTable" || subCommandPatterns[i] == "SubexecToLocalDBTable")
                                 {
                                     savefilecount++;
                                     if(!nodebug) qDebug() << "exporting to SQLite " << saveName;
@@ -2016,7 +2068,7 @@ bool DatabaseConnection::execSql(QString sql)
 
 
                                 }
-                                else if(subCommandPatterns[i] == "ExcelToSqliteTable"|| subCommandPatterns[i] == "CSVToSqliteTable")
+                                else if(subCommandPatterns[i] == "ExcelToSqliteTable"|| subCommandPatterns[i] == "CSVToSqliteTable" || subCommandPatterns[i] == "ExcelToLocalDBTable"|| subCommandPatterns[i] == "CSVToLocalDBTable")
                                 {
                                     qDebug() << "subscriptDBname (exceltosqlitetable local table name): " << subscriptDBname;
                                     if(subscriptConnesction->data.headers.size() > 0)
@@ -2037,6 +2089,7 @@ bool DatabaseConnection::execSql(QString sql)
                                 delete subscriptConnesction;
                                 subscriptConnesction = nullptr;
                                 if(!nodebug) qDebug() << "closed";
+
 
                                 if(stopNow)
                                 {
@@ -3158,7 +3211,8 @@ void DatabaseConnection::stopRunning()
 
     for(int i=0;i<asyncExecution_databaseConnections.size();i++)
     {
-        asyncExecution_databaseConnections[i]->stopRunning();
+        if(asyncExecution_databaseConnections[i]!=nullptr && asyncExecution_databaseConnections[i]->executing ||asyncExecution_databaseConnections[i]->dataDownloading)
+            asyncExecution_databaseConnections[i]->stopRunning();
     }
 
     stopNow = true;
@@ -3204,7 +3258,6 @@ void DatabaseConnection::stopRunning()
             if( ((oracle::occi::Connection*)OCI_lastcon)!=nullptr  && ((oracle::occi::Environment*)OCI_lastenv)!=nullptr )
             {
 
-
                 qDebug() << "realy sending OCIBreak(con->getOCIServer(),0);";
 
                 static OCIError *errhp = NULL;
@@ -3213,8 +3266,8 @@ void DatabaseConnection::stopRunning()
 
                 int intResult = OCIBreak(((oracle::occi::Connection*)OCI_lastcon)->getOCIServer(), errhp);
                 qDebug() << "intResult = OCI_SUCCESS " << intResult  << " = "<< OCI_SUCCESS << OCI_ERROR << OCI_SUCCESS_WITH_INFO << OCI_INVALID_HANDLE;
-                intResult = OCIBreak(((oracle::occi::Connection*)OCI_lastcon)->getOCIServer(), errhp);
-                qDebug() << "serv intResult = OCI_SUCCESS " << intResult  << " = "<< OCI_SUCCESS << OCI_ERROR << OCI_SUCCESS_WITH_INFO << OCI_INVALID_HANDLE;
+                //intResult = OCIBreak(((oracle::occi::Connection*)OCI_lastcon)->getOCIServer(), errhp);
+                //qDebug() << "serv intResult = OCI_SUCCESS " << intResult  << " = "<< OCI_SUCCESS << OCI_ERROR << OCI_SUCCESS_WITH_INFO << OCI_INVALID_HANDLE;
 
                 try
                 {

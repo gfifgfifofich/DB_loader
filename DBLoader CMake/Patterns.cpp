@@ -69,6 +69,15 @@ void fillPaterns()
     subCommandPatterns.push_back("_DBL_AsyncExecutionTempValue");
 
     subCommandPatterns.push_back("SilentSubexecToSqliteTable");
+    subCommandPatterns.push_back("ExcelToSqliteTable");
+    subCommandPatterns.push_back("SubexecToSqliteTable");
+    subCommandPatterns.push_back("CSVToSqliteTable");
+
+    subCommandPatterns.push_back("SilentSubexecToLocalDBTable");
+    subCommandPatterns.push_back("ExcelToLocalDBTable");
+    subCommandPatterns.push_back("SubexecToLocalDBTable");
+    subCommandPatterns.push_back("CSVToLocalDBTable");
+
     subCommandPatterns.push_back("SilentSubexecToExcelTable");
     subCommandPatterns.push_back("SilentSubexecToExcelWorksheet");
     subCommandPatterns.push_back("SilentSubexecAppendExcelWorksheet");
@@ -76,7 +85,6 @@ void fillPaterns()
     subCommandPatterns.push_back("SubexecAppendExcelWorksheet");
     subCommandPatterns.push_back("SubexecToUnionAllTable");
     subCommandPatterns.push_back("SilentSubexecAppendCSV");
-    subCommandPatterns.push_back("SubexecToSqliteTable");
     subCommandPatterns.push_back("SubexecToExcelTable");
     subCommandPatterns.push_back("SilentSubexecToCSV");
     subCommandPatterns.push_back("SubexecAppendCSV");
@@ -86,6 +94,7 @@ void fillPaterns()
     subCommandPatterns.push_back("DBLPasteYearMonthOffset");
     subCommandPatterns.push_back("DBLPasteYearDayOffset");
     subCommandPatterns.push_back("DBLPasteDaysInMonth");
+    subCommandPatterns.push_back("DBLPasteDaysInMonthByMonth");
     subCommandPatterns.push_back("DBLPasteDaysInMonthDayOffset");
     subCommandPatterns.push_back("DBLPasteDayOfMonth");
     subCommandPatterns.push_back("DBLPasteMonthDayOffset");
@@ -96,12 +105,10 @@ void fillPaterns()
 
     subCommandPatterns.push_back("ExcelToMagic");
     subCommandPatterns.push_back("ExcelToArray");
-    subCommandPatterns.push_back("ExcelToSqliteTable");
     subCommandPatterns.push_back("ExcelSheetList");
 
     subCommandPatterns.push_back("CSVToMagic");
     subCommandPatterns.push_back("CSVToArray");
-    subCommandPatterns.push_back("CSVToSqliteTable");
 
 
     subCommandPatterns.push_back("SubexecToCSV");

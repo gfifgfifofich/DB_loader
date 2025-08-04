@@ -1473,7 +1473,11 @@ bool TableData::ExportToSQLiteTable(QString tableName)
 
             SQLITE_sql += LastUser;
             SQLITE_sql += "', '";
-            SQLITE_sql += loadWind->LastWorkspaceName;
+            if(loadWind!=nullptr)
+                SQLITE_sql += loadWind->LastWorkspaceName;
+            else
+                SQLITE_sql += "none";
+
             SQLITE_sql += "', ";
             if(dc.postgre)
                 SQLITE_sql += "clock_timestamp ( )";
@@ -1494,7 +1498,14 @@ bool TableData::ExportToSQLiteTable(QString tableName)
             SQLITE_sql += " exec_driver = '" + LastDriver + "'";
             SQLITE_sql += " ,exec_database = '" + LastDatabase + "'";
             SQLITE_sql += " ,exec_user_name = '" + LastUser +"'";
-            SQLITE_sql += " ,exec_workspace_name = '" + loadWind->LastWorkspaceName + "' ";
+            SQLITE_sql += " ,exec_workspace_name = '";
+
+            if(loadWind!=nullptr)
+                SQLITE_sql += loadWind->LastWorkspaceName;
+            else
+                SQLITE_sql += "none";
+            SQLITE_sql+= "' ";
+
             SQLITE_sql += ", cre_date = ";
             if(dc.postgre)
                 SQLITE_sql += " clock_timestamp ( )";
@@ -1613,6 +1624,8 @@ bool TableData::ExportToSQLiteTable(QString tableName)
 
         }
     }
+
+
     if(!dc.execSql(SQLITE_sql))
         qDebug()<< "Failed to save to LOCAL: " << SQLITE_sql ;
     LastSaveDuration = QTime::fromMSecsSinceStartOfDay(LastSaveDuration.msecsTo(QTime::currentTime()));
