@@ -124,11 +124,15 @@ target_link_libraries(untitled PRIVATE Qt6::QuickControls2)
 target_link_libraries(untitled PRIVATE Qt6::Test)
 
 
-add_test(testname untitled test)
+add_test(test_infr untitled test)
 add_test(test_const_fail untitled test fail)
 add_test(test_xlsxReadWrite untitled test xlsxReadWrite)
 add_test(test_csvReadWrite untitled test csvReadWrite)
 add_test(test_LocalDBReadWrite untitled test LocalDBReadWrite)
+add_test(test_CycleTest untitled test CycleTest)
+add_test(test_SubexecTest untitled test SubexecTest)
+add_test(test_DateFunctionTest untitled test DateFunctionTest)
+add_test(test_ParallelExecTest untitled test ParallelExecTest)
 
 
 if(Oracle_OCI_Driver)

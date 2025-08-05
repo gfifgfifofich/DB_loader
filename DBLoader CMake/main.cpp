@@ -101,17 +101,6 @@ int main(int argc, char *argv[])
 
 
 
-    if(argc>1 && QString(argv[1]) == "test")
-    {
-        qDebug() << "testing, yep";
-        if(argc>2)
-        {
-            qDebug() << "passed data";
-            return testFunc(QString(argv[2]));
-        }
-        qDebug() << "exit without data";
-        return 0;
-    }
 
 
 
@@ -181,6 +170,17 @@ int main(int argc, char *argv[])
 
 
 
+    if(argc>1 && QString(argv[1]) == "test")
+    {
+        qDebug() << "testing, yep";
+        if(argc>2)
+        {
+            qDebug() << "passed data";
+            return testFunc(QString(argv[2]));
+        }
+        qDebug() << "exit without data";
+        return 0;
+    }
 
 
 

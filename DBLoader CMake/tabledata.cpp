@@ -1624,10 +1624,9 @@ bool TableData::ExportToSQLiteTable(QString tableName)
 
         }
     }
-
-
     if(!dc.execSql(SQLITE_sql))
         qDebug()<< "Failed to save to LOCAL: " << SQLITE_sql ;
+    qDebug() <<"saved, quiting";
     LastSaveDuration = QTime::fromMSecsSinceStartOfDay(LastSaveDuration.msecsTo(QTime::currentTime()));
     LastSaveEndDate = QTime::currentTime();
     exporting = false;
