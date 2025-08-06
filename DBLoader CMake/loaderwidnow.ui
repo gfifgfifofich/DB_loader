@@ -422,7 +422,7 @@
             <widget class="QLabel" name="textPosLabel">
              <property name="maximumSize">
               <size>
-               <width>50</width>
+               <width>100</width>
                <height>15</height>
               </size>
              </property>
@@ -607,8 +607,8 @@
   <widget class="QDockWidget" name="dockWidget">
    <property name="minimumSize">
     <size>
-     <width>300</width>
-     <height>100</height>
+     <width>788</width>
+     <height>163</height>
     </size>
    </property>
    <property name="features">
