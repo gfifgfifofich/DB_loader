@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>537</width>
-    <height>610</height>
+    <width>674</width>
+    <height>566</height>
    </rect>
   </property>
   <property name="palette">
@@ -501,21 +501,9 @@
    <string>Settings</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <layout class="QHBoxLayout" name="horizontalLayout_19">
+   <layout class="QVBoxLayout" name="verticalLayout_14">
     <item>
      <layout class="QVBoxLayout" name="verticalLayout_2">
-      <property name="leftMargin">
-       <number>5</number>
-      </property>
-      <property name="topMargin">
-       <number>5</number>
-      </property>
-      <property name="rightMargin">
-       <number>5</number>
-      </property>
-      <property name="bottomMargin">
-       <number>5</number>
-      </property>
       <item>
        <widget class="QScrollArea" name="scrollArea">
         <property name="widgetResizable">
@@ -526,8 +514,8 @@
           <rect>
            <x>0</x>
            <y>0</y>
-           <width>493</width>
-           <height>837</height>
+           <width>638</width>
+           <height>901</height>
           </rect>
          </property>
          <layout class="QHBoxLayout" name="horizontalLayout_18">
@@ -1033,6 +1021,44 @@
                </layout>
               </item>
               <item>
+               <layout class="QVBoxLayout" name="verticalLayout_13">
+                <item>
+                 <widget class="QLabel" name="themeBracketHighlightLabel">
+                  <property name="maximumSize">
+                   <size>
+                    <width>150</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                  <property name="text">
+                   <string>BracketHighlight</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <layout class="QHBoxLayout" name="horizontalLayout_19">
+                  <item>
+                   <widget class="QLabel" name="themeBracketHighlightColorLabel">
+                    <property name="text">
+                     <string>Color</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="themeBracketHighlightColorButton">
+                    <property name="text">
+                     <string>Pick color</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+                <item>
+                 <layout class="QHBoxLayout" name="horizontalLayout_20"/>
+                </item>
+               </layout>
+              </item>
+              <item>
                <widget class="Line" name="line_5">
                 <property name="orientation">
                  <enum>Qt::Orientation::Horizontal</enum>
@@ -1098,7 +1124,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>537</width>
+     <width>674</width>
      <height>21</height>
     </rect>
    </property>

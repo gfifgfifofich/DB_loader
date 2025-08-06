@@ -327,6 +327,9 @@ int testFunc(QString test_case)
         return DateFunctionTest();
     if(test_case == "ParallelExecTest")
         return ParallelExecTest();
+    if(test_case == "Amalgamation")// tun all tests in sequence a few times, in case this will somehow cause a crash
+        return  xlsxReadWrite() + csvReadWrite() + LocalDBReadWrite() + CycleTest() + SubexecTest() + DateFunctionTest() + ParallelExecTest() +
+                xlsxReadWrite() + csvReadWrite() + LocalDBReadWrite() + CycleTest() + SubexecTest() + DateFunctionTest() + ParallelExecTest();
     return 1;
 }
 

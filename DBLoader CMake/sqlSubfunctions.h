@@ -50,20 +50,20 @@ inline bool HasLetters(QString s)
            s.count('<') +
            s.count('>') +
            s.count(';') +
-            s.count(':') +
-            s.count('0') +
-            s.count('1') +
-            s.count('2') +
-            s.count('3') +
-            s.count('4') +
-            s.count('5') +
-            s.count('6') +
-            s.count('7') +
-            s.count('8') +
-            s.count('9') +
-            s.count('e') +
-            s.count('E') +
-            s.count(' ')) < s.size() || s.count('E')>1|| s.count('e')>1;
+           s.count(':') +
+           s.count('0') +
+           s.count('1') +
+           s.count('2') +
+           s.count('3') +
+           s.count('4') +
+           s.count('5') +
+           s.count('6') +
+           s.count('7') +
+           s.count('8') +
+           s.count('9') +
+           s.count('e') +
+           s.count('E') +
+           s.count(' ')) < s.size() || s.count('E')>1|| s.count('e')>1;
 }
 inline bool isNumber(QString s)
 {
@@ -275,7 +275,7 @@ inline QString fixQStringType(QString str)
                 return str;
             }
         }
-        else if (cnt > 1)
+        if (cnt > 1)
         {
 
             if(str.size() == 19 || str.size() == 23 || str.size() == 10)//2000-01-01 10:10:10 || 2000-01-01 10:10:10.000 || 2000-01-01
@@ -316,7 +316,7 @@ inline QString fixQStringType(QString str)
                 return str;
             }
         }
-        else if (cnt == 0)
+        if (cnt <= 0)
         {
             bool ok = false;
             str.toInt(&ok);
@@ -363,6 +363,8 @@ inline QString fixQStringType(QString str)
                 fixQStringType_lasttype = 16; // probably is date
                 if(str.size()<19)//its only date;
                 {
+
+
                     str.resize(19);
                     str[10] = ' ';
                     str[11] = '0';

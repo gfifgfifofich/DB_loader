@@ -811,7 +811,7 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
                     else if(maxVarTypes[i] == 6)
                     {
 
-                        if(tbldata[i][a].startsWith('0') && !tbldata[i][a].startsWith("0.") && tbldata[i][a].size()>1)
+                        if(tbldata[i][a].startsWith('0') && !tbldata[i][a].startsWith("0.") && !tbldata[i][a].startsWith("0,") && tbldata[i][a].size()>1)
                         {
                             xlsxR3.write(row,column,tbldata[i][a]);
                         }

@@ -133,6 +133,7 @@ add_test(test_CycleTest untitled test CycleTest)
 add_test(test_SubexecTest untitled test SubexecTest)
 add_test(test_DateFunctionTest untitled test DateFunctionTest)
 add_test(test_ParallelExecTest untitled test ParallelExecTest)
+add_test(test_Amalgamation untitled test Amalgamation)
 
 
 if(Oracle_OCI_Driver)

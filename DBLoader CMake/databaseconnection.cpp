@@ -2500,11 +2500,13 @@ bool DatabaseConnection::execSql(QString sql)
                 data.tbldata[i].emplaceBack(fixQStringType(QString().fromUtf8(PQgetvalue(res, j, i))));
 
 
-                while(data.typecount[i].size() <= fixQStringType_lasttype)
-                    data.typecount[i].emplace_back();
+                if(data.tbldata[i].back().size()>0)
+                {
+                    while(data.typecount[i].size() <= fixQStringType_lasttype)
+                        data.typecount[i].emplace_back();
 
-                data.typecount[i][fixQStringType_lasttype]++;
-
+                    data.typecount[i][fixQStringType_lasttype]++;
+                }
             }
             data.saveRowsDone++;
 

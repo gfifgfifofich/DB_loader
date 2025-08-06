@@ -1937,7 +1937,7 @@ void CodeEditor::updateMisc()
     }
     braccketHighlightColor = col;
 
-    qDebug() <<userDS.GetProperty("UserTheme","ShowCodeSuggestion").trimmed() << "----------------------------------------------------------------------ShowCodeSuggestion";
+
     b_showSuggestion = userDS.GetProperty("UserTheme","ShowCodeSuggestion").trimmed() == "true";
 
     if(userDS.GetProperty("UserTheme","CodePreview") == "true")

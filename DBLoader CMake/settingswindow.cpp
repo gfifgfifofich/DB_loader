@@ -58,6 +58,12 @@ SettingsWindow::SettingsWindow(QWidget *parent)
                 return;
             });
 
+    connect(ui->themeBracketHighlightColorButton,  &QPushButton::pressed, this, [this]()
+            {
+                cb_pressed(ui->themeBracketHighlightColorLabel);
+                return;
+            });
+
     // theme
     ui->themeComboBox->addItem("Light");
     ui->themeComboBox->addItem("Dark");
@@ -202,6 +208,23 @@ SettingsWindow::SettingsWindow(QWidget *parent)
     palette.setColor(trg->foregroundRole(), col);
     trg->setPalette(palette);
 
+
+
+    trg = ui->themeBracketHighlightColorLabel;
+    trg->setText(userDS.data["UserTheme"]["Color_BracketHighlight"].trimmed());
+
+    strl = trg->text().split(',');
+    col = QColor::fromRgbF(0.25f,0.55f,0.95f,1.0f);
+    for(int i=0;i<strl.size();i++)
+    {
+        if(i==0) col.setRed(QVariant(strl[i]).toInt());
+        if(i==1) col.setGreen(QVariant(strl[i]).toInt());
+        if(i==2) col.setBlue(QVariant(strl[i]).toInt());
+        if(i==3) col.setAlpha(QVariant(strl[i]).toInt());
+    }
+    palette = trg->palette();
+    palette.setColor(trg->foregroundRole(), col);
+    trg->setPalette(palette);
 }
 
 SettingsWindow::~SettingsWindow()
@@ -345,6 +368,10 @@ void SettingsWindow::save()
 
     trg = ui->themeKeywordColorLabel;
     userDS.data["UserTheme"]["Color_KeyWord"] = trg->text();
+
+
+    trg = ui->themeBracketHighlightColorLabel;
+    userDS.data["UserTheme"]["Color_BracketHighlight"] = trg->text();
 
 
 
