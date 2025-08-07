@@ -292,6 +292,10 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     connect(ui->actionAdd_Numerator_column,  &QAction::triggered, this, [this]() {
         addNumeratorColumn();
     });
+    // Add numerator column
+    connect(ui->actionDelete_dublicates,  &QAction::triggered, this, [this]() {
+        deleteDublicates();
+    });
 
 
 
@@ -3045,6 +3049,45 @@ void LoaderWidnow::addNumeratorColumn()
     }
 }
 
+void LoaderWidnow::deleteDublicates()
+{
+
+    if(dc->data.tbldata.size() > 0)
+    {
+        int sizebuff = dc->data.tbldata.size();
+
+        std::map<QString,int> rowRepeatCount;
+        int i=0;
+        while(i < dc->data.tbldata[0].size())
+        {
+            QString rowStr = "";
+            for(int a=0;a< dc->data.tbldata.size();a++)
+            {
+                rowStr += dc->data.tbldata[a][i];
+            }
+
+            rowRepeatCount[rowStr];
+
+            if(rowRepeatCount[rowStr]<=0)
+            {// first row
+                rowRepeatCount[rowStr] = 1;
+                i++;
+            }
+            else
+            {//deleate row
+
+                for(int a=0;a< dc->data.tbldata.size();a++)
+                {
+                    dc->data.tbldata[a].removeAt(i);
+                }
+            }
+        }
+
+
+
+        UpdateTable();
+    }
+}
 
 
 inline float NN_min = 100000;

@@ -240,6 +240,7 @@ public slots:
 
     void splitColumn();
     void addNumeratorColumn();
+    void deleteDublicates();
 
     void openDescriptorWindow();
 
