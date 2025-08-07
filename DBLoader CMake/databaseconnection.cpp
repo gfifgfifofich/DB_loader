@@ -569,7 +569,7 @@ void _dc_AsyncFunc(DatabaseConnection* tmpcon, QString sql)
     qDebug() << "Async: ran";
 }
 
-QString UnrollAllLoops(QString sql)
+QString DatabaseConnection::UnrollAllLoops(QString sql)
 {
     QString scriptCommand = "";
     QString formatedSql;
@@ -675,7 +675,12 @@ QString UnrollAllLoops(QString sql)
                                 if(sql[buff_a] == '}' && bracketValue < 3)
                                 {
                                     lastVar = lastVar.trimmed();
-                                    funcVariables  << lastVar;
+
+                                    if(lastVar.trimmed().size() >=1)
+                                        funcVariables  << processSqlWithCommands(lastVar);
+                                    else
+                                        funcVariables  << lastVar;
+
                                     lastVar = "";
                                 }
                                 else if(bracketValue > 1 && sql[buff_a] != '\t'&& sql[buff_a] != '\t'&& sql[buff_a] != '\r')
@@ -745,7 +750,7 @@ QString UnrollAllLoops(QString sql)
                             {
                                 if(s.trimmed().size() <1)
                                     continue;
-                                QString tmpvar = UnrollAllLoops(s).trimmed();
+                                QString tmpvar = s.trimmed();
                                 while(tmpvar.endsWith(QChar('\u0000')))
                                     tmpvar.resize(tmpvar.size()-1);
                                 qDebug() << tmpvar << "  from  "<< s;
@@ -1067,50 +1072,16 @@ QString UnrollAllLoops(QString sql)
     return sql;
 }
 
-bool DatabaseConnection::execSql(QString sql)
+
+
+QString DatabaseConnection::processSqlWithCommands(QString sql)
 {
-    stopNow = false;// to be shure we wont reject query right after exec
-    lastLaunchIsError = false;
-    dataDownloading = false;
-    lastErrorPos = -1;
-    savefilecount = 0;
-    queryExecutionState = 0;
-    tableDataMutex.lock();
-    tableDataMutex.unlock();
-    executionTime = QDateTime::currentSecsSinceEpoch();
-    executionStart = QDateTime::currentDateTime();
-
-    data.exported = false;
-    if(!db.isOpen() && !customOracle && (!(customSQlite)) && !(customPSQL))
-    {
-        bool ok = db.open();
-        if(ok)
-        {
-            if(!nodebug) qDebug() << "db opened";
-        }
-        else
-        {
-            if(!nodebug) qDebug() << "nope: "<< Last_ConnectError;
-
-            executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
-            executionEnd = QDateTime::currentDateTime();
-            if(!nodebug) qDebug() << "Execd";
-            executing = false;
-            queryExecutionState = 4;
-
-            emit execedSql();
-            return true;
-        }
-    }
-
-
+    if(sql.size() <=0)
+        return sql;
     if(sql.size() <=0)
         sql = sqlCode;
     QString str = sql;
     this->data.allSqlCode = str;
-
-
-
 
     if(!rawquery)
     {
@@ -1131,7 +1102,6 @@ bool DatabaseConnection::execSql(QString sql)
         QList<QStringList> asyncExecution_Formats;
         QList<int> asyncExecution_commandIds;
         QList<QThread*> asyncExecution_threads;
-        asyncExecution_databaseConnections.clear();
 
 
         // loop while keywords can be possible in code (due to nested loops and other syntax)
@@ -1212,7 +1182,11 @@ bool DatabaseConnection::execSql(QString sql)
                                     if(sql[buff_a] == '}' && bracketValue < 3)
                                     {
                                         lastVar = lastVar.trimmed();
-                                        funcVariables  << lastVar;
+                                        if(lastVar.trimmed().size() >=1)
+                                            funcVariables  << processSqlWithCommands(lastVar);
+                                        else
+                                            funcVariables  << lastVar;
+
                                         lastVar = "";
                                     }
                                     else if(bracketValue > 1 && sql[buff_a] != '\t'&& sql[buff_a] != '\t'&& sql[buff_a] != '\r')
@@ -1304,9 +1278,7 @@ bool DatabaseConnection::execSql(QString sql)
                                 int varcount = 0;
                                 for(auto s : funcVariables)
                                 {
-                                    if(s.trimmed().size() <1)
-                                        continue;
-                                    QString tmpvar = UnrollAllLoops(s).trimmed();
+                                    QString tmpvar = s;
                                     while(tmpvar.endsWith(QChar('\u0000')))
                                         tmpvar.resize(tmpvar.size()-1);
 
@@ -1383,6 +1355,7 @@ bool DatabaseConnection::execSql(QString sql)
 
                                 if(asyncExecution_pasteExecsData)
                                 {
+                                    qDebug() << "asyncExecution_databaseConnections.size() = " << asyncExecution_databaseConnections.size();
                                     subscriptConnesction = asyncExecution_databaseConnections[0];
                                     asyncExecution_databaseConnections.pop_front();
                                 }
@@ -1447,6 +1420,7 @@ bool DatabaseConnection::execSql(QString sql)
                                             break;
                                         }
                                     }
+                                qDebug() << "processing result of async: "<<subscriptConnesction->data.allSqlCode;
                                 subscriptConnesction->data.allSqlCode = this->data.allSqlCode;
 
 
@@ -2093,14 +2067,7 @@ bool DatabaseConnection::execSql(QString sql)
 
                                 if(stopNow)
                                 {
-                                    stopNow=false;
-                                    executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
-                                    executionEnd = QDateTime::currentDateTime();
-                                    if(!nodebug) qDebug() << "Execd";
-                                    executing = false;
-                                    queryExecutionState = 4;
-                                    emit execedSql();
-                                    return false;
+                                    return str;
                                 }
                             }
 
@@ -2177,7 +2144,14 @@ bool DatabaseConnection::execSql(QString sql)
                                 {
                                     qDebug() << "wait thread " << t;
                                     if(t->isRunning())
+                                    {
+
+                                        qDebug() << "asyncExecution_Formats.size() = " << asyncExecution_Formats.size();
+                                        qDebug() << "asyncExecution_commandIds.size() = " << asyncExecution_commandIds.size();
+                                        qDebug() << "asyncExecution_threads.size() = " << asyncExecution_threads.size();
+                                        qDebug() << "asyncExecution_databaseConnections.size() = " << asyncExecution_databaseConnections.size();
                                         t->wait();
+                                    }
                                     qDebug() << "thread done" << t;
                                 }
                                 asyncExecution_threads.clear();
@@ -2218,6 +2192,75 @@ bool DatabaseConnection::execSql(QString sql)
         if(!nodebug) qDebug()<<"Resulting formatedSql is";
         str = formatedSql.trimmed();
 
+    }
+
+    return str;
+}
+
+bool DatabaseConnection::execSql(QString sql)
+{
+    stopNow = false;// to be shure we wont reject query right after exec
+    lastLaunchIsError = false;
+    dataDownloading = false;
+    lastErrorPos = -1;
+    savefilecount = 0;
+    queryExecutionState = 0;
+    tableDataMutex.lock();
+    tableDataMutex.unlock();
+    executionTime = QDateTime::currentSecsSinceEpoch();
+    executionStart = QDateTime::currentDateTime();
+
+    asyncExecution_databaseConnections.clear();
+    data.exported = false;
+    if(!db.isOpen() && !customOracle && (!(customSQlite)) && !(customPSQL))
+    {
+        bool ok = db.open();
+        if(ok)
+        {
+            if(!nodebug) qDebug() << "db opened";
+        }
+        else
+        {
+            if(!nodebug) qDebug() << "nope: "<< Last_ConnectError;
+
+            executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
+            executionEnd = QDateTime::currentDateTime();
+            if(!nodebug) qDebug() << "Execd";
+            executing = false;
+            queryExecutionState = 4;
+
+            emit execedSql();
+            return true;
+        }
+    }
+
+
+    if(sql.size() <=0)
+        sql = sqlCode;
+    QString str = sql;
+    this->data.allSqlCode = str;
+
+
+
+
+    if(!rawquery)
+    {
+        sql =processSqlWithCommands(str);
+
+        str = sql.trimmed();
+
+    }
+
+    if(stopNow)
+    {
+        stopNow=false;
+        executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
+        executionEnd = QDateTime::currentDateTime();
+        if(!nodebug) qDebug() << "Execd";
+        executing = false;
+        queryExecutionState = 4;
+        emit execedSql();
+        return false;
     }
     executing = true;
     // run result

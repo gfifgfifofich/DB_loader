@@ -11,9 +11,29 @@ DocWindow::DocWindow(QWidget *parent)
     ui->treeWidget->setColumnCount(1);
     QList<QTreeWidgetItem *> items;
 
+
+    // subCommandPatterns.push_back("SilentSubexecToLocalDBTable");
+    // subCommandPatterns.push_back("ExcelToLocalDBTable");
+    // subCommandPatterns.push_back("SubexecToLocalDBTable");
+    // subCommandPatterns.push_back("CSVToLocalDBTable");
+
+    // subCommandPatterns.push_back("SilentSubexecToExcelTable");
+    // subCommandPatterns.push_back("SilentSubexecToExcelWorksheet");
+    // subCommandPatterns.push_back("SilentSubexecAppendExcelWorksheet");
+    // subCommandPatterns.push_back("SubexecToExcelWorksheet");
+    // subCommandPatterns.push_back("SubexecAppendExcelWorksheet");
+    // subCommandPatterns.push_back("SubexecToUnionAllTable");
+    // subCommandPatterns.push_back("SilentSubexecAppendCSV");
+    // subCommandPatterns.push_back("SubexecToExcelTable");
+    // subCommandPatterns.push_back("SilentSubexecToCSV");
+    // subCommandPatterns.push_back("SubexecAppendCSV");
+    // subCommandPatterns.push_back("SubexecToMagic");
+    // subCommandPatterns.push_back("SubexecToArray");
+
+
     items.push_back(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("Commands")));
     items.back()->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("Execution")));
-    items.back()->child(0)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("SubexecToSqliteTable")));
+    items.back()->child(0)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("SubexecToLocalDBTable")));
     items.back()->child(0)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("SubexecToCSV")));
     items.back()->child(0)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("SubexecAppendCSV")));
     items.back()->child(0)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("SubexecToExcelTable")));
@@ -27,15 +47,26 @@ DocWindow::DocWindow(QWidget *parent)
     items.back()->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("FileImport")));
     items.back()->child(1)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("ExcelToMagic")));
     items.back()->child(1)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("ExcelToArray")));
-    items.back()->child(1)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("ExcelToSqliteTable")));
+    items.back()->child(1)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("ExcelToLocalDBTable")));
     items.back()->child(1)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("CSVToMagic")));
     items.back()->child(1)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("CSVToArray")));
-    items.back()->child(1)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("CSVToSqliteTable")));
+    items.back()->child(1)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("CSVToLocalDBTable")));
     items.back()->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("Loops")));
     items.back()->child(2)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("ForLoop")));
     items.back()->child(2)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("QueryForLoop")));
     items.back()->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("Misc")));
     items.back()->child(3)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("SendMail")));
+    items.back()->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("DateTime")));
+    items.back()->child(4)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("DBLPasteYearMonthOffset")));
+    items.back()->child(4)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("DBLPasteYearDayOffset")));
+    items.back()->child(4)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("DBLPasteDaysInMonth")));
+    items.back()->child(4)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("DBLPasteDaysInMonthByMonth")));
+    items.back()->child(4)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("DBLPasteDaysInMonthDayOffset")));
+    items.back()->child(4)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("DBLPasteDayOfMonth")));
+    items.back()->child(4)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("DBLPasteMonthDayOffset")));
+    items.back()->child(4)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("DBLPasteNumMonthDayOffset")));
+    items.back()->child(4)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("DBLPasteMonth")));
+    items.back()->child(4)->addChild(new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr),QStringList("DBLPasteNumMonth")));
 
     ui->treeWidget->insertTopLevelItems(0, items);
 
@@ -207,7 +238,7 @@ void DocWindow::on_treeWidget_currentItemChanged(QTreeWidgetItem *current, QTree
     {
 
     }
-    if(current->text(0) == "ExcelToSqliteTable")
+    if(current->text(0) == "ExcelToLocalDBTable")
     {
 
     }
@@ -219,7 +250,7 @@ void DocWindow::on_treeWidget_currentItemChanged(QTreeWidgetItem *current, QTree
     {
 
     }
-    if(current->text(0) == "CSVToSqliteTable")
+    if(current->text(0) == "CSVToLocalDBTable")
     {
 
     }
@@ -306,7 +337,7 @@ void DocWindow::on_treeWidget_currentItemChanged(QTreeWidgetItem *current, QTree
     }
 
 
-    if(current->text(0) == "SubexecToSqliteTable")
+    if(current->text(0) == "SubexecToLocalDBTable")
     {
         label_ptrs.push_back(new QLabel());
         ui->scrollAreaWidgetContents->layout()->addWidget(label_ptrs.back());
@@ -731,7 +762,7 @@ void DocWindow::on_treeWidget_currentItemChanged(QTreeWidgetItem *current, QTree
 
         label_ptrs.push_back(new QLabel());
         ui->scrollAreaWidgetContents->layout()->addWidget(label_ptrs.back());
-        label_ptrs.back()->setText(tr("All subexecs after this command and 'AwaitAsyncExecution{}' will be launched in parallel"));
+        label_ptrs.back()->setText(tr("All subexecs after this command and 'AwaitAsyncExecution{}' will be launched in parallel. Still unstable, so use if necessary and only in one loop like in example. More exotic uses may cause severe unstability"));
         label_ptrs.back()->setWordWrap(true);
         label_ptrs.back()->setTextInteractionFlags(Qt::TextSelectableByMouse);
 
@@ -747,7 +778,7 @@ void DocWindow::on_treeWidget_currentItemChanged(QTreeWidgetItem *current, QTree
         cd_ptrs.back()->b_codePreview=false;
         cd_ptrs.back()->b_showSuggestion=false;
         ui->scrollAreaWidgetContents->layout()->addWidget(cd_ptrs.back());
-        cd_ptrs.back()->setPlainText("StartAsyncExecution {--{}} \nForLoop { --{iter}{0}{5}\n SilentSubexecToCSV { -- {LOCAL} {LOCAL} {file_iter} select 'iter' as \"column\" }}\n AwaitAsyncExecution{--{}}");
+        cd_ptrs.back()->setPlainText("StartAsyncExecution {{}} \nForLoop {{iter}{0}{5}\n SilentSubexecToCSV {{LOCAL} {LOCAL} {file_iter} select 'iter' as \"column\" }}\n AwaitAsyncExecution{{}}");
         cd_ptrs.back()->adjustSize();
 
     }
@@ -759,6 +790,218 @@ void DocWindow::on_treeWidget_currentItemChanged(QTreeWidgetItem *current, QTree
         label_ptrs.back()->setWordWrap(true);
         label_ptrs.back()->setTextInteractionFlags(Qt::TextSelectableByMouse);
 
+
+    }
+
+
+    if(current->text(0) == "DBLPasteYearMonthOffset")
+    {
+        label_ptrs.push_back(new QLabel());
+        ui->scrollAreaWidgetContents->layout()->addWidget(label_ptrs.back());
+        label_ptrs.back()->setText(tr("Replaced with year, takes one parameter - offset in months from current date"));
+        label_ptrs.back()->setWordWrap(true);
+        label_ptrs.back()->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+
+        cd_ptrs.push_back(new CodeEditor());
+        cd_ptrs.back()->b_codePreview=false;
+        cd_ptrs.back()->b_showSuggestion=false;
+        ui->scrollAreaWidgetContents->layout()->addWidget(cd_ptrs.back());
+        cd_ptrs.back()->setPlainText("select DBLPasteYearMonthOffset {{-1}} as \"year of previous month\",DBLPasteYearMonthOffset {{-12}} as prev_year,DBLPasteYearMonthOffset {{}} as current_year");
+        cd_ptrs.back()->adjustSize();
+    }
+    if(current->text(0) == "DBLPasteYearDayOffset")
+    {
+        label_ptrs.push_back(new QLabel());
+        ui->scrollAreaWidgetContents->layout()->addWidget(label_ptrs.back());
+        label_ptrs.back()->setText(tr("Replaced with year, takes one parameter - offset in days from current date"));
+        label_ptrs.back()->setWordWrap(true);
+        label_ptrs.back()->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+
+        cd_ptrs.push_back(new CodeEditor());
+        cd_ptrs.back()->b_codePreview=false;
+        cd_ptrs.back()->b_showSuggestion=false;
+        ui->scrollAreaWidgetContents->layout()->addWidget(cd_ptrs.back());
+        cd_ptrs.back()->setPlainText("select DBLPasteYearDayOffset {{-1}} as \"year of previous month\",DBLPasteYearDayOffset {{-365}} as unreliable_prev_year,DBLPasteYearDayOffset {{}} as current_year");
+        cd_ptrs.back()->adjustSize();
+    }
+    if(current->text(0) == "DBLPasteDaysInMonth")
+    {
+        label_ptrs.push_back(new QLabel());
+        ui->scrollAreaWidgetContents->layout()->addWidget(label_ptrs.back());
+        label_ptrs.back()->setText(tr("Replaced with number of days in month, takes one parameter - offset in months from current date"));
+        label_ptrs.back()->setWordWrap(true);
+        label_ptrs.back()->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+
+        cd_ptrs.push_back(new CodeEditor());
+        cd_ptrs.back()->b_codePreview=false;
+        cd_ptrs.back()->b_showSuggestion=false;
+        ui->scrollAreaWidgetContents->layout()->addWidget(cd_ptrs.back());
+        cd_ptrs.back()->setPlainText("select DBLPasteDaysInMonth {{-1}} as \"days in previous month\",DBLPasteDaysInMonth {{-12}} as days_this_month_but_past_year,DBLPasteDaysInMonth {{}} as days_in_current_month");
+        cd_ptrs.back()->adjustSize();
+
+    }
+    if(current->text(0) == "DBLPasteDaysInMonthByMonth")
+    {
+
+        label_ptrs.push_back(new QLabel());
+        ui->scrollAreaWidgetContents->layout()->addWidget(label_ptrs.back());
+        label_ptrs.back()->setText(tr("Replaced with number of days in month, takes two parameters: \n    number of month (number from 1 to 12), and \n    year (optional) - if not set, current year will be used"));
+        label_ptrs.back()->setWordWrap(true);
+        label_ptrs.back()->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+
+        cd_ptrs.push_back(new CodeEditor());
+        cd_ptrs.back()->b_codePreview=false;
+        cd_ptrs.back()->b_showSuggestion=false;
+        ui->scrollAreaWidgetContents->layout()->addWidget(cd_ptrs.back());
+        cd_ptrs.back()->setPlainText("select DBLPasteDaysInMonthByMonth {{2}} as \"days in february this year\",DBLPasteDaysInMonthByMonth {{2}{2024}} as \"days in february 2024\"");
+        cd_ptrs.back()->adjustSize();
+    }
+    if(current->text(0) == "DBLPasteDaysInMonthDayOffset")
+    {
+        label_ptrs.push_back(new QLabel());
+        ui->scrollAreaWidgetContents->layout()->addWidget(label_ptrs.back());
+        label_ptrs.back()->setText(tr("Replaced with number of days in month, takes one parameter - offset in days from current date"));
+        label_ptrs.back()->setWordWrap(true);
+        label_ptrs.back()->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+
+        cd_ptrs.push_back(new CodeEditor());
+        cd_ptrs.back()->b_codePreview=false;
+        cd_ptrs.back()->b_showSuggestion=false;
+        ui->scrollAreaWidgetContents->layout()->addWidget(cd_ptrs.back());
+        cd_ptrs.back()->setPlainText("select DBLPasteDaysInMonthDayOffset {{-1}} as \"days in month yeasterday\",DBLPasteDaysInMonthDayOffset {{}} as days_in_current_month");
+        cd_ptrs.back()->adjustSize();
+
+    }
+    if(current->text(0) == "DBLPasteDayOfMonth")
+    {
+
+        label_ptrs.push_back(new QLabel());
+        ui->scrollAreaWidgetContents->layout()->addWidget(label_ptrs.back());
+        label_ptrs.back()->setText(tr("Replaced with day (format is 01,02,...,09,10,11,12),takes one parameter - offset in days from current date"));
+        label_ptrs.back()->setWordWrap(true);
+        label_ptrs.back()->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+
+        cd_ptrs.push_back(new CodeEditor());
+        cd_ptrs.back()->b_codePreview=false;
+        cd_ptrs.back()->b_showSuggestion=false;
+        ui->scrollAreaWidgetContents->layout()->addWidget(cd_ptrs.back());
+        cd_ptrs.back()->setPlainText("select DBLPasteDayOfMonth {{-1}} as \"date yesterday\",DBLPasteDayOfMonth {{-12}} as \"date 12 days ago\",DBLPasteDayOfMonth {{}} as \"current day\"");
+        cd_ptrs.back()->adjustSize();
+    }
+    if(current->text(0) == "DBLPasteMonthDayOffset")
+    {
+        label_ptrs.push_back(new QLabel());
+        ui->scrollAreaWidgetContents->layout()->addWidget(label_ptrs.back());
+        label_ptrs.back()->setText(tr("Replaced with month (format is 01,02,...,09,10,11,12),takes one parameter - offset in days from current date"));
+        label_ptrs.back()->setWordWrap(true);
+        label_ptrs.back()->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+
+        cd_ptrs.push_back(new CodeEditor());
+        cd_ptrs.back()->b_codePreview=false;
+        cd_ptrs.back()->b_showSuggestion=false;
+        ui->scrollAreaWidgetContents->layout()->addWidget(cd_ptrs.back());
+        cd_ptrs.back()->setPlainText("select DBLPasteMonthDayOffset {{-1}} as \"month yesterday\",DBLPasteMonthDayOffset {{-12}} as \"month 12 days ago\",DBLPasteMonthDayOffset {{}} as \"current month\"");
+        cd_ptrs.back()->adjustSize();
+
+    }
+    if(current->text(0) == "DBLPasteNumMonthDayOffset")
+    {
+
+        label_ptrs.push_back(new QLabel());
+        ui->scrollAreaWidgetContents->layout()->addWidget(label_ptrs.back());
+        label_ptrs.back()->setText(tr("Replaced with month (format is 1,2,...,9,10,11,12),takes one parameter - offset in days from current date"));
+        label_ptrs.back()->setWordWrap(true);
+        label_ptrs.back()->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+
+        cd_ptrs.push_back(new CodeEditor());
+        cd_ptrs.back()->b_codePreview=false;
+        cd_ptrs.back()->b_showSuggestion=false;
+        ui->scrollAreaWidgetContents->layout()->addWidget(cd_ptrs.back());
+        cd_ptrs.back()->setPlainText("select DBLPasteNumMonthDayOffset {{-1}} as \"month yesterday\",DBLPasteNumMonthDayOffset {{-12}} as \"month 12 days ago\",DBLPasteNumMonthDayOffset {{}} as \"current month\"");
+        cd_ptrs.back()->adjustSize();
+    }
+    if(current->text(0) == "DBLPasteMonth")
+    {
+        label_ptrs.push_back(new QLabel());
+        ui->scrollAreaWidgetContents->layout()->addWidget(label_ptrs.back());
+        label_ptrs.back()->setText(tr("Replaced with month (format is 01,02,...,09,10,11,12),takes one parameter - offset in month from current date"));
+        label_ptrs.back()->setWordWrap(true);
+        label_ptrs.back()->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+
+        cd_ptrs.push_back(new CodeEditor());
+        cd_ptrs.back()->b_codePreview=false;
+        cd_ptrs.back()->b_showSuggestion=false;
+        ui->scrollAreaWidgetContents->layout()->addWidget(cd_ptrs.back());
+        cd_ptrs.back()->setPlainText("select DBLPasteMonth {{-1}} as \"previous month\",DBLPasteMonth {{-12}} as \"month prev year and current month\",DBLPasteMonth {{}} as \"current month\"");
+        cd_ptrs.back()->adjustSize();
+
+    }
+    if(current->text(0) == "DBLPasteNumMonth")
+    {
+        label_ptrs.push_back(new QLabel());
+        ui->scrollAreaWidgetContents->layout()->addWidget(label_ptrs.back());
+        label_ptrs.back()->setText(tr("Replaced with month (format is 1,2,...,9,10,11,12),takes one parameter - offset in month from current date"));
+        label_ptrs.back()->setWordWrap(true);
+        label_ptrs.back()->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+
+        cd_ptrs.push_back(new CodeEditor());
+        cd_ptrs.back()->b_codePreview=false;
+        cd_ptrs.back()->b_showSuggestion=false;
+        ui->scrollAreaWidgetContents->layout()->addWidget(cd_ptrs.back());
+        cd_ptrs.back()->setPlainText("select DBLPasteNumMonth {{-1}} as \"previous month\",DBLPasteNumMonth {{-12}} as \"month prev year and current month\",DBLPasteNumMonth {{}} as \"current month\"");
+        cd_ptrs.back()->adjustSize();
+
+    }
+
+
+    if(current->text(0) == "SendMail")
+    {
+
+        label_ptrs.push_back(new QLabel());
+        ui->scrollAreaWidgetContents->layout()->addWidget(label_ptrs.back());
+        label_ptrs.back()->setText(tr("Sends an email using simple mail transfer protocol (SMTP)"));
+        label_ptrs.back()->setWordWrap(true);
+        label_ptrs.back()->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+        label_ptrs.push_back(new QLabel());
+        ui->scrollAreaWidgetContents->layout()->addWidget(label_ptrs.back());
+        label_ptrs.back()->setText(tr("Arguments:"));
+        label_ptrs.back()->setWordWrap(true);
+        label_ptrs.back()->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+        label_ptrs.push_back(new QLabel());
+        ui->scrollAreaWidgetContents->layout()->addWidget(label_ptrs.back());
+        label_ptrs.back()->setText(tr("Arguments:"));
+        label_ptrs.back()->setWordWrap(true);
+        label_ptrs.back()->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+
+        // SendMail {
+        //     {smtp.gmail.com}  {Sender@gmail.com}  {sender name}
+        //     {recipient1@gmail.com,recipient2@gmail.com,recipient3@gmail.com} {copy1,copy2,copy3}
+        //     {Theme}  {mail Text} {Attached/File1.xlsx,Attached/File2.csv}
+        // }
+
+        cd_ptrs.push_back(new CodeEditor());
+        cd_ptrs.back()->b_codePreview=false;
+        cd_ptrs.back()->b_showSuggestion=false;
+        ui->scrollAreaWidgetContents->layout()->addWidget(cd_ptrs.back());
+        cd_ptrs.back()->setPlainText("SendMail { {smtp.gmail.com}  {Sender@gmail.com}  {sender name}\n"
+                                     "{recipient1@gmail.com,recipient2@gmail.com,recipient3@gmail.com} {copy1,copy2,copy3}\n"
+                                     "{Theme}  {mail Text} {Attached/File1.xlsx,Attached/File2.csv\n"
+                                     "}"
+                                     "");
+        cd_ptrs.back()->adjustSize();
 
     }
 

@@ -96,6 +96,8 @@ public:
     Q_INVOKABLE bool Create(QString driver, QString DBName); // create dc connection, using userdata
     Q_INVOKABLE bool DeleteDbConnection(); // create dc connection, using userdata
     Q_INVOKABLE bool execSql(QString sql = "");
+    Q_INVOKABLE QString UnrollAllLoops(QString sql = "");
+    Q_INVOKABLE QString processSqlWithCommands(QString sql = "");
 
     // QML functions
     Q_INVOKABLE QString replace(QString str,QString what, QString with);

@@ -283,11 +283,16 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
         CommentSelected();
     });
 
-
-    // comment code
+    /// Other actions
+    // Split column code
     connect(ui->actionSplit_column,  &QAction::triggered, this, [this]() {
         splitColumn();
     });
+    // Add numerator column
+    connect(ui->actionAdd_Numerator_column,  &QAction::triggered, this, [this]() {
+        addNumeratorColumn();
+    });
+
 
 
 
@@ -3016,7 +3021,29 @@ void LoaderWidnow::splitColumn()
 }
 
 
+void LoaderWidnow::addNumeratorColumn()
+{
 
+    if(dc->data.tbldata.size() > 0)
+    {
+        int sizebuff = dc->data.tbldata.size();
+
+        dc->data.tbldata.resize(sizebuff + 1);
+        dc->data.headers.resize(sizebuff + 1);
+        dc->data.headers.back() = "ID";
+        dc->data.maxVarTypes.push_back(QMetaType::Double);
+        dc->data.typecount.emplace_back();
+        while(dc->data.typecount.back().size()<=QMetaType::Double)
+            dc->data.typecount.back().push_back(0);
+        dc->data.typecount.back().back() = dc->data.tbldata[0].size();
+
+        for(int i=0;i < dc->data.tbldata[0].size();i++)
+        {
+            dc->data.tbldata.back().push_back(QVariant(i).toString());
+        }
+        UpdateTable();
+    }
+}
 
 
 
