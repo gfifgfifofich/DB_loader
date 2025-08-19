@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <fstream>
+#include "qtcomputeshader/glwrappers.h"
 class NeuralNetwork
 {
 public:
@@ -58,6 +59,38 @@ public:
 
 	// Uses Cost() to minimize the diviation between outputs array and NN.outputs . Method - finite difirences. For more variety see CustomLearn()
 	void learn(float rate, float* input, float* output, int amount);
+
+    // Backpropagation learning function
+    void BackPropagate(float* input, float* targetOutput, float learningRate);
+
+    // GPU functions
+    GlContext* glContext = nullptr;
+    ComputeShader* runShader = nullptr;
+    ComputeShader* backPropagateShader = nullptr;
+    ShaderBuffer* nodesBuffer = nullptr;
+    ShaderBuffer* biasesBuffer = nullptr;
+    ShaderBuffer* weightsBuffer = nullptr;
+    ShaderBuffer* archBuffer = nullptr;
+    ShaderBuffer* nodesStepBuffer = nullptr;
+    ShaderBuffer* weightsStepBuffer = nullptr;
+    ShaderBuffer* inputBufferGPU = nullptr;
+    ShaderBuffer* targetOutputBufferGPU = nullptr;
+    ShaderBuffer* outputBufferGPU = nullptr;
+    ShaderBuffer* biasGradientsBufferGPU = nullptr;
+    ShaderBuffer* weightGradientsBufferGPU = nullptr;
+
+    void CreateGPU(int* Architecture, int archsize);
+    void RunGPU(float* inputData);
+    void BackPropagateGPU(float* input, float* targetOutput, float learningRate);
+    void DeleteGPU();
+
+    // New GPU memory management functions
+    void UpdateWeightsAndBiases();
+    void InitGPUBuffers();
+    void UpdateGPUInput(float* inputData);
+    void ReadGPUOutput();
+    void UpdateGPUTargetOutput(float* targetOutput);
+    void ReadGPUWeightsBiases();
 
 	//Setups nn for future learning. After the learning iteration compleated, call ApplyLearning
 	void SetupLearing();

@@ -134,11 +134,11 @@ int main(int argc, char *argv[])
         {
             if(QString().fromLocal8Bit(argv[i]).endsWith(".exe"))
             {
-                i++;
+                i++; // next and break
                 break;
             }
             else
-                i++;
+                i++; // continue search
         }
         launchOpenFile = true;
         launchOpenFileName = QString().fromLocal8Bit(argv[i]);
@@ -149,6 +149,16 @@ int main(int argc, char *argv[])
             launchOpenFile =false;
             launchOpenFileName = "";
         }
+        if(i + 3 < argc)// can fit "daily_at 10 20"
+        {
+
+            launchOpenFileName = QString().fromLocal8Bit(argv[i]);
+            launchIntervalParameter = QString().fromLocal8Bit(argv[i+1]);
+            launchIntervalHour = QString().fromLocal8Bit(argv[i+2]);
+            launchIntervalMinute = QString().fromLocal8Bit(argv[i+3]);
+            launchAutomation = true;
+        }
+
     }
 
 

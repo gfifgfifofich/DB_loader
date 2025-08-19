@@ -143,6 +143,18 @@
            <property name="sizeConstraint">
             <enum>QLayout::SizeConstraint::SetNoConstraint</enum>
            </property>
+           <property name="leftMargin">
+            <number>8</number>
+           </property>
+           <property name="topMargin">
+            <number>8</number>
+           </property>
+           <property name="rightMargin">
+            <number>8</number>
+           </property>
+           <property name="bottomMargin">
+            <number>8</number>
+           </property>
            <item>
             <widget class="QLabel" name="timerMainLabel">
              <property name="maximumSize">
@@ -268,6 +280,24 @@
               <widget class="QSpinBox" name="timerMinuteWeekly"/>
              </item>
             </layout>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_10">
+             <item>
+              <widget class="QCheckBox" name="realTimeUpdatecheckBox">
+               <property name="text">
+                <string>&quot;Constant Real Time Update&quot;</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="updateGraphCheckBox">
+             <property name="text">
+              <string>Update Graph</string>
+             </property>
+            </widget>
            </item>
           </layout>
          </item>
@@ -558,13 +588,20 @@
     <property name="title">
      <string>Misc</string>
     </property>
+    <widget class="QMenu" name="menuAdd_column">
+     <property name="title">
+      <string>Add column</string>
+     </property>
+     <addaction name="actionLevenstein_join"/>
+    </widget>
     <addaction name="actionRun_token_processor"/>
     <addaction name="actionNN_Learn_first_column"/>
     <addaction name="actionNN_Run"/>
     <addaction name="actionOpen_QML_form"/>
     <addaction name="actionSplit_column"/>
-    <addaction name="actionAdd_Numerator_column"/>
     <addaction name="actionDelete_dublicates"/>
+    <addaction name="actionAdd_Numerator_column"/>
+    <addaction name="menuAdd_column"/>
    </widget>
    <widget class="QMenu" name="menuCode">
     <property name="title">
@@ -1088,14 +1125,19 @@
     <string>Split column</string>
    </property>
   </action>
-  <action name="actionAdd_Numerator_column">
-   <property name="text">
-    <string>Add Numerator column</string>
-   </property>
-  </action>
   <action name="actionDelete_dublicates">
    <property name="text">
     <string>Delete dublicates</string>
+   </property>
+  </action>
+  <action name="actionLevenstein_join">
+   <property name="text">
+    <string>Levenstein join</string>
+   </property>
+  </action>
+  <action name="actionAdd_Numerator_column">
+   <property name="text">
+    <string>Add Numerator column</string>
    </property>
   </action>
  </widget>

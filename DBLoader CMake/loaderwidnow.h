@@ -31,7 +31,11 @@
 
 //  Launch options
 inline QString launchOpenFileName = "";
+inline QString launchIntervalParameter = "";
+inline QString launchIntervalHour = "";
+inline QString launchIntervalMinute = "";
 inline bool launchOpenFile = false;
+inline bool launchAutomation = false;
 namespace Ui {
 class LoaderWidnow;
 }
@@ -241,6 +245,7 @@ public slots:
     void splitColumn();
     void addNumeratorColumn();
     void deleteDublicates();
+    void levensteinJoin();
 
     void openDescriptorWindow();
 

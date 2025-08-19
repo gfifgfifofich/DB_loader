@@ -26,7 +26,6 @@
 #include "include/SimpleMail/SimpleMail"
 #include <QDockWidget>
 #include "docwindow.h"
-#include "qtcomputeshader/glwrappers.h"
 #include <QInputDialog>
 #include <QMessageBox>
 
@@ -72,8 +71,9 @@ inline QTime lastMultiRunPress = QTime::currentTime();
 
 GlContext gl_compute_context;
 ComputeShader gl_compute_shader;
-ComputeShader gl_compute_shader_learn;
-ComputeShader gl_compute_shader_rank;
+ComputeShader gl_compute_shader_output_error;
+ComputeShader gl_compute_shader_backpropagate_hidden;
+ComputeShader gl_compute_shader_update_weights_biases;
 
 QStringList allPosibbleTokens;
 QMap<QString,int> allPosibbleTokensMap;
@@ -123,19 +123,29 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     ui->stopLoadingQueryButton->hide();
 
 
+
+
     // setup compute shader stuff
     //Context - for create and maintaing OpenGL context
     gl_compute_context.setup();
 
     //Compute shader
     QString shader_file = "./shader/compute_shader.csh";
+    QString shader_file_output_error = "./shader/compute_shader_output_error.csh";
+    QString shader_file_backpropagate_hidden = "./shader/compute_shader_backpropagate_hidden.csh";
+    QString shader_file_update_weights_biases = "./shader/compute_shader_update_weights_biases.csh";
+
     gl_compute_shader.setup(shader_file, &gl_compute_context);
+    gl_compute_shader_output_error.setup(shader_file_output_error, &gl_compute_context);
+    gl_compute_shader_backpropagate_hidden.setup(shader_file_backpropagate_hidden, &gl_compute_context);
+    gl_compute_shader_update_weights_biases.setup(shader_file_update_weights_biases, &gl_compute_context);
 
-    QString shader_file_learn = "./shader/compute_shader_learn.csh";
-    gl_compute_shader_learn.setup(shader_file_learn, &gl_compute_context);
+    // Remove old shader loading
+    // QString shader_file_learn = "./shader/compute_shader_learn.csh";
+    // gl_compute_shader_learn.setup(shader_file_learn, &gl_compute_context);
 
-    QString shader_file_rank = "./shader/compute_shader_rank.csh";
-    gl_compute_shader_rank.setup(shader_file_rank, &gl_compute_context);
+    // QString shader_file_rank = "./shader/compute_shader_rank.csh";
+    // gl_compute_shader_rank.setup(shader_file_rank, &gl_compute_context);
 
 
 
@@ -295,6 +305,11 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     // Add numerator column
     connect(ui->actionDelete_dublicates,  &QAction::triggered, this, [this]() {
         deleteDublicates();
+    });
+
+    // Add numerator column
+    connect(ui->actionLevenstein_join,  &QAction::triggered, this, [this]() {
+        levensteinJoin();
     });
 
 
@@ -462,6 +477,16 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 
     }
 
+    if(launchAutomation)
+    {
+        if(launchIntervalParameter == "daily")
+        {
+            ui->timer_checkBox->setChecked(true);
+            ui->timerHourDaily->setValue(launchIntervalHour.toInt());
+            ui->timerMinuteDaily->setValue(launchIntervalMinute.toInt());
+        }
+    }
+
 
     // get database from file header
     QString text = cd->toPlainText();
@@ -524,20 +549,27 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     // QFile fl ((documentsDir + "/" +"FrequencyMaps/tokens.txt"));
     // uniqueTokens.Load((documentsDir + "/" +"FrequencyMaps/asdzxcasd.txt"));
     uniqueTokens.Load((documentsDir + "/" +"FrequencyMaps/tokens.txt"));
+
     // uniqueTokens.Save((documentsDir + "/" +"FrequencyMaps/tokenstest.txt"));
 
     qDebug() << uniqueTokens.data["tokens"].size() << "uniqueTokens.data[\"tokens\"].size()";
 
-    int arch[2] = {1,1};
+    int arch[3] = {1,500,1};
     arch[0] = uniqueTokens.data["tokens"].size();
-    arch[1] = uniqueTokens.data["tokens"].size();
-    nn.Create(arch,2);
+    arch[2] = uniqueTokens.data["tokens"].size();
+
+    nn.CreateGPU(arch,3);
     nn.lastCost = 10000000;
 
     for (int i=0; i<nn.Weights_Size; i++) {
         nn.weights[i] = 0.0f;
     }
     nn.Randomize();
+    nn.InitGPUBuffers();
+
+
+    nn.backPropagateShader = new ComputeShader();
+    nn.backPropagateShader->setup("./shader/compute_shader_backpropagate.csh", nn.glContext);
     //nn.LoadFrom((documentsDir + "/nntest_RunTest.nn").toStdString());
 }
 
@@ -1015,6 +1047,12 @@ void LoaderWidnow::autolaunchCheck()
             }
         }
     }
+    if(ui->realTimeUpdatecheckBox->isChecked() && (autolaunchLastLaunch.time().msecsTo( QDateTime::currentDateTime().time())>60000))
+    {
+        autolaunchLastLaunch = QDateTime::currentDateTime();
+        runSqlAsync();
+    }
+
 }
 
 void LoaderWidnow::executionTimerTimeout()
@@ -1235,8 +1273,11 @@ void LoaderWidnow::UpdateTable()
     on_graph_group_change(gw.groupBysb.value());
     on_graph_separator_change(gw.separateBysb.value());
     on_graph_data_change(gw.dataColumnsb.value());
-    //UpdateGraph();
     emit TableUpdated();
+
+
+    if(ui->updateGraphCheckBox->isChecked())
+        UpdateGraph();
 }
 
 void LoaderWidnow::OpenDirectory()
@@ -3005,10 +3046,16 @@ void LoaderWidnow::splitColumn()
 
         dc->data.tbldata.resize(sizebuff + maxsize);
         dc->data.headers.resize(sizebuff + maxsize);
+
+
         for(int i=sizebuff;i < sizebuff + maxsize;i++)
         {
             dc->data.tbldata[i].resize(dc->data.tbldata[columnid].size());
             dc->data.headers[i] = "Column_" + QVariant(i-sizebuff).toString();
+            dc->data.maxVarTypes.push_back(QMetaType::QString);
+            dc->data.typecount.emplace_back();
+            while(dc->data.typecount.back().size()<=QMetaType::QString)
+                dc->data.typecount.back().push_back(0);
         }
         int it = 0;
         for(auto x : v_strl)
@@ -3074,7 +3121,7 @@ void LoaderWidnow::deleteDublicates()
                 i++;
             }
             else
-            {//deleate row
+            {//delete row
 
                 for(int a=0;a< dc->data.tbldata.size();a++)
                 {
@@ -3089,103 +3136,289 @@ void LoaderWidnow::deleteDublicates()
     }
 }
 
+void LoaderWidnow::levensteinJoin()
+{
+    qDebug() <<"levensteinJoin()";
 
-inline float NN_min = 100000;
+
+    int sizebuff = dc->data.tbldata.size();
+
+    if(dc->data.tbldata.size()>0)
+    {
+        QString source_columnname = "";
+        QString data_columnname = "";
+        QString group_columnname = "";
+        int source_columnid = 0;
+        int data_columnid = 0;
+        int group_columnid = -1;
+
+        QInputDialog id(loadWind);
+        id.setLabelText("Select source column");
+        id.setComboBoxItems(dc->data.headers);
+        bool ok = id.exec();
+        if(!ok)
+            return;
+        source_columnname  = id.textValue();
+
+        for(int i=0;i < dc->data.headers.size();i++)
+            if(dc->data.headers[i] == source_columnname )
+            {
+                source_columnid = i;
+            }
+
+        QInputDialog idd(loadWind);
+        idd.setLabelText("Select column to join with");
+        idd.setComboBoxItems(dc->data.headers);
+        ok = idd.exec();
+        if(!ok)
+            return;
+        data_columnname  = idd.textValue();
+
+        for(int i=0;i < dc->data.headers.size();i++)
+            if(dc->data.headers[i] == data_columnname )
+            {
+                data_columnid = i;
+            }
+
+
+
+        idd.setLabelText("Select column to group with");
+        QStringList strl = dc->data.headers;
+        strl.push_front("none");
+        idd.setComboBoxItems(dc->data.headers);
+        ok = idd.exec();
+        if(!ok)
+            return;
+        group_columnname  = idd.textValue();
+
+        for(int i=0;i < dc->data.headers.size();i++)
+            if(dc->data.headers[i] == group_columnname )
+            {
+                group_columnid = i;
+            }
+
+
+
+        std::map<QString,std::map<QString,int>> uniqueDataStrings;
+        std::map<QString,std::map<QString,int>> uniqueSourceToDataStringCosts;
+        std::map<QString,std::map<QString,QString>> uniqueSourceStrings;
+
+        for(int i=0;i < dc->data.tbldata[data_columnid].size();i++)
+        {
+            QString groupText = "t";
+            if(group_columnid!=-1)
+            {
+                groupText = dc->data.tbldata[group_columnid][i];
+            }
+            uniqueDataStrings[groupText][dc->data.tbldata[data_columnid][i]] += 1;
+
+        }
+
+        for(int i=0;i < dc->data.tbldata[source_columnid].size();i++)
+        {
+            QString groupText = "t";
+            if(group_columnid!=-1)
+            {
+                groupText = dc->data.tbldata[group_columnid][i];
+            }
+            uniqueSourceStrings[groupText][dc->data.tbldata[source_columnid][i]] = "";
+            uniqueSourceToDataStringCosts[groupText][dc->data.tbldata[source_columnid][i]] = 0;
+
+        }
+
+
+
+        int wrong_cost = 10;
+        int move_cost = 3;
+        int add_cost = 1;
+        int shorten_cost = 8;
+
+        int itercount = 0;
+        for(auto groupText : uniqueSourceStrings)
+        {
+            for(auto word : groupText.second)
+            {
+                // select a word with minimal distance for every sorce word
+                float min_diff = 1000000000;
+                QString mindiffWord = "";
+
+                for(auto k : uniqueDataStrings[groupText.first])
+                {
+                    if(k.first == word.first)
+                        continue;
+                    long int diff = 0;
+                    int last_i = 0;
+                    float modifier = 100;
+
+                    for(int i=0;i<word.first.size();i++)
+                    {
+                        int mdiff = wrong_cost;
+                        for(int a = 0 ; a<k.first.size();a++)
+                        {
+                            if(k.first[a].toLower()==word.first[i].toLower() && move_cost * abs(i-a)<mdiff)
+                                mdiff = move_cost * abs(i-a);
+                        }
+                        diff+=mdiff;
+                        last_i = i;
+                    }
+                    if(k.first.size()<word.first.size())
+                        diff+=abs(k.first.size()-word.first.size()) * shorten_cost;
+                    else
+                        diff+=abs(k.first.size()-word.first.size()) * add_cost;
+                    diff *= modifier;
+                    if(diff<min_diff)
+                    {
+                        min_diff = diff;
+                        mindiffWord = k.first;
+                    }
+
+                }
+
+                // save to word
+                uniqueSourceStrings[groupText.first][word.first] = mindiffWord;
+                uniqueSourceToDataStringCosts[groupText.first][word.first] = min_diff;
+                itercount++;
+            }
+        }
+
+
+        dc->data.tbldata.resize(sizebuff + 2);
+        dc->data.tbldata[dc->data.tbldata.size()-1].reserve(dc->data.tbldata[source_columnid].size());
+        dc->data.tbldata[dc->data.tbldata.size()-2].reserve(dc->data.tbldata[source_columnid].size());
+        dc->data.headers.resize(sizebuff + 2);
+
+        dc->data.headers[dc->data.headers.size()-2] = "lev_Cost";
+        dc->data.maxVarTypes.push_back(QMetaType::Double);
+        dc->data.typecount.emplace_back();
+        while(dc->data.typecount.back().size()<=QMetaType::Double)
+            dc->data.typecount.back().push_back(0);
+
+        dc->data.headers.back() = "lev_Text";
+        dc->data.maxVarTypes.push_back(QMetaType::QString);
+        dc->data.typecount.emplace_back();
+        while(dc->data.typecount.back().size()<=QMetaType::QString)
+            dc->data.typecount.back().push_back(0);
+
+
+
+        for(int i=0;i < dc->data.tbldata[source_columnid].size();i++)
+        {
+            QString groupText = "t";
+            if(group_columnid!=-1)
+            {
+                groupText = dc->data.tbldata[group_columnid][i];
+            }
+            dc->data.tbldata[dc->data.tbldata.size()-1].push_back(uniqueSourceStrings[groupText][dc->data.tbldata[source_columnid][i]]);
+            dc->data.tbldata[dc->data.tbldata.size()-2].push_back(QVariant(uniqueSourceToDataStringCosts[groupText][dc->data.tbldata[source_columnid][i]]).toString());
+        }
+
+
+    }
+    UpdateTable();
+
+}
+
+
+inline float NN_min = 1000000;
+inline float NN_max = -1000000;
 void LoaderWidnow::on_nnTestLearn_pressed()
 {
+
+
     qDebug() << "on_nnTestLearn_pressed undefined";
 
+
+    if(dc->data.tbldata.size() <=0)
+        return;
+
+    std::vector<float> input;
+    std::vector<float> output;
+    input.resize(dc->data.tbldata[0].size());
+    output.resize(dc->data.tbldata[0].size());
+
+
+    for(int i=0;i < dc->data.tbldata[0].size();i++)
+    {
+        input[i] = ((float)i)/(float) dc->data.tbldata[0].size() ;
+        bool ok = false;
+        output[i] = dc->data.tbldata[0][i].toFloat(&ok);
+        qDebug() << output[i] << " = " << dc->data.tbldata[0][i].toFloat(&ok);
+        if (NN_min > output[i])
+            NN_min = output[i];
+
+        if (NN_max < output[i])
+            NN_max = output[i];
+
+    }
+    for(int i=0;i <output.size();i++)
+    {
+        output[i] = (output[i] - NN_min*0.5f) / (NN_max*2.0f - NN_min*0.5f);// put into range(0,1) * 0.5f
+        qDebug() << output[i];
+    }
+
+    int datasizeBuff = dc->data.tbldata[0].size();
+
+    for(int i=0;i<=5000;i++)
+    {
+        float cst = nn.lastCost;
+        if(cst > 1.0f)
+            nn.h = 0.0001f;
+        else
+            nn.h = 0.0001f * cst;
+
+        float costbuff = nn.lastCost;
+
+        nn.lastCost = 0;
+        for(int iter = 0;iter < input.size();iter++)
+        {
+            float val = (((float)iter)/(float)input.size());
+            nn.BackPropagate(&val,&output[iter],0.1f);
+            nn.lastCost += nn.Cost(&val,&output[iter],1);
+        }
+
+
+
+        if(i%5000 == 0)
+        {
+            int datasize = datasizeBuff * 2.0f;
+
+
+            // nn.UpdateWeightsAndBiases();
+            //nn.ReadGPUWeightsBiases();
+
+            TableData data;
+            data.headers.clear();
+            data.headers.resize(3);
+            data.headers[0] = "Source";
+            data.headers[1] = "iteration";
+            data.headers[2] = "value";
+            data.tbldata.resize(3);
+            data.tbldata[0].resize(datasize);
+            data.tbldata[1].resize(datasize);
+            data.tbldata[2].resize(datasize);
+
+            for(int a=0;a < datasize;a++)
+            {
+                float input = (((float)a)/(float)datasize) * 2.0f ;
+                nn.Run(&input);
+
+                QString str = QVariant(a).toString();
+                while(str.size()<10)
+                    str = "0" + str;
+                data.tbldata[0][a] = "iteration"  + QVariant(i).toString();
+                data.tbldata[1][a] = str;
+                data.tbldata[2][a] = QVariant((nn.outputs[0] * (NN_max*2.0f - NN_min*0.5f)) + NN_min*0.5f).toString();
+            }
+            qDebug() << "here";
+            data.FixTypeInfo();
+            UpdateTable();
+            data.ExportToSQLiteTable("NN_Learn_Iteration"  + QVariant(i).toString());
+        }
+        qDebug() << "end cost " <<  cst;
+    }
+
+
     /*
-    // if(dc->data.tbldata.size() <=0)
-    //     return;
-
-    // std::vector<float> input;
-    // std::vector<float> output;
-    // input.resize(dc->data.tbldata[0].size());
-    // output.resize(dc->data.tbldata[0].size());
-
-
-    // for(int i=0;i < dc->data.tbldata[0].size();i++)
-    // {
-    //     input[i] = ((float)i)/(float) dc->data.tbldata[0].size() ;
-    //     bool ok = false;
-    //     output[i] = dc->data.tbldata[0][i].toFloat(&ok);
-    //     qDebug() << output[i] << " = " << dc->data.tbldata[0][i].toFloat(&ok);
-    //     if (NN_min > output[i])
-    //         NN_min = output[i];
-    // }
-    // for(int i=0;i <output.size();i++)
-    // {
-    //     output[i] = output[i] - NN_min;//(output[i] - NN_min) / (NN_max - NN_min);// put into range(0,1)
-    //     qDebug() << output[i];
-    // }
-
-    // int datasizeBuff = dc->data.tbldata[0].size();
-
-    // for(int i=0;i<=50000;i++)
-    // {
-    //     float cst = nn.lastCost;
-    //     if(cst > 1.0f)
-    //         nn.h = 0.0001f;
-    //     else
-    //         nn.h = 0.0001f * cst;
-
-    //     nn.SetupLearing();
-    //     float cst2 = nn.Cost(input.data(),output.data(),input.size());
-    //     while(cst2 <cst)
-    //     {
-    //         qDebug() << "cost " <<  cst2;
-    //         cst=cst2;
-    //         nn.ApplyGrad();
-    //         cst2 = nn.Cost(input.data(),output.data(),input.size());
-
-    //     }
-    //     if(cst2>=cst)
-    //         nn.DeApplyGrad();
-    //     nn.lastCost = cst;
-    //     if(i%500 == 0)
-    //     {
-    //         if(cst > 1.0f)
-    //             nn.learn(0.00001f,input.data(),output.data(),input.size());
-    //         else
-    //             nn.learn(0.0001f * cst,input.data(),output.data(),input.size());
-
-    //     }
-    //     if(i%5000 == 0)
-    //     {
-    //         int datasize = datasizeBuff * 2.0f;
-
-
-    //         TableData data;
-    //         data.headers.clear();
-    //         data.headers.resize(3);
-    //         data.headers[0] = "Source";
-    //         data.headers[1] = "iteration";
-    //         data.headers[2] = "value";
-    //         data.tbldata.resize(3);
-    //         data.tbldata[0].resize(datasize);
-    //         data.tbldata[1].resize(datasize);
-    //         data.tbldata[2].resize(datasize);
-
-    //         for(int a=0;a < datasize;a++)
-    //         {
-    //             float input = (((float)a)/(float)datasize) * 2.0f ;
-    //             nn.Run(&input);
-
-    //             QString str = QVariant(a).toString();
-    //             while(str.size()<10)
-    //                 str = "0" + str;
-    //             data.tbldata[0][a] = "iteration"  + QVariant(i).toString();
-    //             data.tbldata[1][a] = str;
-    //             data.tbldata[2][a] = QVariant(nn.outputs[0]+ NN_min).toString();//(nn.outputs[0] * (NN_max - NN_min)) + NN_min;
-    //         }
-    //         data.ExportToSQLiteTable("NN_Learn_Iteration"  + QVariant(i).toString());
-    //     }
-    //     qDebug() << "end cost " <<  cst;
-    // }
-    */
-
-
     std::vector<float> input(nn.sizein);
     std::vector<float> output(nn.sizeout);
 
@@ -3241,33 +3474,22 @@ void LoaderWidnow::on_nnTestLearn_pressed()
     cd->textCursor().insertText(maxToken);
 
 
-
+    */
 }
 
 int iteration_counter = 0;
 bool AI_CyberDimentia = true;
 int correct_word_count = 0;
 
+
+// used to split text
 #include "sqlSubfunctions.h"
+
 
 void LoaderWidnow::on_nnTestRun_pressed()
 {
+    qDebug() << "LoaderWidnow::on_nnTestRun_pressed()";
 
-    uniqueTokens.Load((documentsDir + "/" +"FrequencyMaps/tokens.txt"));
-
-    // lower size to tokens after filters. Use same filters in token processor, cuz why not.
-
-    ShaderBuffer Input_Buf, Output_Buf, Ranked_Output_Buf, arch_Buf, biases_Buf, NodesStep_Buf, WeightsStep_Buf,Weights_Buf, Trg_Output_Buf;
-
-    Input_Buf.setup(&gl_compute_context);
-    Output_Buf.setup(&gl_compute_context);
-    arch_Buf.setup(&gl_compute_context);
-    biases_Buf.setup(&gl_compute_context);
-    NodesStep_Buf.setup(&gl_compute_context);
-    WeightsStep_Buf.setup(&gl_compute_context);
-    Weights_Buf.setup(&gl_compute_context);
-    Trg_Output_Buf.setup(&gl_compute_context);
-    Ranked_Output_Buf.setup(&gl_compute_context);
 
 
     nn.inputs = new float[nn.sizein];
@@ -3277,30 +3499,12 @@ void LoaderWidnow::on_nnTestRun_pressed()
     }
 
     for (int i=0; i<nn.sizein; i++) {
-        nn.inputs[i] = rand()%10 *0.1f;
+        nn.inputs[i] = 0;//rand()%10 *0.1f;
     }
 
     for (int i=0; i<nn.NN_Size; i++) {
         nn.biases[i] = 0.0f;
     }
-    qDebug()<< "sizeof(nn.inputs) = " << sizeof(nn.inputs);
-
-    arch_Buf.allocate(nn.Arch, sizeof(int) * nn.LayersAmount);
-    biases_Buf.allocate(nn.biases, sizeof(float) * nn.NN_Size);
-    NodesStep_Buf.allocate(nn.NodesStep, sizeof(unsigned int)* nn.LayersAmount);
-    WeightsStep_Buf.allocate(nn.WeightsStep, sizeof(int) * nn.LayersAmount);
-    Weights_Buf.allocate(nn.weights, sizeof(float) * nn.Weights_Size);
-
-
-    //Bind buffers to shader
-    Weights_Buf.bind_for_shader(2);
-    arch_Buf.bind_for_shader(3);
-    biases_Buf.bind_for_shader(4);
-    NodesStep_Buf.bind_for_shader(5);
-    WeightsStep_Buf.bind_for_shader(6);
-
-
-
 
 
 
@@ -3396,7 +3600,7 @@ void LoaderWidnow::on_nnTestRun_pressed()
                     trgToken = dat.first;
                 }
             }
-            if(outputSize<3 || trgToken_maxval < 50.0f)
+            if(outputSize<10 || trgToken_maxval < 50.0f)
                 continue;
 
             for(auto x : intoklist)
@@ -3424,9 +3628,9 @@ void LoaderWidnow::on_nnTestRun_pressed()
             for(int i = 0; i< output.size();i++)
             {
                 if(i == max_out_id)
-                    ranked_output[i] = 1.0f;
+                     ranked_output[i] = 1.0f;
                 else
-                    ranked_output[i] = 0;
+                     ranked_output[i] = 0;
                 //ranked_output[i] = output[i] / output[max_out_id];
             }
 
@@ -3441,46 +3645,15 @@ void LoaderWidnow::on_nnTestRun_pressed()
             lines.push_back(obj.first);
             trg_tokens.push_back(trgToken);
             qDebug() <<datasAmount << input_buff.size() << output_buff.size();//<< "       nn.outputs[maxI] = " << nn.outputs[maxI] << "/" << output[maxI] <<"  "<<obj.first <<  maxToken  << "   trgToken: " << trgToken << 1;
-            // if(datasAmount >=256)
-            //     break;
+            if(datasAmount >=100)
+                break;
         }
     }
-    //Weights_Buf.read_to_cpu(nn.weights,sizeof(float) * nn.Weights_Size);
 
-    // int tmp_cntr=0;
-    // for(auto x : new_uniqueTokens.data["tokens"])
-    // {
-    //     new_uniqueTokens.data["tokens"][x.first] = QVariant(tmp_cntr).toString();
-    //     tmp_cntr++;
-    // }
-
-    // new_uniqueTokens.Save(documentsDir + "/FrequencyMaps/new_tokens.txt");
-
-    result_output_buff.resize(output_buff.size());
+    result_output_buff.reserve(output_buff.size());
     ranked_output_buff.resize(output_buff.size());
 
     qDebug() << "pushing inputs";
-    Input_Buf.clear();
-    Input_Buf.setup(&gl_compute_context);
-    Input_Buf.allocate(input_buff.data(), sizeof(float) * input_buff.size());
-    Input_Buf.bind_for_shader(0);
-
-    qDebug() << "done, pushing outputs";
-    Trg_Output_Buf.clear();
-    Trg_Output_Buf.setup(&gl_compute_context);
-    Trg_Output_Buf.allocate(output_buff.data(), sizeof(float) * output_buff.size());
-    Trg_Output_Buf.bind_for_shader(7);
-    qDebug() << "done, launching script 1";
-
-    Output_Buf.clear();
-    Output_Buf.setup(&gl_compute_context);
-    Output_Buf.allocate(result_output_buff.data(), sizeof(float) * result_output_buff.size());
-    Output_Buf.bind_for_shader(1);
-
-    Ranked_Output_Buf.clear();
-    Ranked_Output_Buf.setup(&gl_compute_context);
-    Ranked_Output_Buf.allocate(ranked_output_buff.data(), sizeof(float) * ranked_output_buff.size());
-    Ranked_Output_Buf.bind_for_shader(8);
 
     int tmp_buffer = datasAmount;
     iteration_counter = 0;
@@ -3489,93 +3662,18 @@ void LoaderWidnow::on_nnTestRun_pressed()
 
     while (iteration_counter < 500)
     {
-        datasAmount = tmp_buffer;
-        //Compute
-        int tmp_datasAmount = 0;
-        while(datasAmount > 128)
+        result_output_buff.clear();
+        for(int i = 0; i < datasAmount;i++)
         {
-            gl_compute_shader.begin();
-            gl_compute_shader.program().setUniformValue("datasAmount",tmp_datasAmount);
-            gl_compute_shader.program().setUniformValue("dataSize",(int)nn.sizein);
-            gl_compute_shader.compute(nn.sizein,128);
-            gl_compute_shader.end();
-            // qDebug() << "iteratiron[" << iteration_counter << "] processed 128: " << datasAmount << "left";
-
-            tmp_datasAmount+= 128;
-            datasAmount-= 128;
-        }
-        if(datasAmount>0)
-        {
-            //qDebug() << "done, launching script 1";
-            gl_compute_shader.begin();
-            gl_compute_shader.program().setUniformValue("datasAmount",tmp_datasAmount);
-            gl_compute_shader.program().setUniformValue("dataSize",(int)nn.sizein);
-            gl_compute_shader.compute(nn.sizein,datasAmount);
-            gl_compute_shader.end();
-
-        }
-        tmp_datasAmount = 0;
-        datasAmount = tmp_buffer;
-        while(datasAmount > 128)
-        {
-            // qDebug() << "done, launching script 2";
-            gl_compute_shader_rank.begin();
-            gl_compute_shader_rank.program().setUniformValue("datasAmount",tmp_datasAmount);
-            gl_compute_shader_rank.program().setUniformValue("dataSize",(int)nn.sizein);
-            gl_compute_shader_rank.compute(128);
-            gl_compute_shader_rank.end();
-
-            tmp_datasAmount+= 128;
-            datasAmount-= 128;
-        }
-        if(datasAmount>0)
-        {
-            //qDebug() << "done, launching script 2";
-            gl_compute_shader_rank.begin();
-            gl_compute_shader_rank.program().setUniformValue("datasAmount",tmp_datasAmount);
-            gl_compute_shader_rank.program().setUniformValue("dataSize",(int)nn.sizein);
-            gl_compute_shader_rank.compute(datasAmount);
-            gl_compute_shader_rank.end();
-
-
-        }
-        tmp_datasAmount = 0;
-        datasAmount = tmp_buffer;
-        while(datasAmount > 128)
-        {
-            // qDebug() << "done, launching script 3";
-            gl_compute_shader_learn.begin();
-            gl_compute_shader_learn.program().setUniformValue("datasAmount",tmp_datasAmount);
-            gl_compute_shader_learn.program().setUniformValue("dataSize",(int)nn.sizein);
-            gl_compute_shader_learn.program().setUniformValue("CyberDimentia",AI_CyberDimentia);
-            gl_compute_shader_learn.program().setUniformValue("CyberDimentiaMult",(1.0f - (float)correct_word_count/(float)datasAmount) );
-            gl_compute_shader_learn.compute(nn.sizein,128);
-            gl_compute_shader_learn.end();
-            // qDebug() << "iteratiron[" << iteration_counter << "] processedv3 128: " << datasAmount << "left";
-
-            tmp_datasAmount+= 128;
-            datasAmount-= 128;
-        }
-
-
-        if(datasAmount>0)
-        {
-
-            //qDebug() << "done, launching script 3";
-            gl_compute_shader_learn.begin();
-            gl_compute_shader_learn.program().setUniformValue("datasAmount",tmp_datasAmount);
-            gl_compute_shader_learn.program().setUniformValue("dataSize",(int)nn.sizein);
-            gl_compute_shader_learn.program().setUniformValue("CyberDimentia",AI_CyberDimentia);
-            gl_compute_shader_learn.program().setUniformValue("CyberDimentiaMult",(1.0f - (float)correct_word_count/(float)datasAmount) );
-            gl_compute_shader_learn.compute(nn.sizein,datasAmount);
-            gl_compute_shader_learn.end();
-
+            nn.BackPropagateGPU(&input_buff[i * nn.sizein],&output_buff[i * nn.sizeout],0.001f);
+            for(int a = 0; a < nn.sizeout; a++)
+                result_output_buff.push_back(nn.outputs[a]);
         }
         datasAmount = tmp_buffer;
         qDebug() << "done, loading data";
 
-        Weights_Buf.read_to_cpu(nn.weights,sizeof(float) * nn.Weights_Size);
-        Output_Buf.read_to_cpu(result_output_buff.data(), sizeof(float) * result_output_buff.size());
+
+        nn.ReadGPUWeightsBiases();
         correct_word_count = 0;
         for(int a =0;a < datasAmount && a < lines.size() && a < trg_tokens.size(); a++)
         {
@@ -3614,9 +3712,9 @@ void LoaderWidnow::on_nnTestRun_pressed()
                 }
                 map_iter++;
             }
+            qDebug() << iteration_counter <<a  << "nn.outputs[maxI] = " << nn.outputs[maxI] << "/" << output[maxI] <<"  "<< lines[a] + "(" + maxToken  + " | " + trg_tokens[a] + ")";
             if(maxToken == trg_tokens[a])
             {
-                qDebug() << iteration_counter <<a  << "nn.outputs[maxI] = " << nn.outputs[maxI] << "/" << output[maxI] <<"  "<< lines[a] <<  maxToken  << "   trgToken: " << trg_tokens[a];
                 correct_word_count++;
             }
         }
@@ -3635,6 +3733,8 @@ void LoaderWidnow::on_nnTestRun_pressed()
         iteration_counter++;
     }
     //nn.SaveTo((documentsDir + "/nntest_"+ QVariant("result").toString() +".nn").toStdString());
+
+
 
     /* OpenXLSX test bench. Saves pivot tables, but will requere  a lotof rewriting
     XLDocument doc1;
@@ -3831,25 +3931,3 @@ void LoaderWidnow::on_nnTestRun_pressed()
     doc1.close();
     qDebug() << "on_nnTestRun_pressed undefined";*/
 }
-
-
-/*
-
-run() =>        0.0, 0.1, 0.3, 0.0, 0.0, 0.4
-excpect() =>    0.0, 0.3, 0.0, 0.1, 0.0, 0.1
-diff() =>       0.0, 0.2, -.3, 0.1, 0.0, -.3
-
-
-
-Ranking;
-run() =>        0.0, 0.1, 0.3, 0.0, 0.0, 0.4
-rank()=>        0  , 1  , 2  , 0  , 0  , 3
-excpect() =>    0.0, 0.3, 0.0, 0.1, 0.0, 0.1
-ranktrg()=>     0  , 3  , 0  , 1  , 0  , 2
-
-compare ranks, do stuff on runks
-
-
-
-
-*/

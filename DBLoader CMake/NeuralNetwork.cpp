@@ -92,6 +92,146 @@ void NeuralNetwork::Delete()
 	Created = false;
 }
 
+void NeuralNetwork::CreateGPU(int* Architecture, int archsize)
+{
+    if(!Created)
+        Create(Architecture, archsize);
+
+    glContext = new GlContext();
+    glContext->setup();
+
+    runShader = new ComputeShader();
+    runShader->setup("./shader/compute_shader_run.csh", glContext);
+
+    nodesBuffer = new ShaderBuffer();
+    nodesBuffer->setup(glContext);
+    //nodesBuffer->allocate(Nodes, NodesAmount * sizeof(float)); // Now in InitGPUBuffers
+
+    biasesBuffer = new ShaderBuffer();
+    biasesBuffer->setup(glContext);
+    //biasesBuffer->allocate(biases, NodesAmount * sizeof(float)); // Now in InitGPUBuffers
+
+    weightsBuffer = new ShaderBuffer();
+    weightsBuffer->setup(glContext);
+    //weightsBuffer->allocate(weights, WeightsAmount * sizeof(float)); // Now in InitGPUBuffers
+
+    archBuffer = new ShaderBuffer();
+    archBuffer->setup(glContext);
+    //archBuffer->allocate(Arch, LayersAmount * sizeof(int)); // Now in InitGPUBuffers
+
+    nodesStepBuffer = new ShaderBuffer();
+    nodesStepBuffer->setup(glContext);
+    //nodesStepBuffer->allocate(NodesStep, LayersAmount * sizeof(int)); // Now in InitGPUBuffers
+
+    weightsStepBuffer = new ShaderBuffer();
+    weightsStepBuffer->setup(glContext);
+    //weightsStepBuffer->allocate(WeightsStep, LayersAmount * sizeof(int)); // Now in InitGPUBuffers
+
+    inputBufferGPU = new ShaderBuffer();
+    inputBufferGPU->setup(glContext);
+    //inputBufferGPU->allocate(inputs, sizein * sizeof(float)); // Now in InitGPUBuffers
+
+    outputBufferGPU = new ShaderBuffer();
+    outputBufferGPU->setup(glContext);
+    //outputBufferGPU->allocate(outputs, sizeout * sizeof(float)); // Now in InitGPUBuffers
+
+    targetOutputBufferGPU = new ShaderBuffer();
+    targetOutputBufferGPU->setup(glContext);
+    //targetOutputBufferGPU->allocate(targetOutput, sizeout * sizeof(float)); // Now in InitGPUBuffers
+
+    biasGradientsBufferGPU = new ShaderBuffer();
+    biasGradientsBufferGPU->setup(glContext);
+    //biasGradientsBufferGPU->allocate(biasGradients, NodesAmount * sizeof(float)); // Now in InitGPUBuffers
+
+    weightGradientsBufferGPU = new ShaderBuffer();
+    weightGradientsBufferGPU->setup(glContext);
+    //weightGradientsBufferGPU->allocate(weightGradients, WeightsAmount * sizeof(float)); // Now in InitGPUBuffers
+
+    InitGPUBuffers(); // Call new initialization function
+}
+
+void NeuralNetwork::InitGPUBuffers()
+{
+    nodesBuffer->allocate(Nodes, NodesAmount * sizeof(float));
+    biasesBuffer->allocate(biases, NodesAmount * sizeof(float));
+    weightsBuffer->allocate(weights, WeightsAmount * sizeof(float));
+    archBuffer->allocate(Arch, LayersAmount * sizeof(int));
+    nodesStepBuffer->allocate(NodesStep, LayersAmount * sizeof(int));
+    weightsStepBuffer->allocate(WeightsStep, LayersAmount * sizeof(int));
+    inputBufferGPU->allocate(nullptr, sizein * sizeof(float)); // Allocate, but don't transfer data yet
+    outputBufferGPU->allocate(nullptr, sizeout * sizeof(float)); // Allocate, but don't transfer data yet
+    targetOutputBufferGPU->allocate(nullptr, sizeout * sizeof(float)); // Allocate, but don't transfer data yet
+    biasGradientsBufferGPU->allocate(nullptr, NodesAmount * sizeof(float)); // Allocate, but don't transfer data yet
+    weightGradientsBufferGPU->allocate(nullptr, WeightsAmount * sizeof(float)); // Allocate, but don't transfer data yet
+
+    // Bind buffers to shader binding points (these bindings are consistent across all shaders)
+    nodesBuffer->bind_for_shader(0);
+    inputBufferGPU->bind_for_shader(1);
+    weightsBuffer->bind_for_shader(2);
+    biasesBuffer->bind_for_shader(3);
+    archBuffer->bind_for_shader(4);
+    nodesStepBuffer->bind_for_shader(5);
+    weightsStepBuffer->bind_for_shader(6);
+    targetOutputBufferGPU->bind_for_shader(7);
+    biasGradientsBufferGPU->bind_for_shader(8);
+    weightGradientsBufferGPU->bind_for_shader(9);
+    outputBufferGPU->bind_for_shader(10); // Changed binding point for outputBufferGPU to 10
+}
+
+void NeuralNetwork::UpdateWeightsAndBiases()
+{
+    nodesBuffer->allocate(Nodes, NodesAmount * sizeof(float));
+    biasesBuffer->allocate(biases, NodesAmount * sizeof(float));
+    weightsBuffer->allocate(weights, WeightsAmount * sizeof(float));
+    archBuffer->allocate(Arch, LayersAmount * sizeof(int));
+    nodesStepBuffer->allocate(NodesStep, LayersAmount * sizeof(int));
+    weightsStepBuffer->allocate(WeightsStep, LayersAmount * sizeof(int));
+}
+
+void NeuralNetwork::UpdateGPUInput(float* inputData)
+{
+    inputBufferGPU->clear();
+    inputBufferGPU->setup(glContext);
+    inputBufferGPU->allocate(inputData, sizein * sizeof(float));
+}
+
+void NeuralNetwork::ReadGPUOutput()
+{
+    outputBufferGPU->read_to_cpu(outputs, sizeout * sizeof(float));
+}
+
+void NeuralNetwork::UpdateGPUTargetOutput(float* targetOutput)
+{
+    targetOutputBufferGPU->clear();
+    targetOutputBufferGPU->setup(glContext);
+    targetOutputBufferGPU->allocate(targetOutput, sizeout * sizeof(float));
+}
+
+void NeuralNetwork::ReadGPUWeightsBiases()
+{
+    weightsBuffer->read_to_cpu(weights, WeightsAmount * sizeof(float));
+    biasesBuffer->read_to_cpu(biases, NodesAmount * sizeof(float));
+}
+
+void NeuralNetwork::DeleteGPU()
+{
+    delete glContext;
+    delete runShader;
+    delete backPropagateShader;
+    delete nodesBuffer;
+    delete biasesBuffer;
+    delete weightsBuffer;
+    delete archBuffer;
+    delete nodesStepBuffer;
+    delete weightsStepBuffer;
+    delete inputBufferGPU;
+    delete targetOutputBufferGPU;
+    delete outputBufferGPU;
+    delete biasGradientsBufferGPU;
+    delete weightGradientsBufferGPU;
+    Delete(); // Call base delete to free CPU memory
+}
+
 void NeuralNetwork::Randomize()
 {
 	for (int i = 0; i < WeightsAmount; i++)
@@ -131,12 +271,10 @@ void NeuralNetwork::Run(float* inputData)
 				PrevLayerNode++;
             }
 
-            Nodes[n] = sigmoid(sum) + biases[n];
 
-            if(i == LayersAmount-1)
-            {
-                Nodes[n] = sum + biases[n];
-            }
+            Nodes[n] = sigmoid(sum + biases[n]);
+
+
 
             node++;
 		}
@@ -144,6 +282,52 @@ void NeuralNetwork::Run(float* inputData)
 	}
 	for (int i = 0; i < sizeout; i++)
 		outputs[i] = Nodes[PrevNodeStart + i];
+}
+
+void NeuralNetwork::RunGPU(float* inputData)
+{
+    // Upload input data to GPU
+    UpdateGPUInput(inputData);
+
+    // Bind buffers to shader binding points (these bindings are consistent across layers)
+    // These are already bound in InitGPUBuffers(), no need to re-bind unless specific buffers change.
+
+    // Set uniforms and dispatch for each layer
+
+    nodesBuffer->bind_for_shader(0);
+    inputBufferGPU->bind_for_shader(1);
+    weightsBuffer->bind_for_shader(2);
+    biasesBuffer->bind_for_shader(3);
+    archBuffer->bind_for_shader(4);
+    nodesStepBuffer->bind_for_shader(5);
+    weightsStepBuffer->bind_for_shader(6);
+    targetOutputBufferGPU->bind_for_shader(7);
+    biasGradientsBufferGPU->bind_for_shader(8);
+    weightGradientsBufferGPU->bind_for_shader(9);
+    outputBufferGPU->bind_for_shader(10); // Changed binding point for outputBufferGPU to 10
+
+    runShader->begin();
+    runShader->program().setUniformValue("LayersAmount", LayersAmount);
+    runShader->program().setUniformValue("sizein", sizein);
+    runShader->program().setUniformValue("sizeout", sizeout);
+
+    // First, process the input layer (copy input data to nodes)
+    runShader->program().setUniformValue("currentLayerIndex", 0);
+
+    runShader->compute(sizein, 1, 1); // Dispatch for each input node
+    glContext->gl()->glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT); // Ensure writes are visible
+
+    // Process hidden layers and output layer
+    for (int i = 1; i < LayersAmount; i++)
+    {
+        runShader->program().setUniformValue("currentLayerIndex", i);
+        runShader->compute(Arch[i], 1, 1); // Dispatch for each node in the current layer
+        glContext->gl()->glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT); // Ensure writes are visible for the next layer
+    }
+    runShader->end();
+
+    // Read results back to CPU (outputs buffer is already populated by the shader)
+    ReadGPUOutput();
 }
 void NeuralNetwork::Run(float ActFunc(float), float* inputData)
 {
@@ -181,6 +365,159 @@ void NeuralNetwork::Run(float ActFunc(float), float* inputData)
 	}
 	for (int i = 0; i < sizeout; i++)
 		outputs[i] = Nodes[PrevNodeStart + i];
+}
+
+
+// Backpropagation learning function
+void NeuralNetwork::BackPropagate(float* input, float* targetOutput, float learningRate)
+{
+    // 1. Forward pass to calculate all node outputs
+    Run(input);
+
+    // 2. Calculate output layer errors (output gradients)
+    // The derivative of the sigmoid function is sigmoid(x) * (1 - sigmoid(x))
+    // For ReLu, the derivative is 1 if x > 0, else 0
+
+    // Assuming sigmoid as the activation function for now.
+    // A more robust solution would involve passing the activation function and its derivative.
+
+    // For the output layer, the error is (predicted - actual) * derivative_of_activation(output)
+    int outputLayerStartNode = NodesStep[LayersAmount - 1];
+    for (int i = 0; i < sizeout; i++)
+    {
+        float predictedOutput = Nodes[outputLayerStartNode + i];
+        float error = predictedOutput - targetOutput[i];
+        // Sigmoid derivative: sigmoid(x) * (1 - sigmoid(x))
+        float derivative = predictedOutput * (1.0f - predictedOutput);
+        biasGradients[outputLayerStartNode + i] = error * derivative;
+    }
+
+    // 3. Backpropagate errors through hidden layers
+    // Iterate backwards from the second to last layer down to the first hidden layer
+    for (int l = LayersAmount - 2; l >= 0; l--)
+    {
+        int currentLayerStartNode = NodesStep[l];
+        int nextLayerStartNode = NodesStep[l + 1];
+
+        for (int i = 0; i < Arch[l]; i++) // Iterate through nodes in the current layer
+        {
+            float error = 0.0f;
+            // Sum weighted errors from the next layer
+            for (int j = 0; j < Arch[l + 1]; j++) // Iterate through nodes in the next layer
+            {
+                int weightIndex = WeightsStep[l] + (i * Arch[l + 1]) + j;
+                error += biasGradients[nextLayerStartNode + j] * weights[weightIndex];
+            }
+            // Sigmoid derivative for hidden layer nodes
+            float derivative = Nodes[currentLayerStartNode + i] * (1.0f - Nodes[currentLayerStartNode + i]);
+            biasGradients[currentLayerStartNode + i] = error * derivative;
+        }
+    }
+
+    // 4. Update weights and biases
+    for (int l = 0; l < LayersAmount; l++)
+    {
+        int currentLayerStartNode = NodesStep[l];
+        int nextLayerStartNode = NodesStep[l + 1];
+
+        for (int i = 0; i < Arch[l]; i++) // Iterate through nodes in current layer
+        {
+            // Update biases
+            if (l > 0) // Only update biases for hidden and output layers, not input
+            {
+                biases[currentLayerStartNode + i] -= learningRate * biasGradients[currentLayerStartNode + i];
+            }
+
+            // Update weights connecting to the next layer
+            if (l < LayersAmount - 1) // Do not update weights from the output layer
+            {
+                for (int j = 0; j < Arch[l + 1]; j++) // Iterate through nodes in next layer
+                {
+                    int weightIndex = WeightsStep[l] + (i * Arch[l + 1]) + j;
+                    weightGradients[weightIndex] = biasGradients[nextLayerStartNode + j] * Nodes[currentLayerStartNode + i];
+                    weights[weightIndex] -= learningRate * weightGradients[weightIndex];
+                }
+            }
+        }
+    }
+
+    // 5. Clear gradients for next iteration (optional, depending on how gradients are accumulated)
+    // For this basic implementation, we calculate gradients fresh each time.
+}
+
+void NeuralNetwork::BackPropagateGPU(float* input, float* targetOutput, float learningRate)
+{
+    // Ensure forward pass is done to populate Nodes buffer
+    RunGPU(input);
+
+    // Upload target output to GPU
+    UpdateGPUTargetOutput(targetOutput);
+
+    // These buffers should already be allocated in InitGPUBuffers(), just transfer data if needed.
+    // No need to check for null and new, just re-allocate/copy data.
+    biasGradientsBufferGPU->clear();
+    weightGradientsBufferGPU->clear();
+    biasGradientsBufferGPU->setup(glContext);
+    weightGradientsBufferGPU->setup(glContext);
+    biasGradientsBufferGPU->allocate(biasGradients, NodesAmount * sizeof(float)); // Re-allocate to clear/reset gradients
+    weightGradientsBufferGPU->allocate(weightGradients, WeightsAmount * sizeof(float)); // Re-allocate to clear/reset gradients
+
+    // Bind buffers to shader binding points (these bindings are consistent across all shaders)
+    // These are already bound in InitGPUBuffers(), no need to re-bind unless specific buffers change.
+
+    // Initialize backpropagation shader if not already done
+    if (!backPropagateShader)
+    {
+        backPropagateShader = new ComputeShader();
+        backPropagateShader->setup("./shader/compute_shader_backpropagate.csh", glContext);
+    }
+
+    // Bind buffers to shader binding points (these bindings are consistent across all shaders)
+    nodesBuffer->bind_for_shader(0);
+    inputBufferGPU->bind_for_shader(1);
+    weightsBuffer->bind_for_shader(2);
+    biasesBuffer->bind_for_shader(3);
+    archBuffer->bind_for_shader(4);
+    nodesStepBuffer->bind_for_shader(5);
+    weightsStepBuffer->bind_for_shader(6);
+    targetOutputBufferGPU->bind_for_shader(7);
+    biasGradientsBufferGPU->bind_for_shader(8);
+    weightGradientsBufferGPU->bind_for_shader(9);
+    outputBufferGPU->bind_for_shader(10); // Changed binding point for outputBufferGPU to 10
+    backPropagateShader->begin();
+    backPropagateShader->program().setUniformValue("LayersAmount", LayersAmount);
+    backPropagateShader->program().setUniformValue("sizein", sizein);
+    backPropagateShader->program().setUniformValue("sizeout", sizeout);
+    backPropagateShader->program().setUniformValue("learningRate", learningRate);
+    backPropagateShader->program().setUniformValue("weights_size", Weights_Size);
+    backPropagateShader->program().setUniformValue("biases_size", NodesAmount);
+
+    // Phase 1: Calculate output layer errors
+    backPropagateShader->program().setUniformValue("currentLayerIndex", LayersAmount - 1);
+
+    backPropagateShader->compute(sizeout, 1, 1); // Dispatch for each output node
+    glContext->gl()->glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT); 
+
+    // Phase 2: Backpropagate errors through hidden layers
+    for (int l = LayersAmount - 2; l >= 1; l--) // Iterate backwards from second to last down to first hidden layer
+    {
+        backPropagateShader->program().setUniformValue("currentLayerIndex", l);
+        backPropagateShader->compute(Arch[l], 1, 1); // Dispatch for each node in the current hidden layer
+        glContext->gl()->glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT); 
+    }
+
+
+    // Phase 3: Update weights and biases
+    for (int l = 0; l < LayersAmount - 1; l++) // Iterate from input layer up to second to last layer
+    {
+        backPropagateShader->program().setUniformValue("currentLayerIndex", l);
+        backPropagateShader->compute(Arch[l], 1, 1); // Dispatch for each node in the current layer (responsible for outgoing weights)
+        glContext->gl()->glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT); 
+    }
+    backPropagateShader->end();
+
+    // Read updated weights and biases back to CPU
+    //ReadGPUWeightsBiases();
 }
 
 
