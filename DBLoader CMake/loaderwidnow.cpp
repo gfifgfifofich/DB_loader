@@ -433,18 +433,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
             userDS.data["UserTheme"]["Workspace_Directory"] = "documents";
         qDebug() << "saved 1";
 
-        userDS.Save((documentsDir + "/userdata.txt"));
     }
-
-    if(userDS.GetProperty("UserTheme","ShowTestButtons").trimmed() == "false")
-    {
-        ui->pushButton->hide();
-        ui->pushButton_2->hide();
-        ui->nnTestLearn->hide();
-        ui->nnTestRun->hide();
-    }
-
-
 
 
     // if program was opened from command line with filename to open
@@ -555,8 +544,8 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     qDebug() << uniqueTokens.data["tokens"].size() << "uniqueTokens.data[\"tokens\"].size()";
 
     int arch[3] = {1,500,1};
-    arch[0] = uniqueTokens.data["tokens"].size();
-    arch[2] = uniqueTokens.data["tokens"].size();
+    // arch[0] = uniqueTokens.data["tokens"].size();
+    // arch[2] = uniqueTokens.data["tokens"].size();
 
     nn.CreateGPU(arch,3);
     nn.lastCost = 10000000;
@@ -3486,12 +3475,47 @@ int correct_word_count = 0;
 #include "sqlSubfunctions.h"
 
 
+
 void LoaderWidnow::on_nnTestRun_pressed()
 {
-    qDebug() << "LoaderWidnow::on_nnTestRun_pressed()";
+
+    // Small toy corpus
 
 
 
+    QFile fl("C:/Users/pavel.kholkovskiy/Documents/DBLoader/sqlBackup/2025_08_22_09_53_23 closed tab WorkSpace0.sql.sql");
+
+    QString corpus;
+    if(fl.open(QFile::OpenModeFlag::ReadOnly))
+        corpus= fl.readAll();
+
+    // QString sqlFileContent = "SELECT * FROM table WHERE id = '123'; -- comment";
+    // QString cleaned = clean_text(corpus);
+    // qDebug() << "Cleaned SQL:" << cleaned;
+    // cleaned = clean_text(sqlFileContent);
+    // qDebug() << "Cleaned SQL:" << cleaned;
+
+    // BPE bpe;
+    // bpe.train(corpus, /*numMerges=*/500);
+
+    // QString input = QStringLiteral("select * from service where lower(serv_name) like 'asdzxc'");
+
+    // QStringList tokens = bpe.encode(input);
+
+    // qDebug()<< "Input: " << input;
+    // qDebug()<< "Tokens (" << tokens.size() << "): [";
+    // for (int i = 0; i < tokens.size(); ++i) {
+
+    //     qDebug() << (i ? ", " : "") << tokens.at(i);
+    // }
+    // qDebug()<< "]\n";
+
+    // const QString decoded = bpe.decode(tokens);
+    // qDebug() << "Decoded: " << decoded;
+
+
+    return;
+/*
     nn.inputs = new float[nn.sizein];
     nn.outputs = new float[nn.sizeout];
     for (int i=0; i<nn.sizeout; i++) {

@@ -87,6 +87,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         docwindow.h docwindow.cpp docwindow.ui
         replacewindow.h replacewindow.cpp replacewindow.ui
         testing.h
+        bpe.cpp
 
 
 

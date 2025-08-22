@@ -3,6 +3,44 @@
 #include "sqlSubfunctions.h"
 
 
+#include <QString>
+#include <QRegularExpression>
+
+QString clean_text(const QString& input) {
+    // Step 1: Remove SQL comments
+    // -- comment until end of line
+    QRegularExpression commentLineRegex("--(.*)$");
+    QString result = input;
+    while (true) {
+        auto match = commentLineRegex.match(result);
+        if (!match.hasMatch()) break;
+
+        int pos = match.capturedStart();
+        int len = match.capturedLength();
+        result = result.left(pos) + result.mid(pos + len);
+    }
+
+    // Step 2: Remove multi-line comments /* ... */
+    QRegularExpression multilineCommentRegex("/\\*([^*]|[^/]*\\*[^/*])*\\*/");
+    while (true) {
+        auto match = multilineCommentRegex.match(result);
+        if (!match.hasMatch()) break;
+
+        int pos = match.capturedStart();
+        int len = match.capturedLength();
+        result = result.left(pos) + result.mid(pos + len);
+    }
+
+    // Step 3: Remove content inside single quotes (e.g., 'value', 'hello world')
+    // We want to remove the entire `'...'` part, leaving just the text before and after
+    QRegularExpression singleQuoteRegex("(?<!' )'([^']*)'");
+    result = result.replace(singleQuoteRegex, "");
+
+    // Optional: Remove any remaining extra whitespace (optional cleanup)
+    result = result.trimmed().replace("\r\n","\n").replace("\n\n", "\n").replace("\n\n", "\n");
+
+    return result;
+}
 
 TokenProcessor::TokenProcessor(QObject *parent)
     : QObject{parent}
@@ -13,7 +51,8 @@ TokenProcessor::TokenProcessor(QObject *parent)
 void TokenProcessor::processText(QString &text)
 {
     tokens.clear();
-    tokens = processBlockToTokens(text);
+    QString cleantext = clean_text(text);
+    tokens = processBlockToTokens(cleantext);
 }
 
 
@@ -23,7 +62,7 @@ void TokenProcessor::addFrequencies()
     QString prevprevtoken = "";
     QString prevtoken = "";
     QStringList prevtokens;
-    int depth = 30;
+    int depth = 15;
 
     bool in_qutes = false;
     bool in_doublequtes = false;
@@ -90,8 +129,6 @@ void TokenProcessor::addFrequencies()
                         freq += val;
 
 
-                        if(freq > 10000)
-                            freq = 10000;
                         freqs[tokenkey][str] = freq;//ds.SetProperty(tokenkey.toStdString(),str.toStdString(),freq); //set to freq + val
                     }
                 }

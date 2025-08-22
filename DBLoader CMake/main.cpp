@@ -96,7 +96,6 @@ int main(int argc, char *argv[])
         {
             userDS.data["UserTheme"]["Language"] = "en";
         }
-        userDS.Save((documentsDir + "/userdata.txt"));
     }
 
 

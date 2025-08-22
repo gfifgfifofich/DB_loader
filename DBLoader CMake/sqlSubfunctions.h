@@ -390,4 +390,145 @@ inline QString fixQStringType(QString str)
 
 
 
+#include <QtCore>
+
+class BPE {
+public:
+    // Ordered list of merges (A,B) learned during training.
+    QList<QPair<QString, QString>> merges;
+
+    // Train BPE on a corpus (whitespace tokenized words), performing numMerges merges.
+    void train(const QString& corpus, int numMerges) {
+        // 1) Build word frequency map (whitespace split).
+        QHash<QString, int> wordFreq;
+        const auto words = corpus.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+        for (const QString& w : words) wordFreq[w]++;
+
+        // 2) Convert to vocabulary: list of (tokenizedSymbols, freq)
+        QList<QPair<QStringList, int>> vocab = toVocab(wordFreq);
+
+        // 3) Iteratively merge the most-frequent adjacent pair.
+        for (int i = 0; i < numMerges; ++i) {
+            QHash<QString, qint64> pairCounts = countPairs(vocab);
+            if (pairCounts.isEmpty()) break;
+
+            // Find best pair by count
+            QString bestKey;
+            qint64 bestCount = -1;
+            for (auto it = pairCounts.constBegin(); it != pairCounts.constEnd(); ++it) {
+                if (it.value() > bestCount) {
+                    bestCount = it.value();
+                    bestKey = it.key();
+                }
+            }
+            if (bestCount <= 0 || bestKey.isEmpty()) break;
+
+            // Decode "A B" -> (A,B)
+            const int sp = bestKey.indexOf(QLatin1Char(' '));
+            const QString A = bestKey.left(sp);
+            const QString B = bestKey.mid(sp + 1);
+
+            merges.append(qMakePair(A, B));
+
+            // Apply merge to all words in vocab
+            for (auto& wf : vocab) {
+                mergeSymbols(wf.first, A, B);
+            }
+        }
+    }
+
+    // Encode arbitrary text: returns all tokens as a QStringList.
+    // Splits text to words on whitespace, applies learned merges per word.
+    QStringList encode(const QString& text) const {
+        QStringList tokens;
+        const auto words = text.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+        for (const QString& w : words) {
+            QStringList symbols = wordToSymbols(w);
+            // Apply merges in learned order
+            for (const auto& m : merges) {
+                mergeSymbols(symbols, m.first, m.second);
+            }
+            tokens.append(symbols);
+        }
+        return tokens;
+    }
+
+    // Decode tokens produced by encode() back to text.
+    QString decode(const QStringList& tokens) const {
+        QStringList wordsOut;
+        QString current;
+        for (const QString& t : tokens) {
+            if (t.endsWith("</w>")) {
+                QString piece = t;
+                piece.chop(4); // remove "</w>"
+                current += piece;
+                wordsOut.append(current);
+                current.clear();
+            } else {
+                current += t;
+            }
+        }
+        if (!current.isEmpty()) {
+            // If a final word didn't end with </w>, still emit it.
+            wordsOut.append(current);
+        }
+        return wordsOut.join(QLatin1Char(' '));
+    }
+
+private:
+    // Turn a word into initial symbols (characters) + "</w>"
+    static QStringList wordToSymbols(const QString& word) {
+        QStringList symbols;
+        symbols.reserve(word.size() + 1);
+        for (QChar ch : word) {
+            symbols.append(QString(ch));
+        }
+        symbols.append(QStringLiteral("</w>"));
+        return symbols;
+    }
+
+    // Build vocabulary: list of (symbols, frequency) from word frequency map.
+    static QList<QPair<QStringList, int>> toVocab(const QHash<QString, int>& wordFreq) {
+        QList<QPair<QStringList, int>> vocab;
+        vocab.reserve(wordFreq.size());
+        for (auto it = wordFreq.constBegin(); it != wordFreq.constEnd(); ++it) {
+            vocab.append(qMakePair(wordToSymbols(it.key()), it.value()));
+        }
+        return vocab;
+    }
+
+    // Count adjacent pair frequencies across vocab (weighted by word freq).
+    static QHash<QString, qint64> countPairs(const QList<QPair<QStringList, int>>& vocab) {
+        QHash<QString, qint64> counts;
+        for (const auto& wf : vocab) {
+            const QStringList& syms = wf.first;
+            const int freq = wf.second;
+            for (int i = 0; i + 1 < syms.size(); ++i) {
+                const QString key = pairKey(syms.at(i), syms.at(i + 1));
+                counts[key] += freq;
+            }
+        }
+        return counts;
+    }
+
+    // Merge all occurrences of adjacent pair (A,B) inside symbols.
+    static void mergeSymbols(QStringList& symbols, const QString& A, const QString& B) {
+        if (symbols.size() < 2) return;
+        for (int i = 0; i + 1 < symbols.size();) {
+            if (symbols.at(i) == A && symbols.at(i + 1) == B) {
+                symbols[i] = A + B;
+                symbols.removeAt(i + 1); // merged; stay on same i to catch cascading merges
+            } else {
+                ++i;
+            }
+        }
+    }
+
+    static QString pairKey(const QString& a, const QString& b) {
+        // No spaces can appear inside tokens in this char-level scheme, so space is safe.
+        return a + QLatin1Char(' ') + b;
+    }
+};
+
+
 #endif // SQLSUBFUNCTIONS_H
