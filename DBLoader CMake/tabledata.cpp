@@ -10,6 +10,7 @@
 #include <QSqlResult>
 #include <QSqlRecord>
 #include <fstream>
+#include <qaxobject.h>
 #include <qdir.h>
 #include "databaseconnection.h"
 #include "xlsxstyles_p.h"
@@ -1691,8 +1692,10 @@ bool TableData::AppendToExcel(QString fileName, QString SheetName )
 {
     stopNow = false;
 
-    if(SheetName== "")
+    if(SheetName == "")
         SheetName = "Sheet1";
+    if(tbldata.size() <=0 || tbldata[0].size() <= 0)
+        return true;
     DatabaseConnection dc;
     dc.Create("QODBC_Excel",fileName);
     dc.nodebug = true;
@@ -1701,8 +1704,6 @@ bool TableData::AppendToExcel(QString fileName, QString SheetName )
     QString SQLITE_sql = "";
 
 
-    if(tbldata.size() <=0)
-        return true;
 
 
 
@@ -1770,6 +1771,33 @@ bool TableData::AppendToExcel(QString fileName, QString SheetName )
     }
 
     dc.DeleteDbConnection();
+
+
+
+    // try updating pivot tables
+    QAxObject* excel = new QAxObject("Excel.Application");
+    if (!excel) {
+        qDebug() << "Excel application could not be started.";
+    }
+
+    excel->setProperty("Visible", false); // Set to true for visible Excel window
+
+    QAxObject* workbooks = excel->querySubObject("Workbooks");
+    QAxObject* workbook = workbooks->querySubObject("Open(const QString&)", fileName); // Replace with your workbook path
+
+    if (workbook) {
+        workbook->dynamicCall("RefreshAll()"); // Refresh all PivotTables in the workbook
+        workbook->dynamicCall("Save()"); // Save changes if needed
+        workbook->dynamicCall("Close(Boolean)", true); // Close without saving if not saved
+    } else {
+        qDebug() << "Workbook could not be opened.";
+    }
+
+    excel->dynamicCall("Quit()");
+    delete workbook;
+    delete workbooks;
+    delete excel;
+
     return true;
 }
 

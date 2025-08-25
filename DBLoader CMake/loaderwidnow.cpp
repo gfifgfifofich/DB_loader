@@ -41,6 +41,10 @@
 +                                          datatypes
 +                                          tab press reg
 +                                          Timer
+- replace data in excel file using id column
+- replace excel worksheet
+- Fix append (create if not exists)
+- Subexec as text
 +- reimplement Patterns compleatly through .ds files
 
 + open files through cmd

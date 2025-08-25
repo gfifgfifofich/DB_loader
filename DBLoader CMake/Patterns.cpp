@@ -106,6 +106,10 @@ void fillPaterns()
     subCommandPatterns.push_back("SilentSubexecAppendExcelWorksheet");
     subCommandPatterns.push_back("SubexecToExcelWorksheet");
     subCommandPatterns.push_back("SubexecAppendExcelWorksheet");
+
+    subCommandPatterns.push_back("SubexecReplaceExcelWorksheet");
+    subCommandPatterns.push_back("SubexecAppendExcelWorksheetUniqueColumn");
+
     subCommandPatterns.push_back("SubexecToUnionAllTable");
     subCommandPatterns.push_back("SilentSubexecAppendCSV");
     subCommandPatterns.push_back("SubexecToExcelTable");
@@ -142,58 +146,7 @@ void fillPaterns()
     subCommandPatterns.push_back("StartAsyncExecution");
     subCommandPatterns.push_back("AwaitAsyncExecution");
 
-    /*
 
--- commands for automatic sql execution. The result is pasted instead of command in given format
-SubexecToMagic
-SubexecToArray
-SubexecToUnionAllTable
-
---Loads excel file. The result is pasted instead of command in given format. Accepts filename, (optional) column name, (optional) number first row, (optional) number last row
-ExcelToMagic
-ExcelToArray
-ExcelToSqliteTable
---Loads .csv file. The result is pasted instead of command in given format. Accepts filename, (optional) column name, (optional) number first row, (optional) number last row
-CSVToMagic
-CSVToArray
-CSVToSqliteTable
-
-
--- commands for automatic sql execution. Status of result is pasted istead of command, for debug purposes
-SubexecToExcelWorksheet
-SubexecAppendExcelWorksheet
-SubexecToSqliteTable
-SubexecToExcelTable
-SubexecAppendCSV
-SubexecToCSV
-
--- commands for automatic sql execution. Executed in background and then deleated from query
-SilentSubexecToSqliteTable
-SilentSubexecToExcelTable
-SilentSubexecToExcelWorksheet
-SilentSubexecAppendExcelWorksheet
-SilentSubexecAppendCSV
-SilentSubexecToCSV
-
--- paste current month. Accepts 1 number value - offset from current month
--- "DBLPasteMonth{--{0}}" will be replaced  with "01". "DBLPasteMonth{--{1}}" will be replaced  with "02"
-DBLPasteMonth
--- "DBLPasteNumMonth{--{0}}" will be replaced  with "1". "DBLPasteNumMonth{--{1}}" will be replaced  with "2"
-DBLPasteNumMonth
-
-
-QueryForLoop
-ForLoop
-
-StartAsyncExecution {--{}}
-
--- all subexec's in between will  be executed in parallel
-
-AwaitAsyncExecution {--{}}
-
-SendMail
-
-*/
 
 
 

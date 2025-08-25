@@ -8,7 +8,7 @@
 #include <qthread.h>
 #include "Patterns.h"
 #include "sqlSubfunctions.h"
-
+#include <QtAxContainer/QAxObject>
 #include "sqlite3.h"
 
 #include "libpq-fe.h"
@@ -315,7 +315,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
 
             if(QODBC_Excel)
             {
-                connectString.append("DRIVER={Microsoft Excel Driver (*.xls, *.xlsx, *.xlsm, *.xlsb)};ReadOnly=0;DBQ=" );
+                connectString.append("DRIVER={Microsoft Excel Driver (*.xls, *.xlsx, *.xlsm, *.xlsb)};ReadOnly=false;DBQ=" );
                 connectString.append(dbname);
                 qDebug() << connectString;
             }
@@ -1269,6 +1269,7 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                 QString subscriptDBname = "NoDatabase";
                                 QString saveName = "unset_tmp_savename";
                                 QString WorksheetName = "Sheet1";
+                                QString UniqueExcelColumnName = "ID";
                                 char csvDelimeter = ';';
                                 int saveStart_X = 0;
                                 int saveStart_Y = 0;
@@ -1302,7 +1303,7 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                         saveStart_X = QVariant(tmpvar).toInt();
                                         csvDelimeter = tmpvar[0].unicode();
                                         WorksheetName=tmpvar;
-                                        if(subCommandPatterns[i].endsWith("ExcelWorksheet"))
+                                        if(subCommandPatterns[i].endsWith("ExcelWorksheet") || subCommandPatterns[i].endsWith("ExcelWorksheetUniqueColumn"))
                                         {
                                             WorksheetName=tmpvar;
                                         }
@@ -1311,8 +1312,9 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                     {
                                         varcount++;
                                         saveEnd_X = QVariant(tmpvar).toInt();
-                                        if(subCommandPatterns[i].endsWith("ExcelWorksheet"))
+                                        if(subCommandPatterns[i].endsWith("ExcelWorksheet") || subCommandPatterns[i].endsWith("ExcelWorksheetUniqueColumn"))
                                         {
+                                            UniqueExcelColumnName = tmpvar;
                                             saveStart_X = QVariant(tmpvar).toInt();
                                         }
                                     }
@@ -1587,6 +1589,163 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                     if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
                                         if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
                                             subscriptConnesction->data.ExportToExcel(QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true,WorksheetName,true);
+
+
+
+
+                                }
+
+
+                                else if(subCommandPatterns[i] == "SubexecReplaceExcelWorksheet")
+                                {
+                                    savefilecount++;
+                                    if(!nodebug) qDebug() << "silent exporting replacing Excel Worksheet " << saveName;
+
+
+
+
+                                    if(WorksheetName == "")
+                                        WorksheetName = "Sheet1";
+
+
+
+                                    QAxObject* excel = new QAxObject("Excel.Application");
+                                    if (excel)
+                                    {
+                                        excel->setProperty("Visible", false); // Set to true for visible Excel window
+
+                                        QAxObject* workbooks = excel->querySubObject("Workbooks");
+                                        QAxObject* workbook = workbooks->querySubObject("Open(const QString&)", QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx")); // Replace with your workbook path
+
+                                        if(workbook )
+                                        {
+                                            QAxObject* sheets = workbook->querySubObject( "Worksheets" );
+                                            QAxObject* sheet = sheets->querySubObject( "Item(const QVariant&)", WorksheetName);
+                                            if(sheet)
+                                            {
+                                                QString rangeString = QString("%1:%2").arg(2).arg(1048576); // xls and others are obsolite anyways
+                                                QAxObject* rowsToDelete = sheet->querySubObject("Rows(const QString&)", rangeString);
+                                                rowsToDelete->dynamicCall("Delete()");
+
+                                                delete rowsToDelete;
+                                                delete sheet;
+                                            }
+                                            workbook->dynamicCall("Save()"); // Save changes if needed
+                                            workbook->dynamicCall("Close(Boolean)", true);
+                                            delete sheets;
+                                            delete workbook;
+                                        }
+                                        excel->dynamicCall("Quit()");
+                                        delete workbooks;
+                                    }
+                                    delete excel;
+                                    if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
+                                        if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
+                                            subscriptConnesction->data.ExportToExcel(QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true,WorksheetName,true);
+                                }
+                                else if(subCommandPatterns[i] == "SubexecAppendExcelWorksheetUniqueColumn")
+                                {
+                                    savefilecount++;
+                                    qDebug() << "UniqueExcelColumnName" << UniqueExcelColumnName;
+
+
+                                    std::map<QString,int> uniqueColumnValues;
+                                    int unique_col_id = -1;
+                                    for(int hi =0; hi < subscriptConnesction->data.headers.size(); hi++)
+                                    {
+                                        qDebug() << "comparing " << subscriptConnesction->data.headers[hi].toLower().trimmed() << UniqueExcelColumnName.toLower().trimmed();
+                                        if(subscriptConnesction->data.headers[hi].toLower().trimmed() == UniqueExcelColumnName.toLower().trimmed())
+                                        {
+                                            unique_col_id = hi;
+                                            break;
+                                        }
+                                    }
+                                    qDebug() << "unique_col_id " << unique_col_id;
+
+
+
+                                    if(unique_col_id >= 0)
+                                    {
+
+                                        for(int ti = 0; ti < subscriptConnesction->data.tbldata[unique_col_id].size(); ti++)
+                                        {
+                                            uniqueColumnValues[subscriptConnesction->data.tbldata[unique_col_id][ti]]++;// count for fun
+                                        }
+
+                                        for(auto keys : uniqueColumnValues)
+                                        {
+                                            qDebug() << "key added: " <<keys.first;
+                                        }
+
+
+                                        if(WorksheetName == "")
+                                            WorksheetName = "Sheet1";
+
+                                        TableData tmp_data;
+                                        tmp_data.ImportFromExcel(QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx"),0,0,0,0,true,WorksheetName);
+
+
+                                        if(tmp_data.tbldata.size() > 0 && tmp_data.tbldata[0].size() > 0)
+                                        {
+
+
+                                            QAxObject* excel = new QAxObject("Excel.Application");
+                                            if (!excel) {
+                                                qDebug() << "Excel application could not be started.";
+                                            }
+
+                                            excel->setProperty("Visible", false); // Set to true for visible Excel window
+
+                                            QAxObject* workbooks = excel->querySubObject("Workbooks");
+                                            QAxObject* workbook = workbooks->querySubObject("Open(const QString&)", QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx")); // Replace with your workbook path
+                                            QAxObject* sheets = workbook->querySubObject( "Worksheets" );
+                                            QAxObject* sheet = sheets->querySubObject( "Item(const QVariant&)", WorksheetName);
+                                            if (workbook) {
+                                                for(auto keys : uniqueColumnValues)
+                                                {
+                                                        for(int row=0; row < tmp_data.tbldata[0].size();  row++)
+                                                        {
+                                                            if(tmp_data.tbldata[unique_col_id][row].toLower().trimmed() == keys.first.toLower().trimmed())
+                                                            {
+                                                                for(int col=0; col < tmp_data.tbldata.size();  col++)
+                                                                {
+                                                                   tmp_data.tbldata[col].remove(row,1);
+                                                                }
+                                                                QAxObject* row_to_delete = sheet->querySubObject(("Rows("+ QVariant(row).toString() +")").toStdString().c_str());
+                                                                row_to_delete->dynamicCall("Delete()");
+                                                                delete row_to_delete;
+                                                                row--;
+                                                            }
+                                                        }
+                                                }
+
+
+
+                                                workbook->dynamicCall("RefreshAll()"); // Refresh all PivotTables in the workbook
+                                                workbook->dynamicCall("Save()"); // Save changes if needed
+                                                workbook->dynamicCall("Close(Boolean)", true); // Close without saving if not saved
+
+                                            } else {
+                                                qDebug() << "Workbook could not be opened.";
+                                            }
+
+                                            excel->dynamicCall("Quit()");
+                                            delete sheet;
+                                            delete sheets;
+                                            delete workbook;
+                                            delete workbooks;
+                                            delete excel;
+
+                                            if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
+                                                if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
+                                                    subscriptConnesction->data.ExportToExcel(QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx"),0,0,0,0,true,WorksheetName,true);
+
+
+                                        }
+
+
+
+                                    }
                                 }
 
                                 else if(subCommandPatterns[i] == "SilentSubexecToCSV")
@@ -2264,7 +2423,7 @@ bool DatabaseConnection::execSql(QString sql)
     }
     executing = true;
     // run result
-    while(str.endsWith('\n') || str.endsWith('}') ||str.endsWith('\t') || str.endsWith(' '))
+    while(str.endsWith('\n') || (str.endsWith('}') && !rawquery) ||str.endsWith('\t') || str.endsWith(' '))
         str.resize(str.size()-1);
     if(!nodebug) qDebug()<<str;
     if(!nodebug) qDebug() << "creating query";
@@ -3082,7 +3241,7 @@ bool DatabaseConnection::execSql(QString sql)
     if(!nodebug) qDebug() << "executing query";
     emit queryBeginExecuting();
     queryExecutionState = 2;
-    qDebug() << q.driver()->hasFeature(QSqlDriver::CancelQuery) << " << QSqlDriver::CancelQuery";
+    qDebug() << "SQL" << str;
     if(q.exec(str))
     {
         if(!nodebug) qDebug() << "query sucess.  isSelect = " << q.isSelect();
@@ -3138,7 +3297,7 @@ bool DatabaseConnection::execSql(QString sql)
     else
     {
 
-
+        qDebug() <<  q.lastError().text();
         data.headers.clear();
         data.tbldata.clear();
         data.tbldata.emplace_back();
