@@ -8,11 +8,14 @@
 #include <qthread.h>
 #include "Patterns.h"
 #include "sqlSubfunctions.h"
-#include <QtAxContainer/QAxObject>
 #include "sqlite3.h"
 
 #include "libpq-fe.h"
 
+// for COM automation in windows
+#ifdef _WIN32
+#include <QtAxContainer/QAxObject>
+#endif
 /*
 
 created query
@@ -1609,6 +1612,7 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
 
 
 
+                                    #ifdef _WIN32
                                     QAxObject* excel = new QAxObject("Excel.Application");
                                     if (excel)
                                     {
@@ -1639,6 +1643,7 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                         delete workbooks;
                                     }
                                     delete excel;
+                                    #endif
                                     if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
                                         if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
                                             subscriptConnesction->data.ExportToExcel(QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true,WorksheetName,true);
@@ -1687,8 +1692,7 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
 
                                         if(tmp_data.tbldata.size() > 0 && tmp_data.tbldata[0].size() > 0)
                                         {
-
-
+                                            #ifdef _WIN32
                                             QAxObject* excel = new QAxObject("Excel.Application");
                                             if (!excel) {
                                                 qDebug() << "Excel application could not be started.";
@@ -1735,7 +1739,7 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                             delete workbook;
                                             delete workbooks;
                                             delete excel;
-
+                                            #endif
                                             if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
                                                 if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
                                                     subscriptConnesction->data.ExportToExcel(QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx"),0,0,0,0,true,WorksheetName,true);
@@ -3241,7 +3245,7 @@ bool DatabaseConnection::execSql(QString sql)
     if(!nodebug) qDebug() << "executing query";
     emit queryBeginExecuting();
     queryExecutionState = 2;
-    qDebug() << "SQL" << str;
+    //qDebug() << "SQL" << str;
     if(q.exec(str))
     {
         if(!nodebug) qDebug() << "query sucess.  isSelect = " << q.isSelect();

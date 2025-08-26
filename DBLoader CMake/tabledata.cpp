@@ -10,13 +10,17 @@
 #include <QSqlResult>
 #include <QSqlRecord>
 #include <fstream>
-#include <qaxobject.h>
 #include <qdir.h>
 #include "databaseconnection.h"
 #include "xlsxstyles_p.h"
 #include <QInputDialog>
 #include <QMessageBox>
 #include <map>
+
+#ifdef _WIN32
+#include <qaxobject.h>
+#endif
+
 inline QString documentsDir;
 inline DataStorage userDS;
 
@@ -1774,6 +1778,7 @@ bool TableData::AppendToExcel(QString fileName, QString SheetName )
 
 
 
+    #ifdef _WIN32
     // try updating pivot tables
     QAxObject* excel = new QAxObject("Excel.Application");
     if (!excel) {
@@ -1797,7 +1802,7 @@ bool TableData::AppendToExcel(QString fileName, QString SheetName )
     delete workbook;
     delete workbooks;
     delete excel;
-
+    #endif
     return true;
 }
 

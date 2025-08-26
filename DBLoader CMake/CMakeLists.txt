@@ -15,9 +15,12 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Sql Test)
 find_package(Qt6 REQUIRED COMPONENTS Charts)
 find_package(Qt6 REQUIRED COMPONENTS Graphs)
 find_package(Qt6 REQUIRED COMPONENTS Quick)
-find_package(Qt6 REQUIRED COMPONENTS AxContainer)
 find_package(Qt6 REQUIRED COMPONENTS QuickControls2)
 find_package(Qt6 COMPONENTS Core LinguistTools)
+
+IF (WIN32)
+find_package(Qt6 REQUIRED COMPONENTS AxContainer)
+ENDIF()
 
 qt_standard_project_setup(I18N_TRANSLATED_LANGUAGES en ru)
 
@@ -124,8 +127,10 @@ target_link_libraries(untitled PRIVATE Qt6::Graphs)
 target_link_libraries(untitled PRIVATE Qt6::Quick)
 target_link_libraries(untitled PRIVATE Qt6::QuickControls2)
 target_link_libraries(untitled PRIVATE Qt6::Test)
-target_link_libraries(untitled PRIVATE Qt6::AxContainer)
 
+IF (WIN32)
+target_link_libraries(untitled PRIVATE Qt6::AxContainer)
+ENDIF()
 
 add_test(test_infr untitled test)
 add_test(test_const_fail untitled test fail)
