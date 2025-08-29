@@ -28,7 +28,6 @@ public:
     QString LastDatabase = "";
     QString sqlCode = "";
     QString allSqlCode = "";
-    QString additionalSaveFileData = "";
 
 
     QTime LastSaveEndDate;

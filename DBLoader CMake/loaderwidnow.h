@@ -127,6 +127,7 @@ public:
 
         QPushButton buildGraphButton;
         QPushButton saveAsPDFButton;
+        QPushButton copyScriptHandle;
         QCheckBox showLabelsCheckBox;
         QCheckBox graphThemeCheckBox;
 
@@ -142,6 +143,12 @@ public:
         QDateTimeAxis da;
         QValueAxis vax;
         QValueAxis vay;
+
+        bool manual_override = false;
+        int manual_groupColumn = 0;
+        int manual_dataColumn = 0;
+        int manual_separateColumn = 0;
+        QString savename = "chart.png";
 
         void Init()
         {
@@ -167,6 +174,7 @@ public:
             Labels_layout.addWidget(&showLabelsCheckBox);
             Labels_layout.addWidget(&graphThemeCheckBox);
             SpinBox_layout.addWidget(&saveAsPDFButton);
+            SpinBox_layout.addWidget(&copyScriptHandle);
 
             groupByLabel.setMaximumHeight(16);
             graphTypeLabel.setMaximumHeight(16);
@@ -179,7 +187,8 @@ public:
             graphThemeCheckBox.setText("White theme");
             showLabelsCheckBox.setText("Labels");
             buildGraphButton.setText("Build graph");
-            saveAsPDFButton.setText("Save graph as .pdf");
+            saveAsPDFButton.setText("Save graph as .png");
+            copyScriptHandle.setText("Copy script handle");
             graph_layout.addWidget(&buildGraphButton);
             graph_layout.addWidget(&cv);
 
@@ -212,6 +221,7 @@ public:
             graphThemeCheckBox.hide();
             showLabelsCheckBox.hide();
             saveAsPDFButton.hide();
+            copyScriptHandle.hide();
             groupBysb.hide();
             separateBysb.hide();
             dataColumnsb.hide();
@@ -240,7 +250,7 @@ public:
     void dropEvent(QDropEvent * evt) override;
 
 public slots:
-    void sendMail(QString host, QString Sender, QString SenderName, QStringList to,QStringList cc, QString Subject, QString messageText, QStringList attachments);
+    void sendMail(QString host, QString Sender, QString SenderName, QStringList to,QStringList cc, QString Subject, QString messageText, QStringList attachments, QStringList pictutes);
 
     void splitColumn();
     void addNumeratorColumn();
@@ -327,6 +337,8 @@ public slots:
     // Graph stuff
     void UpdateGraph();
     void saveGraphAsPDF();
+    void copyGraphScriptHandle();
+    void saveGraph(DatabaseConnection* tmp_con);
     // Update column labels of graph
     void on_graph_group_change(int val);
     void on_graph_separator_change(int val);

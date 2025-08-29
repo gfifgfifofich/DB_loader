@@ -7,6 +7,7 @@
 #include <qsqlrecord.h>
 #include <qthread.h>
 #include "Patterns.h"
+#include "loaderwidnow.h"
 #include "sqlSubfunctions.h"
 #include "sqlite3.h"
 
@@ -1425,7 +1426,6 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                             break;
                                         }
                                     }
-                                qDebug() << "processing result of async: "<<subscriptConnesction->data.allSqlCode;
                                 subscriptConnesction->data.allSqlCode = this->data.allSqlCode;
 
 
@@ -2221,6 +2221,54 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                         qDebug() << "subscriptConnesction->data.headers.size() > 0 Failed";
                                 }
 
+                                if(subCommandPatterns[i].trimmed() == "SubexecToGraph")
+                                {
+
+                                    loadWind->gw.manual_override = true;
+                                    loadWind->gw.manual_groupColumn = funcVariables[3].toInt();
+                                    loadWind->gw.manual_separateColumn = funcVariables[4].toInt();
+                                    loadWind->gw.manual_dataColumn = funcVariables[5].toInt();
+                                    loadWind->gw.savename = saveName;
+                                    emit saveGraph(subscriptConnesction);
+
+                                    if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
+                                        formatedSql += " 'Error' as \"Status\", ";
+                                    else
+                                        formatedSql += " 'Success' as \"Status\", ";
+
+                                    if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
+                                    {
+                                        formatedSql += "'";
+                                        formatedSql += subscriptConnesction->data.tbldata[0][0];
+                                        formatedSql += "'";
+                                        formatedSql += " as \"Error message\", ";
+                                    }
+                                    else
+                                    {
+                                        formatedSql += "'";
+                                        formatedSql += " ";
+                                        formatedSql += "'";
+                                        formatedSql += " as \"Error message\", ";
+                                    }
+                                    formatedSql += "'";
+                                    formatedSql += QVariant(subscriptConnesction->data.tbldata.size()).toString();
+                                    formatedSql += "'";
+                                    formatedSql += " as \"Column count\", ";
+                                    formatedSql += "'";
+                                    if(subscriptConnesction->data.tbldata.size() > 0)
+                                        formatedSql += QVariant(subscriptConnesction->data.tbldata[0].size()).toString();
+                                    else
+                                        formatedSql += " 0 ";
+                                    formatedSql += "'";
+                                    formatedSql += " as \"Row count\" ";
+
+
+                                    formatedSql += ", '";
+                                    formatedSql += execTimeStr;
+                                    formatedSql += "' ";
+                                    formatedSql += "as \"Execution time\"";
+                                }
+
                                 if(!nodebug) qDebug() << "closing subconnection";
                                 subscriptConnesction->db.close();
                                 delete subscriptConnesction;
@@ -2244,6 +2292,7 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                 QString Subject;
                                 QString messageText;
                                 QStringList attachments;
+                                QStringList pictures;
 
 
                                 int varcount = 0;
@@ -2265,6 +2314,8 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                         messageText = s;
                                     if(varcount ==7)
                                         attachments = s.split(',');
+                                    if(varcount ==8)
+                                        pictures = s.split(',');
                                     varcount ++;
                                 }
 
@@ -2277,11 +2328,14 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                 if(!nodebug) qDebug() << "Subject = " << Subject;
                                 if(!nodebug) qDebug() << "messageText = " << messageText;
                                 if(!nodebug) qDebug() << "attachments = " << attachments;
+                                if(!nodebug) qDebug() << "attachments = " << pictures;
 
-                                emit sendMail(host,Sender,SenderName,to,cc,Subject,messageText,attachments);
+                                emit sendMail(host,Sender,SenderName,to,cc,Subject,messageText,attachments,pictures);
 
 
                             }
+
+
 
                             // Async execution.
                             //// Start async - start launching each subexec on separate threads.

@@ -1,6 +1,7 @@
 #include "loaderwidnow.h"
 #include "structuredescriptor.h"
 #include "ui_loaderwidnow.h"
+#include <qaxobject.h>
 #include <qbarset.h>
 #include <qclipboard.h>
 #include <qcommandlineparser.h>
@@ -379,7 +380,9 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     connect( &dc->data, SIGNAL(ExportedToExcel()), this, SLOT(on_exportDone()), Qt::QueuedConnection );
     connect( &dc->data, SIGNAL(ExportedToSQLiteTable()), this, SLOT(on_exportDone()), Qt::QueuedConnection );
 
-    connect( dc, SIGNAL(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList)), this, SLOT(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList)), Qt::QueuedConnection );
+
+    connect( dc, SIGNAL(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList, QStringList)), this, SLOT(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList, QStringList)), Qt::QueuedConnection );
+    connect( dc, SIGNAL(saveGraph(DatabaseConnection*)), this, SLOT(saveGraph(DatabaseConnection*)), Qt::BlockingQueuedConnection );
 
     // autoexecution
     connect(&executionTimer, SIGNAL(timeout()), this, SLOT(executionTimerTimeout()));
@@ -390,6 +393,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     //graph
     connect( &gw.buildGraphButton, SIGNAL(pressed()), this, SLOT(UpdateGraph()), Qt::QueuedConnection );
     connect( &gw.saveAsPDFButton, SIGNAL(pressed()), this, SLOT(saveGraphAsPDF()), Qt::QueuedConnection );
+    connect( &gw.copyScriptHandle, SIGNAL(pressed()), this, SLOT(copyGraphScriptHandle()), Qt::QueuedConnection );
     connect( &gw.groupBysb, SIGNAL(valueChanged(int)), this, SLOT(on_graph_group_change(int)), Qt::QueuedConnection );
     connect( &gw.separateBysb, SIGNAL(valueChanged(int)), this, SLOT(on_graph_separator_change(int)), Qt::QueuedConnection );
     connect( &gw.dataColumnsb, SIGNAL(valueChanged(int)), this, SLOT(on_graph_data_change(int)), Qt::QueuedConnection );
@@ -1353,6 +1357,7 @@ void LoaderWidnow::ShowGraph()
         gw.graphThemeCheckBox.hide();
         gw.showLabelsCheckBox.hide();
         gw.saveAsPDFButton.hide();
+        gw.copyScriptHandle.hide();
         gw.groupBysb.hide();
         gw.separateBysb.hide();
         gw.dataColumnsb.hide();
@@ -1378,6 +1383,7 @@ void LoaderWidnow::ShowGraph()
         gw.graphThemeCheckBox.show();
         gw.showLabelsCheckBox.show();
         gw.saveAsPDFButton.show();
+        gw.copyScriptHandle.show();
         gw.groupBysb.show();
         gw.separateBysb.show();
         gw.dataColumnsb.show();
@@ -1489,6 +1495,8 @@ void LoaderWidnow::ShowTimerWindow()
         ui->timerMainLabel->hide();
         ui->timerRemainingTime->hide();
         ui->timerLastLaunchTime->hide();
+        ui->updateGraphCheckBox->hide();
+        ui->realTimeUpdatecheckBox->hide();
     }
     else
     {
@@ -1512,6 +1520,8 @@ void LoaderWidnow::ShowTimerWindow()
         ui->timerMainLabel->show();
         ui->timerRemainingTime->show();
         ui->timerLastLaunchTime->show();
+        ui->updateGraphCheckBox->show();
+        ui->realTimeUpdatecheckBox->show();
 
     }
 }
@@ -1555,6 +1565,14 @@ void LoaderWidnow::UpdateGraph()
     int groupColumn = gw.groupBysb.value();
     int dataColumn = gw.dataColumnsb.value();
     int separateColumn = gw.separateBysb.value();
+
+    if(gw.manual_override)
+    {
+
+        groupColumn = gw.manual_groupColumn;
+        dataColumn = gw.manual_dataColumn;
+        separateColumn = gw.manual_separateColumn;
+    }
 
     bool separate = true;
     if(separateColumn <= -1 || dataColumn == separateColumn || groupColumn == separateColumn || separateColumn >= dc->data.tbldata.size())
@@ -1903,15 +1921,74 @@ void LoaderWidnow::UpdateGraph()
 }
 void LoaderWidnow::saveGraphAsPDF()
 {
-    QPdfWriter writer(documentsDir + "/out.pdf");
-    writer.setCreator("QTGraph");
-    writer.setPageSize(QPageSize::A4);
-    QPainter painter(&writer);
+
+
+
+
+    QImage image(1980, 1020, QImage::Format_ARGB32);
+    image.fill(Qt::white);
+    QPainter painter(&image);
+
+    QSize sz = gw.cv.size();
+    QSize max_sz = gw.cv.maximumSize();
+    QSize min_sz = gw.cv.minimumSize();
+
+    gw.cv.setMaximumSize({1980, 1020});
+    gw.cv.setMinimumSize({1980, 1020});
     gw.cv.show();
     gw.cv.render(&painter);
-    painter.end();
-}
+    gw.cv.setMaximumSize(max_sz);
+    gw.cv.setMinimumSize(min_sz);
 
+
+
+    painter.end();
+    image.save(documentsDir + "/" + gw.savename);
+
+}
+void LoaderWidnow::copyGraphScriptHandle()
+{
+    QString selected_text = "";
+
+    // create a ready-to-paste script to save current graph
+    selected_text = "SubexecToGraph { {";
+    selected_text += dc->driver;
+    selected_text += "} {";
+    selected_text += dc->dbname;
+    selected_text += "} {";
+    selected_text += "FILE_NAME";
+    selected_text += "} {";
+    selected_text += QVariant(gw.groupBysb.value()).toString();
+    selected_text += "} {";
+    selected_text += QVariant(gw.separateBysb.value()).toString();
+    selected_text += "} {";
+    selected_text += QVariant(gw.dataColumnsb.value()).toString();
+    selected_text += "}";
+
+
+
+    selected_text += "\n\t";
+    QString str = dc->sqlCode;
+    selected_text += str.replace('\n', "\n\t");
+    while (selected_text.endsWith('\t'))
+        selected_text.remove(selected_text.size()-1,1);
+    selected_text += "}";
+    QApplication::clipboard()->setText(selected_text);
+}
+void LoaderWidnow::saveGraph(DatabaseConnection* tmp_con)
+{
+
+    gw.groupBysb.setValue(gw.manual_groupColumn);
+    gw.dataColumnsb.setValue(gw.manual_dataColumn);
+    gw.separateBysb.setValue(gw.manual_separateColumn);
+
+    DatabaseConnection* tmp_dc = dc;
+    dc = tmp_con;
+    UpdateGraph();
+    saveGraphAsPDF();
+    dc = tmp_dc;
+    gw.manual_override= false;
+}
 // Table widget copying
 void LoaderWidnow::CopySelectionFormTable()
 {
@@ -2626,8 +2703,8 @@ void LoaderWidnow::on_tabWidget_currentChanged(int index)
 
 
 
-    disconnect( dc, SIGNAL(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList)), this, SLOT(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList)) );
-
+    disconnect( dc, SIGNAL(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList, QStringList)), this, SLOT(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList, QStringList)) );
+    disconnect( dc, SIGNAL(saveGraph(DatabaseConnection*)), this, SLOT(saveGraph(DatabaseConnection*)) );
 
 
     dc = &tabDatas[i]->dc;
@@ -2644,7 +2721,9 @@ void LoaderWidnow::on_tabWidget_currentChanged(int index)
     connect( &dc->data, SIGNAL(ExportedToSQLiteTable()), this, SLOT(on_exportDone()), Qt::QueuedConnection );
 
 
-    connect( dc, SIGNAL(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList)), this, SLOT(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList)), Qt::QueuedConnection );
+
+    connect( dc, SIGNAL(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList, QStringList)), this, SLOT(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList, QStringList)), Qt::QueuedConnection );
+    connect( dc, SIGNAL(saveGraph(DatabaseConnection*)), this, SLOT(saveGraph(DatabaseConnection*)), Qt::BlockingQueuedConnection );
 
     sqlexecThread = &tabDatas[i]->sqlexecThread;
 
@@ -2763,7 +2842,7 @@ void LoaderWidnow::updateMisc()
 {
     cd->updateMisc();
 }
-void LoaderWidnow::sendMail(QString host, QString Sender, QString SenderName, QStringList to,QStringList cc, QString Subject, QString messageText, QStringList attachments)
+void LoaderWidnow::sendMail(QString host, QString Sender, QString SenderName, QStringList to,QStringList cc, QString Subject, QString messageText, QStringList attachments, QStringList pictutes)
 {
     qDebug() << "sending mail" <<host << Sender <<SenderName << to << cc << Subject << messageText << attachments;
     auto server = new SimpleMail::Server;
@@ -2793,14 +2872,30 @@ void LoaderWidnow::sendMail(QString host, QString Sender, QString SenderName, QS
     message.setSubject(Subject);
 
 
-    auto text = std::make_shared<SimpleMail::MimeText>();
+
+    auto texthtml = std::make_shared<SimpleMail::MimeHtml>();
+
+    QString html_text = "<p>"+messageText +"</p> ";
+
+    std::vector<std::shared_ptr<SimpleMail::MimeAttachment>> attachedimages;
+    int image_iter = 0;
+    for(auto x : pictutes)
+    {
+        image_iter++;
+        attachedimages.push_back(std::make_shared<SimpleMail::MimeAttachment>(std::make_shared<QFile>(documentsDir + "/" + x)));
+        attachedimages.back()->setContentId(("image00" + QVariant(image_iter).toString()).toStdString().c_str());
+        html_text += "<img src=\"cid:image00" + QVariant(image_iter).toString() +"\"> ";
+    }
     qDebug() << "setting text";
 
-    text->setText(messageText);
+    texthtml->setText(html_text );
 
 
-    message.addPart(text);
+    message.addPart(texthtml);
 
+
+    for(auto x : attachedimages)
+        message.addPart(x);
 
     if(!(attachments.size()==1 && attachments[0].trimmed() == ""))
         for(auto x : attachments)
@@ -3484,9 +3579,6 @@ void LoaderWidnow::on_nnTestRun_pressed()
 {
 
     // Small toy corpus
-
-
-
     QFile fl("C:/Users/pavel.kholkovskiy/Documents/DBLoader/sqlBackup/2025_08_22_09_53_23 closed tab WorkSpace0.sql.sql");
 
     QString corpus;

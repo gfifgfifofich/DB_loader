@@ -126,7 +126,8 @@ signals:
     void queryBeginExecuting();
     void querySuccess();//staring to download
     void execedSql();
-    void sendMail(QString host, QString Sender, QString SenderName, QStringList to,QStringList cc, QString Subject, QString messageText, QStringList attachments);
+    void sendMail(QString host, QString Sender, QString SenderName, QStringList to,QStringList cc, QString Subject, QString messageText, QStringList attachments, QStringList pictures);
+    void saveGraph(DatabaseConnection* dc);
 };
 
 #endif // DATABASECONNECTION_H

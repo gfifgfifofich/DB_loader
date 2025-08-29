@@ -534,7 +534,7 @@ bool TableData::ExportToCSV(QString fileName, char delimeter, bool firstRowHeade
     }
 
 
-    QFile fl((additionalSaveFileData + fileName));
+    QFile fl((fileName));
     if(fl.open(QFile::OpenModeFlag::WriteOnly))
     {
         for(int i=0;i<headers.size();i++)
@@ -593,7 +593,7 @@ bool TableData::ExportToCSV(QString fileName, char delimeter, bool firstRowHeade
     }
     else
     {
-        qDebug() <<"failed to open file "<< (additionalSaveFileData + fileName);
+        qDebug() <<"failed to open file "<< (fileName);
         LastSaveDuration = QTime::fromMSecsSinceStartOfDay(LastSaveDuration.msecsTo(QTime::currentTime()));
         LastSaveEndDate = QTime::currentTime();
         exporting = false;
@@ -1300,7 +1300,7 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
     xlsxR3.write(3,1,"all SQL Code");
     xlsxR3.write(4,1,allSqlCode );
     xlsxR3.selectSheet("Sheet1");
-    if(xlsxR3.saveAs((additionalSaveFileData + fileName)))
+    if(xlsxR3.saveAs((fileName)))
     {
         qDebug()<<"saved.";
         LastSaveDuration = QTime::fromMSecsSinceStartOfDay(LastSaveDuration.msecsTo(QTime::currentTime()));
@@ -1644,7 +1644,24 @@ bool TableData::ExportToSQLiteTable(QString tableName)
 bool TableData::AppendToCSV(QString fileName, char delimeter)
 {
     stopNow = false;
-    QFile fl((additionalSaveFileData + fileName));
+
+    QFileInfo fileInfo((fileName));
+    if(!fileInfo.exists())
+    {
+        QFile fl((fileName));
+        if(fl.open(QFile::OpenModeFlag::Append))
+        {
+            for(int i=0;i<headers.size();i++)
+            {
+                fl.write(headers[i].toUtf8().constData());
+                if(i != headers.size()-1)
+                    fl.write(QString(delimeter).toUtf8().constData());
+            }
+            fl.write(QString('\n').toUtf8().constData());
+        }
+    }
+
+    QFile fl((fileName));
     ;
     if(fl.open(QFile::OpenModeFlag::Append))
     {
@@ -1686,7 +1703,7 @@ bool TableData::AppendToCSV(QString fileName, char delimeter)
     }
     else
     {
-        qDebug() <<"failed to open file "<< (additionalSaveFileData + fileName);
+        qDebug() <<"failed to open file "<< (fileName);
         return false;
     }
     fl.close();
