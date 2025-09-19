@@ -2326,7 +2326,7 @@ void LoaderWidnow::on_ImportFromCSVButton_pressed()
 {
 
     dc->data.silentExcelImport=false;
-    dc->data.ImportFromCSV(QFileDialog::getOpenFileName(this, tr("Select csv file")),';',true);
+    dc->data.ImportFromCSVToLocalDB(QFileDialog::getOpenFileName(this, tr("Select csv file")),',',false);
     UpdateTable();
     ui->tableDBNameLabel->setText("Imported from csv");
     dc->data.silentExcelImport=true;
@@ -2875,28 +2875,36 @@ void LoaderWidnow::sendMail(QString host, QString Sender, QString SenderName, QS
 
     auto texthtml = std::make_shared<SimpleMail::MimeHtml>();
 
-    QString html_text = "<p>"+messageText +"</p> ";
+    QString html_text = "<p>"+messageText +"</p>";
 
-    std::vector<std::shared_ptr<SimpleMail::MimeAttachment>> attachedimages;
-    int image_iter = 0;
-    for(auto x : pictutes)
+    if(pictutes.size()>0 && pictutes[0].trimmed().size()>0)
     {
-        image_iter++;
-        attachedimages.push_back(std::make_shared<SimpleMail::MimeAttachment>(std::make_shared<QFile>(documentsDir + "/" + x)));
-        attachedimages.back()->setContentId(("image00" + QVariant(image_iter).toString()).toStdString().c_str());
-        html_text += "<img src=\"cid:image00" + QVariant(image_iter).toString() +"\"> ";
+        std::vector<std::shared_ptr<SimpleMail::MimeAttachment>> attachedimages;
+        int image_iter = 0;
+        for(auto x : pictutes)
+        {
+            image_iter++;
+            attachedimages.push_back(std::make_shared<SimpleMail::MimeAttachment>(std::make_shared<QFile>(documentsDir + "/" + x)));
+            attachedimages.back()->setContentId(("image00" + QVariant(image_iter).toString()).toStdString().c_str());
+            html_text += " <img src=\"cid:image00" + QVariant(image_iter).toString() +"\">";
+        }
+        qDebug() << "setting text";
+
+        texthtml->setText(html_text );
+
+
+        message.addPart(texthtml);
+
+
+        for(auto x : attachedimages)
+            message.addPart(x);
     }
-    qDebug() << "setting text";
-
-    texthtml->setText(html_text );
-
-
-    message.addPart(texthtml);
-
-
-    for(auto x : attachedimages)
-        message.addPart(x);
-
+    else
+    {
+        qDebug() << "Sending raw text";
+        texthtml->setText(html_text );
+        message.addPart(texthtml);
+    }
     if(!(attachments.size()==1 && attachments[0].trimmed() == ""))
         for(auto x : attachments)
         {
@@ -3102,6 +3110,7 @@ void LoaderWidnow::splitColumn()
 
         QInputDialog id(loadWind);
         id.setLabelText("Select column");
+        id.setWindowTitle("Split");
         id.setComboBoxItems(dc->data.headers);
         bool ok = id.exec();
         if(!ok)
@@ -3242,6 +3251,7 @@ void LoaderWidnow::levensteinJoin()
 
         QInputDialog id(loadWind);
         id.setLabelText("Select source column");
+        id.setWindowTitle("Join");
         id.setComboBoxItems(dc->data.headers);
         bool ok = id.exec();
         if(!ok)
@@ -3257,6 +3267,7 @@ void LoaderWidnow::levensteinJoin()
         QInputDialog idd(loadWind);
         idd.setLabelText("Select column to join with");
         idd.setComboBoxItems(dc->data.headers);
+        idd.setWindowTitle("Join");
         ok = idd.exec();
         if(!ok)
             return;
@@ -3274,6 +3285,7 @@ void LoaderWidnow::levensteinJoin()
         QStringList strl = dc->data.headers;
         strl.push_front("none");
         idd.setComboBoxItems(dc->data.headers);
+        idd.setWindowTitle("Join");
         ok = idd.exec();
         if(!ok)
             return;
@@ -3568,8 +3580,6 @@ void LoaderWidnow::on_nnTestLearn_pressed()
 int iteration_counter = 0;
 bool AI_CyberDimentia = true;
 int correct_word_count = 0;
-
-
 // used to split text
 #include "sqlSubfunctions.h"
 
@@ -3578,12 +3588,7 @@ int correct_word_count = 0;
 void LoaderWidnow::on_nnTestRun_pressed()
 {
 
-    // Small toy corpus
-    QFile fl("C:/Users/pavel.kholkovskiy/Documents/DBLoader/sqlBackup/2025_08_22_09_53_23 closed tab WorkSpace0.sql.sql");
-
-    QString corpus;
-    if(fl.open(QFile::OpenModeFlag::ReadOnly))
-        corpus= fl.readAll();
+    //corpus= fl.readAll();
 
     // QString sqlFileContent = "SELECT * FROM table WHERE id = '123'; -- comment";
     // QString cleaned = clean_text(corpus);

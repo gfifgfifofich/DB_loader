@@ -68,7 +68,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         databaseconnection.h databaseconnection.cpp
         loaderwidnow.h loaderwidnow.cpp loaderwidnow.ui
         table.h table.cpp
-        replacedialog.h replacedialog.cpp replacedialog.ui
+
 
 
         qtcomputeshader/glwrappers.h

@@ -21,6 +21,9 @@ public:
     bool nodebug = false;
     bool rawquery = false;
 
+    bool bypassToLocalDb = false;
+    QString bypassLocalDbTableName = "tmp";
+
     int queryExecutionState = 0;
 
     QSqlDatabase db;

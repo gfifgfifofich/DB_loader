@@ -96,6 +96,9 @@ void fillPaterns()
     subCommandPatterns.push_back("SubexecToSqliteTable");
     subCommandPatterns.push_back("CSVToSqliteTable");
 
+    subCommandPatterns.push_back("SilentSubexecBypassToLocalDBTable");
+    subCommandPatterns.push_back("SubexecBypassToLocalDBTable");
+
     subCommandPatterns.push_back("SilentSubexecToLocalDBTable");
     subCommandPatterns.push_back("ExcelToLocalDBTable");
     subCommandPatterns.push_back("SubexecToLocalDBTable");

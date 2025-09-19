@@ -62,8 +62,15 @@ public:
     Q_INVOKABLE bool ExportToExcel(QString fileName, int x_start = 0,int x_end = 0,int y_start = 0,int y_end = 0, bool firstRowHeader = true,QString sheetName = "", bool append = false);
     Q_INVOKABLE bool ExportToSQLiteTable(QString tableName);
 
+    Q_INVOKABLE bool ImportFromCSVToLocalDB(QString fileName, QChar delimeter, bool firstRowHeader= true);
+
+
+    Q_INVOKABLE bool DumpToLocalDB(QString tableName, bool overwrite = false);
+
+
     Q_INVOKABLE bool AppendToCSV(QString fileName, char delimeter);
     Q_INVOKABLE bool AppendToExcel(QString fileName, QString SheetName = "Sheet1");
+    Q_INVOKABLE bool AppendLocalTable(QString tableName, void* dc);
 
     // QAbstractTableModel overrides
     int rowCount(const QModelIndex & = QModelIndex()) const override;
