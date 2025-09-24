@@ -23,6 +23,8 @@ public:
 
     bool bypassToLocalDb = false;
     QString bypassLocalDbTableName = "tmp";
+    int bypassToLocalDbRowCount = 0;
+    int bypassToLocalDbExportRowCount = 0;
 
     int queryExecutionState = 0;
 
@@ -99,6 +101,7 @@ public:
     Q_INVOKABLE bool Create(QString driver, QString DBName); // create dc connection, using userdata
     Q_INVOKABLE bool DeleteDbConnection(); // create dc connection, using userdata
     Q_INVOKABLE bool execSql(QString sql = "");
+    Q_INVOKABLE bool insertSql(TableData* dat, QString tableName);
     Q_INVOKABLE QString UnrollAllLoops(QString sql = "");
     Q_INVOKABLE QString processSqlWithCommands(QString sql = "");
 

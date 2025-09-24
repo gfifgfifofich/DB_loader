@@ -65,7 +65,7 @@ public:
     Q_INVOKABLE bool ImportFromCSVToLocalDB(QString fileName, QChar delimeter, bool firstRowHeader= true);
 
 
-    Q_INVOKABLE bool DumpToLocalDB(QString tableName, bool overwrite = false);
+    Q_INVOKABLE bool DumpToLocalDB(QString tableName, bool overwrite = false, bool clear_after = true);
 
 
     Q_INVOKABLE bool AppendToCSV(QString fileName, char delimeter);

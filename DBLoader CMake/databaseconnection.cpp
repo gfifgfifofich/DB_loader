@@ -1387,6 +1387,16 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                         while(scriptCommand.endsWith(' ') ||scriptCommand.endsWith('\t') ||scriptCommand.endsWith('\n') || scriptCommand.endsWith('\r'))
                                             scriptCommand.resize(scriptCommand.size()-1);
 
+                                        if(subCommandPatterns[i].startsWith("SilentSubexecBypassToLocalDBTable") ||subCommandPatterns[i].startsWith("SubexecBypassToLocalDBTable"))
+                                        {
+                                            subscriptConnesction->bypassToLocalDb = true;
+                                            subscriptConnesction->bypassLocalDbTableName = saveName;
+                                        }
+                                        else
+                                        {
+                                            subscriptConnesction->bypassToLocalDb = false;
+                                            subscriptConnesction->bypassLocalDbTableName = "tmp";
+                                        }
                                         if(asyncExecution_recordExecs)
                                         {
 
@@ -1698,13 +1708,13 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                                 qDebug() << "Excel application could not be started.";
                                             }
 
-                                            excel->setProperty("Visible", false); // Set to true for visible Excel window
+                                            excel->setProperty("Visible", true); // Set to true for visible Excel window
 
                                             QAxObject* workbooks = excel->querySubObject("Workbooks");
-                                            QAxObject* workbook = workbooks->querySubObject("Open(const QString&)", QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx")); // Replace with your workbook path
-                                            QAxObject* sheets = workbook->querySubObject( "Worksheets" );
-                                            QAxObject* sheet = sheets->querySubObject( "Item(const QVariant&)", WorksheetName);
+                                            QAxObject* workbook = workbooks->querySubObject("Open(const QString&)", QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx"));
                                             if (workbook) {
+                                                QAxObject* sheets = workbook->querySubObject( "Worksheets" );
+                                                QAxObject* sheet = sheets->querySubObject( "Item(const QVariant&)", WorksheetName);
                                                 for(auto keys : uniqueColumnValues)
                                                 {
                                                         for(int row=0; row < tmp_data.tbldata[0].size();  row++)
@@ -1728,14 +1738,14 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                                 workbook->dynamicCall("RefreshAll()"); // Refresh all PivotTables in the workbook
                                                 workbook->dynamicCall("Save()"); // Save changes if needed
                                                 workbook->dynamicCall("Close(Boolean)", true); // Close without saving if not saved
+                                                delete sheet;
+                                                delete sheets;
 
                                             } else {
                                                 qDebug() << "Workbook could not be opened.";
                                             }
 
                                             excel->dynamicCall("Quit()");
-                                            delete sheet;
-                                            delete sheets;
                                             delete workbook;
                                             delete workbooks;
                                             delete excel;
@@ -1768,6 +1778,64 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                         if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
                                             subscriptConnesction->data.AppendToCSV(QString(documentsDir + "/" +"CSV/") + QString(saveName) + QString(".csv"),csvDelimeter);
                                 }
+
+                                else if(subCommandPatterns[i].startsWith("SilentSubexecBypassToLocalDBTable"))
+                                    savefilecount++;
+
+                                else if(subCommandPatterns[i].startsWith("SubexecBypassToLocalDBTable"))
+                                {
+                                    savefilecount++;
+                                    if(!nodebug) qDebug() << "exporting to SQLite " << saveName;
+                                    if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
+                                    {
+                                        QString saveErrorStr = "";
+                                        if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
+                                            formatedSql += " 'Error' as \"Status\", ";
+                                        else if (saveErrorStr.size() > 0)
+                                        {
+                                            formatedSql += " '";
+                                            formatedSql += saveErrorStr;
+                                            formatedSql += "' ";
+                                            formatedSql += "as \"Status\", ";
+                                        }
+                                        else
+                                            formatedSql += " 'Success' as \"Status\", ";
+
+                                        if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
+                                        {
+                                            formatedSql += "'";
+                                            if(subscriptConnesction->data.tbldata.size() > 0 && subscriptConnesction->data.tbldata[0].size()>0)
+                                                formatedSql += subscriptConnesction->data.tbldata[0][0];
+                                            formatedSql += "'";
+                                            formatedSql += " as \"Error message\", ";
+                                        }
+                                        else
+                                        {
+                                            formatedSql += "'";
+                                            formatedSql += " ";
+                                            formatedSql += "'";
+                                            formatedSql += " as \"Error message\", ";
+                                        }
+                                        formatedSql += "'";
+                                        formatedSql += QVariant(subscriptConnesction->data.tbldata.size()).toString();
+                                        formatedSql += "'";
+                                        formatedSql += " as \"Column count\", ";
+                                        formatedSql += "'";
+                                        if(subscriptConnesction->data.tbldata.size() > 0)
+                                            formatedSql += QVariant(subscriptConnesction->data.tbldata[0].size()).toString();
+                                        else
+                                            formatedSql += " 0 ";
+                                        formatedSql += "'";
+                                        formatedSql += " as \"Row count\" ";
+
+
+                                        formatedSql += ", '";
+                                        formatedSql += execTimeStr;
+                                        formatedSql += "' ";
+                                        formatedSql += "as \"Execution time\"";
+                                    }
+                                }
+
 
                                 // non silent exporting
                                 else if(subCommandPatterns[i] == "SubexecToSqliteTable" || subCommandPatterns[i] == "SubexecToLocalDBTable")
@@ -2429,6 +2497,10 @@ bool DatabaseConnection::execSql(QString sql)
 
     asyncExecution_databaseConnections.clear();
     data.exported = false;
+
+    bypassToLocalDbExportRowCount = 0;
+    data.saveRowsDone = 0;
+
     if(!db.isOpen() && !customOracle && (!(customSQlite)) && !(customPSQL))
     {
         bool ok = db.open();
@@ -2634,175 +2706,356 @@ bool DatabaseConnection::execSql(QString sql)
 
         emit queryBeginExecuting();
         queryExecutionState = 2;
-        if(!nodebug) qDebug() << "PQexec";
-        PGresult* res = PQexec((PGconn*) ptr_PGconn, sql);
 
-        if(!nodebug) qDebug() << "PQexec checks";
-        if (PQresultStatus(res) != PGRES_TUPLES_OK && PQresultStatus(res) != PGRES_COMMAND_OK) {
+        bypassToLocalDbRowCount = 0;
 
+        if(bypassToLocalDb)
+        {
+
+            bool hit500kOnce = false;
+            PQsendQuery((PGconn*) ptr_PGconn, sql);
+            PQsetChunkedRowsMode((PGconn*) ptr_PGconn, 500000);
+
+
+            PGresult* res = PQgetResult((PGconn*) ptr_PGconn);
+            if(!nodebug) qDebug() << "PQexec checks" << PQresultStatus(res);
+
+            if (PQresultStatus(res) != PGRES_TUPLES_OK && PQresultStatus(res) != PGRES_TUPLES_CHUNK && PQresultStatus(res) != PGRES_COMMAND_OK) {
+
+
+                data.headers.clear();
+
+                data.headers << "Error";
+                data.headers << "Error position";
+
+                data.tbldata.clear();
+                data.tbldata.resize(data.headers.size());
+                data.tbldata[0].push_back(QString().fromUtf8(PQresultErrorMessage(res)));
+                data.tbldata[0].push_back(QString().fromUtf8(PQerrorMessage((PGconn*) ptr_PGconn)));
+                data.tbldata[1].push_back(QString().fromUtf8(PQresultErrorField(res,PG_DIAG_STATEMENT_POSITION)));
+                data.tbldata[1].push_back(QString().fromUtf8(PQresultVerboseErrorMessage(res,PGVerbosity::PQERRORS_VERBOSE,PGContextVisibility::PQSHOW_CONTEXT_ERRORS)));
+
+                lastLaunchIsError = true;
+                lastErrorPos = QVariant(QString().fromUtf8(PQresultErrorField(res,PG_DIAG_STATEMENT_POSITION))).toInt();
+
+
+                data.typecount.clear();
+                dataDownloading = false;
+
+                PQclear(res);
+                executing = false;
+                dataDownloading = false;
+                queryExecutionState = 4;
+                executionEnd = QDateTime::currentDateTime();
+                executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
+                emit execedSql();
+                bypassToLocalDb= false;
+                return false;
+
+            }
+            else if(PQresultStatus(res) == PGRES_COMMAND_OK)
+            {
+
+                PQclear(res);
+                data.headers.clear();
+                data.tbldata.clear();
+                data.typecount.clear();
+                dataDownloading = false;
+
+                executing = false;
+                dataDownloading = false;
+                queryExecutionState = 4;
+                executionEnd = QDateTime::currentDateTime();
+                executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
+                emit execedSql();
+                bypassToLocalDb= false;
+                return true;
+            }
+            emit querySuccess();
+            queryExecutionState = 3;
+
+            int rows = PQntuples(res);
+            int cols = PQnfields(res);
+
+            data.saveRowSize = 0;
+            data.saveRowsDone = 0;
+            if(!nodebug) qDebug() << rows << cols << "rows << cols";
+
+            if(cols <=0)
+            {
+
+                data.headers.clear();
+
+                data.headers << "Error";
+
+                data.tbldata.clear();
+                data.tbldata.resize(data.headers.size());
+                data.tbldata[0].push_back(QString().fromUtf8(PQresultErrorMessage(res)));
+                data.tbldata[0].push_back(QString().fromUtf8(PQerrorMessage((PGconn*) ptr_PGconn)));
+
+                data.typecount.clear();
+
+                dataDownloading = false;
+
+                PQclear(res);
+                executing = false;
+                dataDownloading = false;
+                queryExecutionState = 4;
+                executionEnd = QDateTime::currentDateTime();
+                executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
+                emit execedSql();
+                bypassToLocalDb= false;
+                return false;
+            }
 
             data.headers.clear();
 
-            data.headers << "Error";
-            data.headers << "Error position";
-
+            for (int j = 0; j < cols; ++j)
+            {
+                data.headers << QString().fromUtf8(PQfname(res,j));
+            }
             data.tbldata.clear();
             data.tbldata.resize(data.headers.size());
-            data.tbldata[0].push_back(QString().fromUtf8(PQresultErrorMessage(res)));
-            data.tbldata[0].push_back(QString().fromUtf8(PQerrorMessage((PGconn*) ptr_PGconn)));
-            data.tbldata[1].push_back(QString().fromUtf8(PQresultErrorField(res,PG_DIAG_STATEMENT_POSITION)));
-            data.tbldata[1].push_back(QString().fromUtf8(PQresultVerboseErrorMessage(res,PGVerbosity::PQERRORS_VERBOSE,PGContextVisibility::PQSHOW_CONTEXT_ERRORS)));
-
-            lastLaunchIsError = true;
-            lastErrorPos = QVariant(QString().fromUtf8(PQresultErrorField(res,PG_DIAG_STATEMENT_POSITION))).toInt();
-
-
             data.typecount.clear();
-            dataDownloading = false;
+            data.typecount.resize(data.tbldata.size());
+            dataDownloading = true;
 
-            PQclear(res);
-            executing = false;
-            dataDownloading = false;
-            queryExecutionState = 4;
-            executionEnd = QDateTime::currentDateTime();
-            executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
-            emit execedSql();
-            return false;
 
+            data.saveRowSize = rows;
+            qDebug() << "prelooooop";
+            while(res != nullptr)
+            {
+                rows = PQntuples(res);
+
+                qDebug() << "looooop";
+                for (int j = 0; j < rows; j++)
+                {
+
+                    bypassToLocalDbRowCount++;
+                    if(stopAt500Lines && j > 500)
+                        break;
+                    if(stopNow)
+                    {
+                        stopNow=false;
+                        break;
+                    }
+                    for (int i = 0; i < cols; i++)
+                    {
+
+
+                        data.tbldata[i].push_back(fixQStringType(QString().fromUtf8(PQgetvalue(res, j, i))));
+
+
+                        if(!hit500kOnce)
+                        {
+                            if(data.tbldata[i].back().size()>0 )
+                            {
+                                while(data.typecount[i].size() <= fixQStringType_lasttype)
+                                    data.typecount[i].emplace_back();
+
+                                data.typecount[i][fixQStringType_lasttype]++;
+                            }
+                        }
+                    }
+                    data.saveRowsDone++;
+
+
+
+                }
+                dataDownloading = false;
+
+
+                if(!hit500kOnce)
+                {
+                    data.maxVarTypes.clear();
+                    data.maxVarTypes.resize( data.typecount.size());
+
+                    for(int i=0;i < data.typecount.size();i++)
+                    {
+                        int maxvt = 0;
+                        for(int a  = 0; a < data.typecount[i].size();a++)
+                        {
+                            if(a == 0 || maxvt <= data.typecount[i][a])
+                            {
+                                data.maxVarTypes[i] = a;
+                                maxvt = data.typecount[i][a];
+                            }
+
+                        }
+                    }
+                }
+                data.DumpToLocalDB(bypassLocalDbTableName, !hit500kOnce, rows < 500'000);
+                bypassToLocalDbExportRowCount += rows;
+                hit500kOnce = true;
+                PQclear(res);
+                res = PQgetResult((PGconn*) ptr_PGconn);
+            }
+            bypassToLocalDb = false;
         }
-        else if(PQresultStatus(res) == PGRES_COMMAND_OK)
+        else
         {
 
-            PQclear(res);
+
+            if(!nodebug) qDebug() << "PQexec";
+            PGresult* res = PQexec((PGconn*) ptr_PGconn, sql);
+            if(!nodebug) qDebug() << "PQexec checks";
+            if (PQresultStatus(res) != PGRES_TUPLES_OK && PQresultStatus(res) != PGRES_COMMAND_OK) {
+
+
+                data.headers.clear();
+
+                data.headers << "Error";
+                data.headers << "Error position";
+
+                data.tbldata.clear();
+                data.tbldata.resize(data.headers.size());
+                data.tbldata[0].push_back(QString().fromUtf8(PQresultErrorMessage(res)));
+                data.tbldata[0].push_back(QString().fromUtf8(PQerrorMessage((PGconn*) ptr_PGconn)));
+                data.tbldata[1].push_back(QString().fromUtf8(PQresultErrorField(res,PG_DIAG_STATEMENT_POSITION)));
+                data.tbldata[1].push_back(QString().fromUtf8(PQresultVerboseErrorMessage(res,PGVerbosity::PQERRORS_VERBOSE,PGContextVisibility::PQSHOW_CONTEXT_ERRORS)));
+
+                lastLaunchIsError = true;
+                lastErrorPos = QVariant(QString().fromUtf8(PQresultErrorField(res,PG_DIAG_STATEMENT_POSITION))).toInt();
+
+
+                data.typecount.clear();
+                dataDownloading = false;
+
+                PQclear(res);
+                executing = false;
+                dataDownloading = false;
+                queryExecutionState = 4;
+                executionEnd = QDateTime::currentDateTime();
+                executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
+                emit execedSql();
+                return false;
+
+            }
+            else if(PQresultStatus(res) == PGRES_COMMAND_OK)
+            {
+
+                PQclear(res);
+                data.headers.clear();
+                data.tbldata.clear();
+                data.typecount.clear();
+                dataDownloading = false;
+
+                executing = false;
+                dataDownloading = false;
+                queryExecutionState = 4;
+                executionEnd = QDateTime::currentDateTime();
+                executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
+                emit execedSql();
+                return true;
+            }
+            emit querySuccess();
+            queryExecutionState = 3;
+
+            int rows = PQntuples(res);
+            int cols = PQnfields(res);
+
+            data.saveRowSize = 0;
+            data.saveRowsDone = 0;
+            if(!nodebug) qDebug() << rows << cols << "rows << cols";
+
+            if(cols <=0)
+            {
+
+                data.headers.clear();
+
+                data.headers << "Error";
+
+                data.tbldata.clear();
+                data.tbldata.resize(data.headers.size());
+                data.tbldata[0].push_back(QString().fromUtf8(PQresultErrorMessage(res)));
+                data.tbldata[0].push_back(QString().fromUtf8(PQerrorMessage((PGconn*) ptr_PGconn)));
+
+                data.typecount.clear();
+
+                dataDownloading = false;
+
+                PQclear(res);
+                executing = false;
+                dataDownloading = false;
+                queryExecutionState = 4;
+                executionEnd = QDateTime::currentDateTime();
+                executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
+                emit execedSql();
+                bypassToLocalDb= false;
+                return false;
+            }
+
             data.headers.clear();
-            data.tbldata.clear();
-            data.typecount.clear();
-            dataDownloading = false;
 
-            executing = false;
-            dataDownloading = false;
-            queryExecutionState = 4;
-            executionEnd = QDateTime::currentDateTime();
-            executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
-            emit execedSql();
-            return true;
-        }
-        emit querySuccess();
-        queryExecutionState = 3;
-
-        int rows = PQntuples(res);
-        int cols = PQnfields(res);
-
-        data.saveRowSize = 0;
-        data.saveRowsDone = 0;
-        if(!nodebug) qDebug() << rows << cols << "rows << cols";
-
-        if(cols <=0)
-        {
-
-            data.headers.clear();
-
-            data.headers << "Error";
-
+            for (int j = 0; j < cols; ++j)
+            {
+                data.headers << QString().fromUtf8(PQfname(res,j));
+            }
             data.tbldata.clear();
             data.tbldata.resize(data.headers.size());
-            data.tbldata[0].push_back(QString().fromUtf8(PQresultErrorMessage(res)));
-            data.tbldata[0].push_back(QString().fromUtf8(PQerrorMessage((PGconn*) ptr_PGconn)));
-
             data.typecount.clear();
+            data.typecount.resize(data.tbldata.size());
+            dataDownloading = true;
 
-            dataDownloading = false;
+            for (int j = 0; j < cols; ++j)
+            {
+                data.tbldata[j].reserve(rows);
+            }
 
+            data.saveRowSize = rows;
+            for (int j = 0; j < rows; j++)
+            {
+
+                if(stopAt500Lines && j > 500)
+                    break;
+                if(stopNow)
+                {
+                    stopNow=false;
+                    break;
+                }
+                for (int i = 0; i < cols; i++)
+                {
+
+
+                    data.tbldata[i].push_back(fixQStringType(QString().fromUtf8(PQgetvalue(res, j, i))));
+
+
+                    if(data.tbldata[i].back().size()>0 )
+                    {
+                        while(data.typecount[i].size() <= fixQStringType_lasttype)
+                            data.typecount[i].emplace_back();
+
+                        data.typecount[i][fixQStringType_lasttype]++;
+                    }
+                }
+                data.saveRowsDone++;
+
+
+
+            }
+
+
+
+            data.maxVarTypes.clear();
+            data.maxVarTypes.resize( data.typecount.size());
+
+            for(int i=0;i < data.typecount.size();i++)
+            {
+                int maxvt = 0;
+                for(int a  = 0; a < data.typecount[i].size();a++)
+                {
+                    if(a == 0 || maxvt <= data.typecount[i][a])
+                    {
+                        data.maxVarTypes[i] = a;
+                        maxvt = data.typecount[i][a];
+                    }
+
+                }
+            }
             PQclear(res);
-            executing = false;
-            dataDownloading = false;
-            queryExecutionState = 4;
-            executionEnd = QDateTime::currentDateTime();
-            executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
-            emit execedSql();
-            return false;
-        }
-
-        data.headers.clear();
-
-        for (int j = 0; j < cols; ++j)
-        {
-            data.headers << QString().fromUtf8(PQfname(res,j));
-
-        }
-        data.tbldata.clear();
-        data.tbldata.resize(data.headers.size());
-        data.typecount.clear();
-        data.typecount.resize(data.tbldata.size());
-        dataDownloading = true;
-
-        for (int j = 0; j < cols; ++j)
-        {
-            data.tbldata[j].reserve(rows);
-        }
-
-
-        data.saveRowSize = rows;
-        for (int j = 0; j < rows; j++)
-        {
-
-            if(stopAt500Lines && j > 500)
-                break;
-            if(stopNow)
-            {
-                stopNow=false;
-                break;
-            }
-            for (int i = 0; i < cols; i++)
-            {
-
-
-                data.tbldata[i].emplaceBack(fixQStringType(QString().fromUtf8(PQgetvalue(res, j, i))));
-
-
-                if(data.tbldata[i].back().size()>0)
-                {
-                    while(data.typecount[i].size() <= fixQStringType_lasttype)
-                        data.typecount[i].emplace_back();
-
-                    data.typecount[i][fixQStringType_lasttype]++;
-                }
-            }
-            data.saveRowsDone++;
-
         }
         dataDownloading = false;
-
-
-
-        data.maxVarTypes.clear();
-        data.maxVarTypes.resize( data.typecount.size());
-
-        for(int i=0;i < data.typecount.size();i++)
-        {
-            int maxvt = 0;
-            for(int a  = 0; a < data.typecount[i].size();a++)
-            {
-                if(a == 0 || maxvt <= data.typecount[i][a])
-                {
-                    data.maxVarTypes[i] = a;
-                    maxvt = data.typecount[i][a];
-                }
-
-            }
-        }
-        // for(int i=0;i < data.typecount.size();i++)
-        // {
-        //     if(data.typecount[i].size()>10)
-        //     {
-        //         if(data.typecount[i][10] > 0)
-        //             data.maxVarTypes[i] = 10;
-
-        //     }
-        // }
-
-        dataDownloading = false;
-        PQclear(res);
+        bypassToLocalDb= false;
 
 
         executing = false;
@@ -2822,10 +3075,13 @@ bool DatabaseConnection::execSql(QString sql)
 
         try{
 
+            oracleCreationMutex.lock();
             OCI_lastenv = oracle::occi::Environment::createEnvironment ( "CL8MSWIN1251", "CL8MSWIN1251",oracle::occi::Environment::Mode::THREADED_MUTEXED);//oracle::occi::Environment::DEFAULT);
 
             QString connection_string ="(DESCRIPTION=(ADDRESS=(PROTOCOL=tcp) (HOST=" + ipAddres.trimmed() + ") (PORT=" + port.trimmed() + "))(CONNECT_DATA=(SERVICE_NAME=" + schemaName.trimmed() + ")))";
             OCI_lastcon = ((oracle::occi::Environment*)OCI_lastenv)->createConnection (usrname.trimmed().toStdString(),password.trimmed().toStdString(),connection_string.toStdString());
+            oracleCreationMutex.unlock();
+
 
             emit queryBeginExecuting();
             queryExecutionState = 2;
@@ -2837,7 +3093,7 @@ bool DatabaseConnection::execSql(QString sql)
 
                 oracle::occi::ResultSet *rset = nullptr;
                 rset = ((oracle::occi::Statement*)OCI_laststmt)->executeQuery ();
-                ((oracle::occi::Statement*)OCI_laststmt)->setPrefetchRowCount(5000); // enable bulk collect
+                ((oracle::occi::Statement*)OCI_laststmt)->setPrefetchRowCount(50000); // enable bulk collect
                 emit querySuccess();
                 queryExecutionState = 3;
                 dataDownloading = true;
@@ -2968,11 +3224,12 @@ bool DatabaseConnection::execSql(QString sql)
                 // }
                 int ccnt = 0;
 
-
-
+                bypassToLocalDbRowCount = 0;
+                bool hit500kOnce= false;
                 while (rset->next() && columnCount > 0)
                 {
                     ccnt ++;
+                    bypassToLocalDbRowCount++;
                     for(int i=0;i < columnCount; i ++)
                     {
 
@@ -3004,6 +3261,12 @@ bool DatabaseConnection::execSql(QString sql)
 
                     }
 
+                    if(bypassToLocalDb && ccnt % 500'000 == 0)
+                    {
+                        data.DumpToLocalDB(bypassLocalDbTableName, ccnt <500'999);
+                        bypassToLocalDbExportRowCount += 500'000;
+                        hit500kOnce = true;
+                    }
                     if(stopAt500Lines && ccnt > 500)
                         break;
                     if(stopNow)
@@ -3012,6 +3275,14 @@ bool DatabaseConnection::execSql(QString sql)
                         break;
                     }
                 }
+                if(bypassToLocalDb)
+                {
+                    int rows_count = data.tbldata[0].size();
+                    data.DumpToLocalDB(bypassLocalDbTableName, !hit500kOnce,  false);
+                    bypassToLocalDbExportRowCount += rows_count;
+
+                }
+                bypassToLocalDb = false;
                 //mtl.pop_back();
 
                 for(auto x : data.maxVarTypes)
@@ -3464,6 +3735,313 @@ bool DatabaseConnection::execSql(QString sql)
 }
 
 
+bool DatabaseConnection::insertSql(TableData* dat, QString tableName)
+{
+    QString insertSql = "";
+    QString singleRowSql = "";
+
+
+    insertSql = "Insert into ";
+    if(!isWord(tableName) ||tableName.contains(".")|| tableName.contains(" "))
+        insertSql += "\"";
+    insertSql += tableName;
+    if(!isWord(tableName) ||tableName.contains(".")|| tableName.contains(" "))
+        insertSql += "\"";
+
+
+    insertSql += " values ";
+
+    bool firstVal = true;
+    int paramcount = 0;
+    for(int i=0;i<1000;i++)
+    {
+        if(!firstVal)
+            insertSql += ",";
+        if(firstVal)
+            firstVal=false;
+        insertSql += " (";
+
+        //insertSql += " union all Select ";
+        bool first = true;
+        for(int a=0;a<dat->tbldata.size();a++)
+        {
+            if(dat->stopNow)
+            {
+                dat->exporting = false;
+                dat->lastExportSuccess = false;
+                dat->LastSaveDuration = QTime::fromMSecsSinceStartOfDay(dat->LastSaveDuration.msecsTo(QTime::currentTime()));
+            }
+
+            if(!first)
+                insertSql += ",";
+            first = false;
+            int row =i+2;
+            int column =a+1;
+
+            //QVariant var = fixQVariantTypeFormat(tbldata[a][i]);
+
+
+            insertSql +=" $" + QVariant(paramcount+1).toString();
+            paramcount++;
+        }
+        insertSql += " )";
+
+        if(singleRowSql == "")
+        {
+            singleRowSql= insertSql;
+        }
+    }
+
+
+    std::string stdstr = insertSql.toStdString();
+    const char * sql = stdstr.c_str();
+
+    PQclear(PQexec((PGconn*) ptr_PGconn,"BEGIN")); // very safe indeed
+
+    PGresult* res = PQprepare((PGconn*) ptr_PGconn,"insertSql",sql,paramcount,nullptr);
+
+    if (PQresultStatus(res) != PGRES_TUPLES_OK && PQresultStatus(res) != PGRES_COMMAND_OK) {
+
+
+        data.headers.clear();
+
+        data.headers << "Error";
+        data.headers << "Error position";
+
+        data.tbldata.clear();
+        data.tbldata.resize(data.headers.size());
+        qDebug() << QString().fromUtf8(PQresultErrorMessage(res));
+        data.tbldata[0].push_back(QString().fromUtf8(PQresultErrorMessage(res)));
+        data.tbldata[0].push_back(QString().fromUtf8(PQerrorMessage((PGconn*) ptr_PGconn)));
+        data.tbldata[1].push_back(QString().fromUtf8(PQresultErrorField(res,PG_DIAG_STATEMENT_POSITION)));
+        data.tbldata[1].push_back(QString().fromUtf8(PQresultVerboseErrorMessage(res,PGVerbosity::PQERRORS_VERBOSE,PGContextVisibility::PQSHOW_CONTEXT_ERRORS)));
+
+        lastLaunchIsError = true;
+        lastErrorPos = QVariant(QString().fromUtf8(PQresultErrorField(res,PG_DIAG_STATEMENT_POSITION))).toInt();
+
+
+        data.typecount.clear();
+        dataDownloading = false;
+
+        PQclear(res);
+        executing = false;
+        dataDownloading = false;
+        queryExecutionState = 4;
+        executionEnd = QDateTime::currentDateTime();
+        executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
+        emit execedSql();
+        return false;
+
+    }
+
+
+    PQclear(res);
+
+    std::string singleRowstdstr = singleRowSql.toStdString();
+    const char * singleRowsql = singleRowstdstr.c_str();
+
+    res = PQprepare((PGconn*) ptr_PGconn,"singlelineInsertSql",singleRowsql,paramcount,nullptr);
+
+    if (PQresultStatus(res) != PGRES_TUPLES_OK && PQresultStatus(res) != PGRES_COMMAND_OK) {
+
+
+        data.headers.clear();
+
+        data.headers << "Error";
+        data.headers << "Error position";
+
+        data.tbldata.clear();
+        data.tbldata.resize(data.headers.size());
+        data.tbldata[0].push_back(QString().fromUtf8(PQresultErrorMessage(res)));
+        data.tbldata[0].push_back(QString().fromUtf8(PQerrorMessage((PGconn*) ptr_PGconn)));
+        data.tbldata[1].push_back(QString().fromUtf8(PQresultErrorField(res,PG_DIAG_STATEMENT_POSITION)));
+        data.tbldata[1].push_back(QString().fromUtf8(PQresultVerboseErrorMessage(res,PGVerbosity::PQERRORS_VERBOSE,PGContextVisibility::PQSHOW_CONTEXT_ERRORS)));
+
+        lastLaunchIsError = true;
+        lastErrorPos = QVariant(QString().fromUtf8(PQresultErrorField(res,PG_DIAG_STATEMENT_POSITION))).toInt();
+
+
+        data.typecount.clear();
+        dataDownloading = false;
+
+        PQclear(res);
+        executing = false;
+        dataDownloading = false;
+        queryExecutionState = 4;
+        executionEnd = QDateTime::currentDateTime();
+        executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
+        emit execedSql();
+        return false;
+
+    }
+
+
+    PQclear(res);
+
+    std::vector<QByteArray> qbas;
+
+
+    dat->saveRowsDone = 0;
+    int lasti=0;
+    for(int i=0;i<dat->tbldata[0].size();i++)
+    {
+        dat->saveRowsDone++;
+
+
+
+        for(int a=0;a<dat->tbldata.size();a++)
+        {
+            if(dat->stopNow)
+            {
+                dat->exporting = false;
+                dat->lastExportSuccess = false;
+                dat->LastSaveDuration = QTime::fromMSecsSinceStartOfDay(dat->LastSaveDuration.msecsTo(QTime::currentTime()));
+                return false;
+            }
+
+            QString tmpstr = dat->tbldata[a][i].replace("'","''");
+
+            if(!(dat->typecount.size() > a && dat->typecount[a].size() >10 && dat->typecount[a][10] >0))
+            {
+                if(dat->tbldata[a][i].size() >0)
+                {
+                    if(dat->maxVarTypes[a] != 6  || (dat->typecount[a].size()>10 && dat->typecount[a][10]>0))
+                        tmpstr =  tmpstr ;
+                }
+                else
+                    tmpstr = "";
+            }
+            else
+            {
+                if(dat->tbldata[a][i].size() >0)
+                {
+                    tmpstr = tmpstr ;
+                }
+                else
+                    tmpstr = "";
+
+            }
+            qbas.push_back(tmpstr.toUtf8());
+
+        }
+
+        if(qbas.size() == paramcount)
+        {
+            firstVal=true;
+            lasti = i;
+
+            std::vector<const char*>stddatas;
+            stddatas.resize(qbas.size());
+            for(int s=0;s<qbas.size();s++)
+            {
+                if(qbas[s].size() > 0)
+                    stddatas[s] = qbas[s].constData();
+                else
+                    stddatas[s] = nullptr;
+            }
+            PGresult* res = PQexecPrepared((PGconn*) ptr_PGconn,"insertSql",stddatas.size(),stddatas.data(),nullptr,nullptr,0);
+
+
+            if (PQresultStatus(res) != PGRES_TUPLES_OK && PQresultStatus(res) != PGRES_COMMAND_OK) {
+
+
+                data.headers.clear();
+
+                data.headers << "Error";
+                data.headers << "Error position";
+
+                data.tbldata.clear();
+                data.tbldata.resize(data.headers.size());
+                data.tbldata[0].push_back(QString().fromUtf8(PQresultErrorMessage(res)));
+                data.tbldata[0].push_back(QString().fromUtf8(PQerrorMessage((PGconn*) ptr_PGconn)));
+                data.tbldata[1].push_back(QString().fromUtf8(PQresultErrorField(res,PG_DIAG_STATEMENT_POSITION)));
+                data.tbldata[1].push_back(QString().fromUtf8(PQresultVerboseErrorMessage(res,PGVerbosity::PQERRORS_VERBOSE,PGContextVisibility::PQSHOW_CONTEXT_ERRORS)));
+
+                lastLaunchIsError = true;
+                lastErrorPos = QVariant(QString().fromUtf8(PQresultErrorField(res,PG_DIAG_STATEMENT_POSITION))).toInt();
+
+
+                data.typecount.clear();
+                dataDownloading = false;
+
+                PQclear(res);
+                executing = false;
+                dataDownloading = false;
+                queryExecutionState = 4;
+                executionEnd = QDateTime::currentDateTime();
+                executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
+                emit execedSql();
+                return false;
+
+            }
+
+
+
+            PQclear(res);
+            qbas.clear();
+            qbas.reserve(paramcount);
+        }
+    }
+
+    if(qbas.size() > 0)
+    {
+        std::vector<const char*>stddatas;
+        stddatas.resize(qbas.size());
+        for(int s=0;s<qbas.size();s++)
+        {
+            if(qbas[s].size() > 0)
+                stddatas[s] = qbas[s].constData();
+            else
+                stddatas[s] = nullptr;
+        }
+        for(int i = 0; i < stddatas.size();i += dat->headers.size())
+        {
+            PGresult* res = PQexecPrepared((PGconn*) ptr_PGconn,"singlelineInsertSql",dat->headers.size(),&stddatas[i],nullptr,nullptr,0);
+
+
+            if (PQresultStatus(res) != PGRES_TUPLES_OK && PQresultStatus(res) != PGRES_COMMAND_OK) {
+
+
+                data.headers.clear();
+
+                data.headers << "Error";
+                data.headers << "Error position";
+
+                data.tbldata.clear();
+                data.tbldata.resize(data.headers.size());
+                data.tbldata[0].push_back(QString().fromUtf8(PQresultErrorMessage(res)));
+                data.tbldata[0].push_back(QString().fromUtf8(PQerrorMessage((PGconn*) ptr_PGconn)));
+                data.tbldata[1].push_back(QString().fromUtf8(PQresultErrorField(res,PG_DIAG_STATEMENT_POSITION)));
+                data.tbldata[1].push_back(QString().fromUtf8(PQresultVerboseErrorMessage(res,PGVerbosity::PQERRORS_VERBOSE,PGContextVisibility::PQSHOW_CONTEXT_ERRORS)));
+
+                lastLaunchIsError = true;
+                lastErrorPos = QVariant(QString().fromUtf8(PQresultErrorField(res,PG_DIAG_STATEMENT_POSITION))).toInt();
+
+
+                data.typecount.clear();
+                dataDownloading = false;
+
+                PQclear(res);
+                executing = false;
+                dataDownloading = false;
+                queryExecutionState = 4;
+                executionEnd = QDateTime::currentDateTime();
+                executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
+                emit execedSql();
+                return false;
+
+            }
+
+            PQclear(res);
+        }
+        qbas.clear();
+    }
+
+    PQclear(PQexec((PGconn*) ptr_PGconn,"COMMIT")); // very safe indeed
+
+    qDebug() << "postgres insert done";
+    return true;
+}
 
 void DatabaseConnection::stopRunning()
 {

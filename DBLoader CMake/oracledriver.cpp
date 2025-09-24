@@ -13,9 +13,14 @@ OracleDriver::OracleDriver()
 }
 void OracleDriver::Create(std::string user, std::string passwd, std::string db)
 {
+
+    oracleCreationMutex.lock();
+
     env = oracle::occi::Environment::createEnvironment ( "CL8MSWIN1251", "CL8MSWIN1251",oracle::occi::Environment::Mode::THREADED_MUTEXED);
     con = env->createConnection (user, passwd, db);
     lastserv = con->getOCIServer();
+
+    oracleCreationMutex.unlock();
 }
 
 OracleDriver::~OracleDriver()

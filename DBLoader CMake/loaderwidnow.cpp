@@ -792,6 +792,14 @@ void LoaderWidnow::runSqlAsync()
 
     dc->executing = true;
 
+    if(ui->bypassToLocalDb_checkBox->isChecked())
+    {
+        dc->bypassToLocalDb = true;
+        dc->bypassLocalDbTableName = ui->saveLineEdit->text().trimmed();
+    }
+
+
+
     // cut part of code to execute
     int sqlstart = 0;
     int sqlend = cd->toPlainText().size();
@@ -1054,42 +1062,6 @@ void LoaderWidnow::autolaunchCheck()
 
 void LoaderWidnow::executionTimerTimeout()
 {// update label
-
-    if(!dc->executing && dc->data.exporting)
-    {//exporting data;
-        ui->exportProgressBar->show();
-        ui->miscStatusLabel->show();
-
-        ui->miscStatusLabel->setText("Exporting: " + QTime::fromMSecsSinceStartOfDay( dc->data.LastSaveDuration.msecsTo(QTime::currentTime())).toString() + "." +  QVariant(dc->data.LastSaveDuration.msecsTo(QTime::currentTime())).toString());
-
-        if(dc->data.saveRowSize>0)
-            ui->exportProgressBar->setMaximum(dc->data.saveRowSize);
-        else
-            ui->exportProgressBar->setMaximum(1);
-
-        ui->exportProgressBar->setValue(dc->data.saveRowsDone);
-
-        return;
-    }
-
-
-    if(dc->dataDownloading && dc->postgre) // since it has ability to count rows, why not show them
-    {
-        if(dc->data.saveRowSize>0)
-            ui->exportProgressBar->setMaximum(dc->data.saveRowSize);
-        else
-            ui->exportProgressBar->setMaximum(1);
-        ui->exportProgressBar->setValue(dc->data.saveRowsDone);
-    }
-    else
-    {
-        if(dc->data.tbldata.size()>0 && dc->data.tbldata[0].size() > 0 )
-            ui->exportProgressBar->setMaximum(dc->data.tbldata[0].size());
-        else
-            ui->exportProgressBar->setMaximum(1);
-        ui->exportProgressBar->setValue(0);
-    }
-
     QString msg = "";
     if(dc->queryExecutionState >=3)
     {
@@ -1136,7 +1108,64 @@ void LoaderWidnow::executionTimerTimeout()
 
     msg += "   Successfull queries: ";
     msg += QVariant(dc->savefilecount).toString();
+
+
+
+    if(dc->bypassToLocalDb && dc->executing)
+    {
+        //dc->bypassToLocalDbRowCount = 0;
+
+        ui->exportProgressBar->show();
+        ui->miscStatusLabel->show();
+
+        ui->miscStatusLabel->setText(msg);
+
+        if(dc->bypassToLocalDbRowCount>0)
+            ui->exportProgressBar->setMaximum(dc->bypassToLocalDbRowCount);
+        else
+            ui->exportProgressBar->setMaximum(1);
+
+        ui->exportProgressBar->setValue(dc->bypassToLocalDbExportRowCount + dc->data.saveRowsDone);
+        return;
+    }
+
+    if(!dc->executing && dc->data.exporting)
+    {//exporting data;
+        ui->exportProgressBar->show();
+        ui->miscStatusLabel->show();
+
+        ui->miscStatusLabel->setText("Exporting: " + QTime::fromMSecsSinceStartOfDay( dc->data.LastSaveDuration.msecsTo(QTime::currentTime())).toString() + "." +  QVariant(dc->data.LastSaveDuration.msecsTo(QTime::currentTime())).toString());
+
+        if(dc->data.saveRowSize>0)
+            ui->exportProgressBar->setMaximum(dc->data.saveRowSize);
+        else
+            ui->exportProgressBar->setMaximum(1);
+
+        ui->exportProgressBar->setValue(dc->data.saveRowsDone);
+
+        return;
+    }
+
+
+    if(dc->dataDownloading && dc->postgre) // since it has ability to count rows, why not show them
+    {
+        if(dc->data.saveRowSize>0)
+            ui->exportProgressBar->setMaximum(dc->data.saveRowSize);
+        else
+            ui->exportProgressBar->setMaximum(1);
+        ui->exportProgressBar->setValue(dc->data.saveRowsDone);
+    }
+    else
+    {
+        if(dc->data.tbldata.size()>0 && dc->data.tbldata[0].size() > 0 )
+            ui->exportProgressBar->setMaximum(dc->data.tbldata[0].size());
+        else
+            ui->exportProgressBar->setMaximum(1);
+        ui->exportProgressBar->setValue(0);
+    }
     ui->miscStatusLabel->setText(msg);
+
+
 }
 void LoaderWidnow::onQueryBeginCreating()
 {
@@ -1174,12 +1203,24 @@ void LoaderWidnow::UpdateTable()
         return;
 
     }
-    if(dc->data.tbldata.size()>0 && dc->data.tbldata[0].size() > 0 )
-        ui->exportProgressBar->setMaximum(dc->data.tbldata[0].size());
+    if(!ui->bypassToLocalDb_checkBox->isChecked())
+        {
+        if(dc->data.tbldata.size()>0 && dc->data.tbldata[0].size() > 0 )
+        {
+                ui->exportProgressBar->setMaximum(dc->data.tbldata[0].size());
+        }
+        else
+            ui->exportProgressBar->setMaximum(1);
+    }
     else
-        ui->exportProgressBar->setMaximum(1);
-    ui->exportProgressBar->setValue(0);
+        ui->exportProgressBar->setMaximum(dc->bypassToLocalDbRowCount);
 
+    if(!ui->bypassToLocalDb_checkBox->isChecked())
+        ui->exportProgressBar->setValue(0);
+    else
+        ui->exportProgressBar->setValue(dc->bypassToLocalDbExportRowCount);
+
+    qDebug() << "dc->bypassToLocalDbRowCount" <<  dc->bypassToLocalDbRowCount << "dc->bypassToLocalDbExportRowCount" << dc->bypassToLocalDbExportRowCount;
     dc->queryExecutionState = 4;
     queryExecutionState = 4;
     executionTimer.stop();
@@ -1658,41 +1699,6 @@ void LoaderWidnow::UpdateGraph()
             }
         }
     }
-    /*
-    for(int i=0;i<dc->data.tbldata[dataColumn].size();i++)
-    {
-        if(dc->data.tbldata.size() > 1)
-        {
-
-            if(dc->data.tbldata[dataColumn][i].toFloat() > maxf)
-                maxf = dc->data.tbldata[dataColumn][i].toFloat();
-            if(dc->data.tbldata[dataColumn][i].toFloat() < minf)
-                minf = dc->data.tbldata[dataColumn][i].toFloat();
-
-            if(!bottomAxisIsDate)
-            {
-                if(mini > dc->data.tbldata[groupColumn][i].toInt())
-                    mini = dc->data.tbldata[groupColumn][i].toInt();
-                if(maxi < dc->data.tbldata[groupColumn][i].toInt())
-                    maxi = dc->data.tbldata[groupColumn][i].toInt();
-            }
-            else
-            {
-                if(dc->data.tbldata[groupColumn][i].toDateTime().toSecsSinceEpoch() > maxi)
-                {
-                    maxi = dc->data.tbldata[groupColumn][i].toDateTime().toSecsSinceEpoch();
-                    maxdt = dc->data.tbldata[groupColumn][i].toDateTime();
-                }
-                if(dc->data.tbldata[groupColumn][i].toDateTime().toSecsSinceEpoch() < mini)
-                {
-                    mini = dc->data.tbldata[groupColumn][i].toDateTime().toSecsSinceEpoch();
-                    mindt = dc->data.tbldata[groupColumn][i].toDateTime();
-                }
-            }
-        }
-
-    }
-    */
 
 
 
@@ -2278,7 +2284,10 @@ void LoaderWidnow::on_SaveSQLiteButton_pressed()
 
 void LoaderWidnow::on_exportDone()
 {
+    if(dc->bypassToLocalDb)
+        return;
     executionTimer.stop();
+
 
     if(dc->data.saveRowSize >0)
         ui->exportProgressBar->setMaximum(dc->data.saveRowSize);

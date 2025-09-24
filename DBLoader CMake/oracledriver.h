@@ -8,7 +8,7 @@
 #include <qdebug.h>
 #include <qlogging.h>
 #include "tabledata.h"
-
+#include <QMutex>
 
 
 #define QOCI_DYNAMIC_CHUNK_SIZE 65535
@@ -27,6 +27,8 @@ enum { QOCIEncoding = 2000 }; // AL16UTF16
 
 #include "occi.h"
 
+
+inline QMutex oracleCreationMutex;
 
 
 class OracleDriver

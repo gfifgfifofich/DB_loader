@@ -1534,6 +1534,17 @@ bool TableData::ExportToSQLiteTable(QString tableName)
     }
 
 
+    if(dc.postgre)
+    {
+        bool tmp = dc.insertSql(this,tableName);
+        LastSaveDuration = QTime::fromMSecsSinceStartOfDay(LastSaveDuration.msecsTo(QTime::currentTime()));
+        LastSaveEndDate = QTime::currentTime();
+        exporting = false;
+        lastExportSuccess = true;
+        emit ExportedToSQLiteTable();
+        return tmp;
+    }
+
     SQLITE_sql = "Insert into ";
     if(!isWord(tableName) ||tableName.contains(".")|| tableName.contains(" "))
         SQLITE_sql += "\"";
@@ -1786,7 +1797,7 @@ bool TableData::ImportFromCSVToLocalDB(QString fileName, QChar delimeter, bool f
 }
 
 // import
-bool TableData::DumpToLocalDB(QString tableName, bool overwrite)
+bool TableData::DumpToLocalDB(QString tableName, bool overwrite, bool clear_after)
 {
     stopNow = false;
     qDebug()<< " dumping into table "<< tableName;
@@ -1804,19 +1815,31 @@ bool TableData::DumpToLocalDB(QString tableName, bool overwrite)
 
 
 
+    saveRowsDone = 0;
+
     if(dc.Create(driver.trimmed(), conection.trimmed()))
     {
         if(overwrite)
         {
             qDebug() << "creaing table " << tableName;
             ExportToSQLiteTable(tableName);
+            if(clear_after)
             for(int i=0;i<tbldata.size();i++)
                 tbldata[i].clear();
         }
         else
         {
+
             qDebug() << " appending data " << tableName;
-            AppendLocalTable(tableName, &dc);
+
+
+            if(dc.postgre)
+            {
+                dc.insertSql(this,tableName);
+            }
+            else AppendLocalTable(tableName, &dc);
+
+            if(clear_after)
             for(int i=0;i<tbldata.size();i++)
                 tbldata[i].clear();
         }
@@ -2024,7 +2047,6 @@ bool TableData::AppendLocalTable(QString tableName, void* dc)
         LastSaveDuration.setHMS(0,0,0,0);
         exporting = false;
         lastExportSuccess = true;
-        emit ExportedToSQLiteTable();
         return true;// no rows to export, so no point in saving
     }
     userDS.Load(documentsDir +"/userdata.txt");
@@ -2060,7 +2082,6 @@ bool TableData::AppendLocalTable(QString tableName, void* dc)
                 exporting = false;
                 lastExportSuccess = false;
                 LastSaveDuration = QTime::fromMSecsSinceStartOfDay(LastSaveDuration.msecsTo(QTime::currentTime()));
-                emit ExportedToSQLiteTable();
                 return false;
             }
 
@@ -2116,7 +2137,6 @@ bool TableData::AppendLocalTable(QString tableName, void* dc)
                 LastSaveEndDate = QTime::currentTime();
                 exporting = false;
                 lastExportSuccess = false;
-                emit ExportedToSQLiteTable();
                 return false;
             }
             SQLITE_sql = "Insert into ";
@@ -2136,7 +2156,6 @@ bool TableData::AppendLocalTable(QString tableName, void* dc)
     LastSaveEndDate = QTime::currentTime();
     exporting = false;
     lastExportSuccess = true;
-    emit ExportedToSQLiteTable();
     return true;
 }
 
