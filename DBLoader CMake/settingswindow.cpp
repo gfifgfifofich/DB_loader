@@ -80,17 +80,20 @@ SettingsWindow::SettingsWindow(QWidget *parent)
     ui->languageComboBox->setCurrentText(userDS.data["UserTheme"]["Language"].trimmed());
 
     // local database conection
-    for(auto x : userDS.data["UserDrivers"])
-    {
-        ui->LocalDBDriverComboBox->addItem(x.second.trimmed());
-    }
-    ui->LocalDBDriverComboBox->setCurrentText(userDS.data["UserTheme"]["db_drv_Save_table_driver"].trimmed());
+    // for(auto x : userDS.data["UserDrivers"])
+    // {
+    //     ui->LocalDBDriverComboBox->addItem(x.second.trimmed());
+    // }
+    // ui->LocalDBDriverComboBox->setCurrentText(userDS.data["UserTheme"]["db_drv_Save_table_driver"].trimmed());
+    //userDS.data["UserTheme"]["db_drv_Save_table_Connection"] = ui->LocalDBConnection_ComboBox->currentText().trimmed();
 
-    for(auto x : userDS.data["UserDBs"])
-    {
-        ui->LocalDBNameComboBox->addItem((x.first + " " + x.second).trimmed());
-    }
-    ui->LocalDBNameComboBox->setCurrentText(userDS.data["UserTheme"]["db_drv_Save_table_Connection"].trimmed());
+    ui->LocalDBConnection_ComboBox->clear();
+    QStringList strl;
+    for(auto x : userDS.data["Connections"])
+        strl.push_back(x.first);
+    ui->LocalDBConnection_ComboBox->addItems(strl);
+
+    ui->LocalDBConnection_ComboBox->setCurrentText(userDS.data["UserTheme"]["db_drv_Save_table_Connection"].trimmed());
 
 
     //Code preview scales
@@ -123,7 +126,7 @@ SettingsWindow::SettingsWindow(QWidget *parent)
     QLabel* trg = ui->themeColumnNameColorLabel;
     trg->setText(userDS.data["UserTheme"]["Color_column_name"].trimmed());
 
-    QStringList strl = trg->text().split(',');
+    strl = trg->text().split(',');
     QColor col = QColor::fromRgbF(0.25f,0.55f,0.95f,1.0f);
     for(int i=0;i<strl.size();i++)
     {
@@ -313,13 +316,8 @@ void SettingsWindow::save()
     userDS.data["UserTheme"]["Language"] = ui->languageComboBox->currentText();
 
     // local database conection
-    userDS.data["UserTheme"]["db_drv_Save_table_driver"] = ui->LocalDBDriverComboBox->currentText();
+    userDS.data["UserTheme"]["db_drv_Save_table_Connection"] = ui->LocalDBConnection_ComboBox->currentText().trimmed();
 
-    for(auto x : userDS.data["UserDBs"])
-    {
-        ui->LocalDBNameComboBox->addItem((x.first + " " + x.second).trimmed());
-    }
-    userDS.data["UserTheme"]["db_drv_Save_table_Connection"] = ui->LocalDBNameComboBox->currentText();
 
     //Code preview scales
     userDS.data["UserTheme"]["codePreviewLineScale"] = QVariant(ui->codePreviewLineScale->value()).toString();

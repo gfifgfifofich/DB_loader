@@ -586,7 +586,7 @@
               <item>
                <layout class="QHBoxLayout" name="horizontalLayout_2">
                 <item>
-                 <widget class="QComboBox" name="LocalDBDriverComboBox">
+                 <widget class="QComboBox" name="LocalDBConnection_ComboBox">
                   <property name="minimumSize">
                    <size>
                     <width>75</width>
@@ -598,19 +598,6 @@
                     <width>16777215</width>
                     <height>25</height>
                    </size>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QComboBox" name="LocalDBNameComboBox">
-                  <property name="maximumSize">
-                   <size>
-                    <width>16777215</width>
-                    <height>25</height>
-                   </size>
-                  </property>
-                  <property name="editable">
-                   <bool>true</bool>
                   </property>
                  </widget>
                 </item>

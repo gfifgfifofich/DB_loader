@@ -29,6 +29,8 @@ public:
     QString sqlCode = "";
     QString allSqlCode = "";
 
+    QString csvBypassTableName = "csvImport";
+    QString LastFilename =  "";
 
     QTime LastSaveEndDate;
     QTime LastSaveDuration;
@@ -37,6 +39,10 @@ public:
     bool lastExportSuccess = false;
     bool exporting = false;
     bool exported = false;
+
+    bool importing = false;
+    bool imported = false;
+
     QString lastexporttype = "";
     bool stopNow = false;
 
@@ -60,7 +66,8 @@ public:
     // export
     Q_INVOKABLE bool ExportToCSV(QString fileName, char delimeter, bool firstRowHeader= true);
     Q_INVOKABLE bool ExportToExcel(QString fileName, int x_start = 0,int x_end = 0,int y_start = 0,int y_end = 0, bool firstRowHeader = true,QString sheetName = "", bool append = false);
-    Q_INVOKABLE bool ExportToSQLiteTable(QString tableName);
+    Q_INVOKABLE bool ExportToExcelUniqueColumn(QString fileName, QString sheetName, QString uniqueColumnName);
+    Q_INVOKABLE bool ExportToSQLiteTable(QString tableName, QString conname = "");
 
     Q_INVOKABLE bool ImportFromCSVToLocalDB(QString fileName, QChar delimeter, bool firstRowHeader= true);
 
@@ -70,6 +77,7 @@ public:
 
     Q_INVOKABLE bool AppendToCSV(QString fileName, char delimeter);
     Q_INVOKABLE bool AppendToExcel(QString fileName, QString SheetName = "Sheet1");
+    Q_INVOKABLE bool AppendLocalTable(QString tableName, QString conname = "");
     Q_INVOKABLE bool AppendLocalTable(QString tableName, void* dc);
 
     // QAbstractTableModel overrides

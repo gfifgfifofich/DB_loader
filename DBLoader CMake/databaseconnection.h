@@ -28,6 +28,8 @@ public:
 
     int queryExecutionState = 0;
 
+
+
     QSqlDatabase db;
     QSqlQuery* query = nullptr;
     QString sqlCode;
@@ -35,15 +37,19 @@ public:
     QString Last_ConnectError = "";
 
     // Connection info
-    QString connectionName = "";
+    QString conname = "";
+
+
     QString driver = "";
     QString dbname = "";
     QString usrname =  "";
     QString password = "";
 
-    QString schemaName = "";
+
     QString ipAddres = "";
     QString port = "";
+
+    QString schemaName = "";
 
     QString LastDBName = "";
     int savefilecount = 0;
@@ -99,6 +105,7 @@ public:
 
     Q_INVOKABLE bool Create(QString driver, QString DBName, QString userName, QString password);
     Q_INVOKABLE bool Create(QString driver, QString DBName); // create dc connection, using userdata
+    Q_INVOKABLE bool Create(QString conname); // create dc connection, using userdata (connections)
     Q_INVOKABLE bool DeleteDbConnection(); // create dc connection, using userdata
     Q_INVOKABLE bool execSql(QString sql = "");
     Q_INVOKABLE bool insertSql(TableData* dat, QString tableName);
@@ -117,7 +124,7 @@ public:
     // Info for scripts, depricated
     int scriptReturnPosition = 0;
     QString scriptCommand = "";
-    DatabaseConnection* subscriptConnesction = nullptr;
+    DatabaseConnection* subscriptConnection = nullptr;
     QList<DatabaseConnection*> asyncExecution_databaseConnections;
 
     void stopRunning();

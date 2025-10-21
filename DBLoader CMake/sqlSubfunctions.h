@@ -531,4 +531,59 @@ private:
 };
 
 
+inline double QuickConvertToExcelDate(QString str)
+{
+    if( (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+         && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+         && str[8].isDigit() && str[9].isDigit() && !str[10].isDigit()
+
+         && str[11].isDigit() && str[12].isDigit() && !str[13].isDigit()
+         && str[14].isDigit() && str[15].isDigit() && !str[16].isDigit()
+         && str[17].isDigit() && str[18].isDigit())
+        ||
+        (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+         && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+         && str[8].isDigit() && str[9].isDigit() && !str[10].isDigit()
+
+         && str[11].isDigit() && str[12].isDigit() && !str[13].isDigit()
+         && str[14].isDigit() && str[15].isDigit() && !str[16].isDigit()
+         && str[17].isDigit() && str[18].isDigit()
+         && str[19]== '.' && str[20].isDigit()&& str[21].isDigit()&& str[22].isDigit())
+        ||
+        (str.size() == 10 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+         && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+         && str[8].isDigit() && str[9].isDigit())
+        )
+    {
+
+        const int XLSX_ROW_MAX    = 1048576;
+        const int XLSX_COLUMN_MAX = 16384;
+        QString year="    ";year[0] = str[0]; year[1] = str[1]; year [2] = str[2]; year[3] = str[3];
+        QString month = "  "; month[0] = str[5]; month[1] = str[6];
+        QString day = "  "; day[0] = str[8]; day[1] = str[9];
+
+        int i_year = year.toInt();
+        int i_month = month.toInt();
+        int i_day = day.toInt();
+        double currentdt = (int(( 1461 * ( i_year + 4800 + int(( i_month - 14 ) / 12) ) ) / 4) +
+                            int(( 367 * ( i_month - 2 - 12 * ( ( i_month - 14 ) / 12 ) ) ) / 12) -
+                            int(( 3 * ( int(( i_year + 4900 + int(( i_month - 14 ) / 12) ) / 100) ) ) / 4) +
+                            i_day - 2415019 - 32075);
+
+        if(str.size() >= 19)
+        {
+
+            QString hour = str[11]; hour += str[12];
+            QString minute = str[14]; minute += str[15];
+            QString second = str[17]; second += str[18];
+            currentdt += (second.toInt() * 1.0  +minute.toInt()*60.0 + hour.toInt()*3600.0)/86400.0;
+        }
+        double value = currentdt;
+
+        return value;
+
+    }
+    return -1;
+}
+
 #endif // SQLSUBFUNCTIONS_H

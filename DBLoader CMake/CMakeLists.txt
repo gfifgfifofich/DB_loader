@@ -27,6 +27,7 @@ qt_standard_project_setup(I18N_TRANSLATED_LANGUAGES en ru)
 add_subdirectory(QXlsx-master/QXlsx)
 add_subdirectory(OpenXLSX)
 
+
 #oracle
 if(Oracle_OCI_Driver)
     add_compile_definitions(Oracle_OCI_Driver)
@@ -43,6 +44,7 @@ endif()
 #SimpleMail for mail automation
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/SimpleMail)
 LINK_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/lib)
+
 
 
 # add sqlite source directly
@@ -92,6 +94,10 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         replacewindow.h replacewindow.cpp replacewindow.ui
         testing.h
         bpe.cpp
+        predictorwindow.h predictorwindow.cpp predictorwindow.ui
+        connectionmanager.h connectionmanager.cpp connectionmanager.ui
+        importdialog.h importdialog.cpp importdialog.ui
+        exportdialog.h exportdialog.cpp exportdialog.ui
 
 
 
@@ -127,6 +133,7 @@ target_link_libraries(untitled PRIVATE Qt6::Graphs)
 target_link_libraries(untitled PRIVATE Qt6::Quick)
 target_link_libraries(untitled PRIVATE Qt6::QuickControls2)
 target_link_libraries(untitled PRIVATE Qt6::Test)
+
 
 IF (WIN32)
 target_link_libraries(untitled PRIVATE Qt6::AxContainer)

@@ -13,10 +13,9 @@
 
 #include "libpq-fe.h"
 
-// for COM automation in windows
-#ifdef _WIN32
-#include <QtAxContainer/QAxObject>
-#endif
+#include "OpenXLSX.hpp"
+
+
 /*
 
 created query
@@ -178,7 +177,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
     // decide driver type
     if(driver.trimmed() == "LOCAL_SQLITE_DB")
     {
-        db = QSqlDatabase::addDatabase("QSQLITE",connectionName);
+        db = QSqlDatabase::addDatabase("QSQLITE","asd");
         if(!dbname.endsWith(".db"))
             dbname = documentsDir + "/SQLiteDB.db";
 
@@ -190,18 +189,18 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
     }
     else if(driver.trimmed() =="QOCI")
     {
-        db = QSqlDatabase::addDatabase("QOCI",connectionName);
+        db = QSqlDatabase::addDatabase("QOCI","zxc");
         db.setConnectOptions("OCI_ATTR_PREFETCH_ROWS=5000"); // set prefetch count to load data with speed > 2mbit/s
         oracle = true;
     }
     else if(driver.trimmed() =="QPSQL")
     {
-        db = QSqlDatabase::addDatabase("QPSQL",connectionName);
+        db = QSqlDatabase::addDatabase("QPSQL","qwe");
         postgre = true;
     }
     else if (driver.trimmed() =="QODBC_Excel")
     {
-        db = QSqlDatabase::addDatabase("QODBC",connectionName);
+        db = QSqlDatabase::addDatabase("QODBC","asdzxc");
         QODBC_Excel = true;
         ODBC = true;
     }
@@ -215,7 +214,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
         sqlite = true;
         customSQlite = true;
 
-        db = QSqlDatabase::addDatabase("QSQLITE",connectionName);
+        db = QSqlDatabase::addDatabase("QSQLITE","qweasd");
         if(!dbname.endsWith(".db"))
             dbname = documentsDir + "/SQLiteDB.db";
 
@@ -231,7 +230,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
     }
     else
     {
-        db = QSqlDatabase::addDatabase("QODBC",connectionName);
+        db = QSqlDatabase::addDatabase("QODBC","zxcasdqwe");
         ODBC = true;
     }
 
@@ -363,6 +362,7 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
         catch (oracle::occi::SQLException ex) {
             if(!nodebug) qDebug() << "error creating connection" << ex.getErrorCode() << ex.getMessage();
             Last_ConnectError = QString().fromStdString(ex.getMessage());
+            oracleCreationMutex.unlock();
             return false;
         }
 #else
@@ -415,6 +415,8 @@ bool DatabaseConnection::Create(QString driver, QString dbname, QString username
     }
     else if (customPSQL)
     {
+
+
 
         dbSchemaName = dbname.split('/').back();
         QString host = dbname.split(':').front();
@@ -559,6 +561,13 @@ bool DatabaseConnection::Create(QString driver, QString DBName)
 
     bool success = Create(driver.trimmed(),dbname.trimmed(), usrname.trimmed(), password.trimmed());
     return success ;
+
+}
+bool DatabaseConnection::Create(QString conname)
+{
+    if(userDS.data["Connections"].count(conname) > 0)
+        return Create(userDS.data[conname]["Driver"],userDS.data[conname]["Connstr"],userDS.data[conname]["User"],userDS.data[conname]["Password"]);
+    else return false;
 
 }
 
@@ -1269,8 +1278,13 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                 if(!nodebug) qDebug()<< "Subscript command is:";
                                 if(!nodebug) qDebug()<< scriptCommand;
                                 if(!nodebug) qDebug()<< "";
-                                QString subscriptDriver = "NoDriver";
-                                QString subscriptDBname = "NoDatabase";
+                                QString subscriptConname = "No subscript Conname";
+
+                                QString ExcelImportFile = "";
+                                QString ExcelImportColumnName = "";
+                                QString ExcelImportWorksheet = "";
+
+
                                 QString saveName = "unset_tmp_savename";
                                 QString WorksheetName = "Sheet1";
                                 QString UniqueExcelColumnName = "ID";
@@ -1287,23 +1301,23 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                     while(tmpvar.endsWith(QChar('\u0000')))
                                         tmpvar.resize(tmpvar.size()-1);
 
+
                                     if(varcount == 0)
                                     {
                                         varcount++;
-                                        subscriptDriver = tmpvar;
-                                    }else if(varcount == 1)
+                                        subscriptConname = tmpvar;
+                                        ExcelImportFile = subscriptConname;
+                                    }
+                                    else if(varcount == 1)
                                     {
                                         varcount++;
-                                        subscriptDBname = tmpvar;
+                                        saveName = tmpvar;
+                                        ExcelImportColumnName = tmpvar;
                                     }
                                     else if(varcount == 2)
                                     {
                                         varcount++;
-                                        saveName = tmpvar;
-                                    }
-                                    else if(varcount == 3)
-                                    {
-                                        varcount++;
+                                        ExcelImportWorksheet = tmpvar;
                                         saveStart_X = QVariant(tmpvar).toInt();
                                         csvDelimeter = tmpvar[0].unicode();
                                         WorksheetName=tmpvar;
@@ -1312,7 +1326,7 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                             WorksheetName=tmpvar;
                                         }
                                     }
-                                    else if(varcount == 4)
+                                    else if(varcount == 3)
                                     {
                                         varcount++;
                                         saveEnd_X = QVariant(tmpvar).toInt();
@@ -1322,7 +1336,7 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                             saveStart_X = QVariant(tmpvar).toInt();
                                         }
                                     }
-                                    else if(varcount == 5)
+                                    else if(varcount == 4)
                                     {
                                         varcount++;
                                         saveStart_Y = QVariant(tmpvar).toInt();
@@ -1331,7 +1345,7 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                             saveEnd_X = QVariant(tmpvar).toInt();
                                         }
                                     }
-                                    else if(varcount == 6)
+                                    else if(varcount == 5)
                                     {
                                         varcount++;
                                         saveEnd_Y = QVariant(tmpvar).toInt();
@@ -1340,7 +1354,7 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                             saveStart_Y = QVariant(tmpvar).toInt();
                                         }
                                     }
-                                    else if(varcount == 7)
+                                    else if(varcount == 6)
                                     {
                                         if(!subCommandPatterns[i].endsWith("ExcelWorksheet"))
                                         {
@@ -1356,17 +1370,16 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                         break;
                                 }
 
-                                if(!nodebug) qDebug()<< "subscriptDriver: " << subscriptDriver;
-                                if(!nodebug) qDebug()<< "subscriptDBname: " << subscriptDBname;
+                                if(!nodebug) qDebug()<< "subscriptConname: " << subscriptConname;
 
                                 if(asyncExecution_pasteExecsData)
                                 {
                                     qDebug() << "asyncExecution_databaseConnections.size() = " << asyncExecution_databaseConnections.size();
-                                    subscriptConnesction = asyncExecution_databaseConnections[0];
+                                    subscriptConnection = asyncExecution_databaseConnections[0];
                                     asyncExecution_databaseConnections.pop_front();
                                 }
                                 else
-                                    subscriptConnesction = new DatabaseConnection();
+                                    subscriptConnection = new DatabaseConnection();
 
                                 if(!nodebug) qDebug()<< "created DatabaseConnection";
 
@@ -1377,35 +1390,33 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                 if(!asyncExecution_pasteExecsData)
                                     if(subCommandPatterns[i].startsWith("Subexec") ||subCommandPatterns[i].startsWith("SilentSubexec"))
                                     {
-                                        QString username = userDS.GetObject(subscriptDBname)["name"];
-                                        QString password = userDS.GetObject(subscriptDBname)["password"];
-                                        if(!nodebug) qDebug()<< subscriptDriver << subscriptDBname << username.trimmed() << password.trimmed();
-                                        subscriptConnesction->connectionName = connectionName + QVariant(a).toString();
+
+
                                         if(!nodebug) qDebug()<< "creating actual Connection";
-                                        subscriptConnesction->Create(subscriptDriver.trimmed(),subscriptDBname.trimmed(),username.trimmed(),password.trimmed());
+                                        subscriptConnection->Create(subscriptConname.trimmed());
                                         if(!nodebug) qDebug()<< "created";
                                         while(scriptCommand.endsWith(' ') ||scriptCommand.endsWith('\t') ||scriptCommand.endsWith('\n') || scriptCommand.endsWith('\r'))
                                             scriptCommand.resize(scriptCommand.size()-1);
 
                                         if(subCommandPatterns[i].startsWith("SilentSubexecBypassToLocalDBTable") ||subCommandPatterns[i].startsWith("SubexecBypassToLocalDBTable"))
                                         {
-                                            subscriptConnesction->bypassToLocalDb = true;
-                                            subscriptConnesction->bypassLocalDbTableName = saveName;
+                                            subscriptConnection->bypassToLocalDb = true;
+                                            subscriptConnection->bypassLocalDbTableName = saveName;
                                         }
                                         else
                                         {
-                                            subscriptConnesction->bypassToLocalDb = false;
-                                            subscriptConnesction->bypassLocalDbTableName = "tmp";
+                                            subscriptConnection->bypassToLocalDb = false;
+                                            subscriptConnection->bypassLocalDbTableName = "tmp";
                                         }
                                         if(asyncExecution_recordExecs)
                                         {
 
                                             asyncExecution_Formats.push_back(funcVariables);
-                                            asyncExecution_databaseConnections.push_back(subscriptConnesction);
-                                            subscriptConnesction->nodebug = true;
-                                            subscriptConnesction->disableSaveToUserDS = true;
+                                            asyncExecution_databaseConnections.push_back(subscriptConnection);
+                                            subscriptConnection->nodebug = true;
+                                            subscriptConnection->disableSaveToUserDS = true;
                                             asyncExecution_commandIds.push_back(i);
-                                            asyncExecution_threads.push_back(QThread::create(_dc_AsyncFunc,subscriptConnesction,scriptCommand.trimmed()));
+                                            asyncExecution_threads.push_back(QThread::create(_dc_AsyncFunc,subscriptConnection,scriptCommand.trimmed()));
                                             asyncExecution_threads.back()->start();
                                             keywordbuff = "";
                                             formatedSql+= "_DBL_AsyncExecutionTempValue {{}}";//{-- {} {} \n}
@@ -1416,8 +1427,8 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                         else if (!reset)
                                         {
                                             if(!nodebug) qDebug()<< "executing sql";
-                                            subscriptConnesction->execSql(scriptCommand.trimmed());
-                                            subscriptConnesction->data.sqlCode = scriptCommand.trimmed();
+                                            subscriptConnection->execSql(scriptCommand.trimmed());
+                                            subscriptConnection->data.sqlCode = scriptCommand.trimmed();
                                             if(!nodebug) qDebug()<< "sql execd";
                                         }
                                         else
@@ -1436,13 +1447,13 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                             break;
                                         }
                                     }
-                                subscriptConnesction->data.allSqlCode = this->data.allSqlCode;
+                                subscriptConnection->data.allSqlCode = this->data.allSqlCode;
 
 
-                                QString hours =  QVariant((subscriptConnesction->executionTime / 3600)).toString();
-                                QString minuts = QVariant(subscriptConnesction->executionTime % 3600 / 60).toString();
-                                QString secs = QVariant(subscriptConnesction->executionTime % 60).toString();
-                                QString msecs = QVariant((QDateTime::currentMSecsSinceEpoch() - subscriptConnesction->executionStart.toMSecsSinceEpoch())%1000).toString();
+                                QString hours =  QVariant((subscriptConnection->executionTime / 3600)).toString();
+                                QString minuts = QVariant(subscriptConnection->executionTime % 3600 / 60).toString();
+                                QString secs = QVariant(subscriptConnection->executionTime % 60).toString();
+                                QString msecs = QVariant((QDateTime::currentMSecsSinceEpoch() - subscriptConnection->executionStart.toMSecsSinceEpoch())%1000).toString();
 
                                 QString execTimeStr =  "";
                                 while(hours.size() <2)
@@ -1490,26 +1501,25 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                             TableCutoffEnd = TableCutoffStart + saveStart_X;
                                         }
                                     }
-                                    if(subscriptDriver.startsWith("file:///"))
+                                    if(ExcelImportFile.startsWith("file:///"))
                                     {
-                                        for(int i=0;i < subscriptDriver.size();i++)
+                                        for(int i=0;i < ExcelImportFile.size();i++)
                                         {
-                                            if(i+7 < subscriptDriver.size())
-                                                subscriptDriver[i]=subscriptDriver[i+8];
+                                            if(i+7 < ExcelImportFile.size())
+                                                ExcelImportFile[i]=ExcelImportFile[i+8];
                                         }
-                                        subscriptDriver.resize(subscriptDriver.size()-8);
-                                        if(!nodebug) qDebug() <<"subscriptDriver" <<subscriptDriver;
+                                        ExcelImportFile.resize(ExcelImportFile.size()-8);
+                                        if(!nodebug) qDebug() <<"subscriptDriver" <<ExcelImportFile;
                                     }
-                                    subscriptConnesction->data.silentExcelImport = true;
-                                    subscriptConnesction->data.ImportFromExcel(subscriptDriver,0,0,0,0,true,funcVariables[2].trimmed());
-                                    qDebug() << "WorksheetName: "<< funcVariables[2].trimmed();
-                                    qDebug() << "subscriptDriver: "<< subscriptDriver;
-                                    qDebug() << "subscriptDBname: "<< subscriptDBname;
-                                    if(subscriptDBname != "NoDatabase")
+                                    subscriptConnection->data.silentExcelImport = true;
+                                    subscriptConnection->data.ImportFromExcel(ExcelImportFile,0,0,0,0,true,funcVariables[2].trimmed());
+                                    qDebug() << "WorksheetName: "<< ExcelImportWorksheet.trimmed();
+                                    qDebug() << "ExcelImportFile: "<< ExcelImportFile;
+                                    if(ExcelImportColumnName != "")
                                     {// leave only one column
-                                        for(int it=0;it<subscriptConnesction->data.headers.size();it++)
+                                        for(int it=0;it<subscriptConnection->data.headers.size();it++)
                                         {
-                                            if(subscriptConnesction->data.headers[it] == subscriptDBname)
+                                            if(subscriptConnection->data.headers[it] == ExcelImportColumnName)
                                             {
                                                 neededMagicColumn = it;
                                                 break;
@@ -1538,23 +1548,23 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                             TableCutoffEnd = TableCutoffStart + saveStart_X;
                                         }
                                     }
-                                    if(subscriptDriver.startsWith("file:///"))
+                                    if(ExcelImportFile.startsWith("file:///"))
                                     {
-                                        for(int i=0;i < subscriptDriver.size();i++)
+                                        for(int i=0;i < ExcelImportFile.size();i++)
                                         {
-                                            if(i+7 < subscriptDriver.size())
-                                                subscriptDriver[i]=subscriptDriver[i+8];
+                                            if(i+7 < ExcelImportFile.size())
+                                                ExcelImportFile[i]=ExcelImportFile[i+8];
                                         }
-                                        subscriptDriver.resize(subscriptDriver.size()-8);
-                                        if(!nodebug) qDebug() <<"subscriptDriver" <<subscriptDriver;
+                                        ExcelImportFile.resize(ExcelImportFile.size()-8);
+                                        if(!nodebug) qDebug() <<"subscriptDriver" <<ExcelImportFile;
                                     }
 
-                                    subscriptConnesction->data.ImportFromCSV(subscriptDriver,';',true);
-                                    if(subscriptDBname != "NoDatabase")
+                                    subscriptConnection->data.ImportFromCSV(ExcelImportFile,';',true);
+                                    if(ExcelImportColumnName != "")
                                     {// leave only one column
-                                        for(int it=0;it<subscriptConnesction->data.headers.size();it++)
+                                        for(int it=0;it<subscriptConnection->data.headers.size();it++)
                                         {
-                                            if(subscriptConnesction->data.headers[it] == subscriptDBname)
+                                            if(subscriptConnection->data.headers[it] == ExcelImportColumnName)
                                             {
                                                 neededMagicColumn = it;
                                                 break;
@@ -1572,36 +1582,36 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                     savefilecount++;
                                     if(!nodebug) qDebug() << "silent exporting to SQLite " << saveName;
 
-                                    if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
-                                        if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
-                                            subscriptConnesction->data.ExportToSQLiteTable(saveName);
+                                    if(subscriptConnection->data.headers.size() > 0 && !subscriptConnection->data.headers[0].startsWith("Error"))
+                                        if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0)
+                                            subscriptConnection->data.ExportToSQLiteTable(saveName);
                                 }
                                 else if(subCommandPatterns[i] == "SilentSubexecToExcelTable")
                                 {
                                     savefilecount++;
                                     if(!nodebug) qDebug() << "silent exporting to Excel " << saveName;
 
-                                    if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
-                                        if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
-                                            subscriptConnesction->data.ExportToExcel(QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true);
+                                    if(subscriptConnection->data.headers.size() > 0 && !subscriptConnection->data.headers[0].startsWith("Error"))
+                                        if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0)
+                                            subscriptConnection->data.ExportToExcel(QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true);
                                 }
                                 else if(subCommandPatterns[i] == "SilentSubexecToExcelWorksheet")
                                 {
                                     savefilecount++;
                                     if(!nodebug) qDebug() << "silent exporting to Excel Worksheet" << saveName;
 
-                                    if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
-                                        if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
-                                            subscriptConnesction->data.ExportToExcel(QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true,WorksheetName);
+                                    if(subscriptConnection->data.headers.size() > 0 && !subscriptConnection->data.headers[0].startsWith("Error"))
+                                        if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0)
+                                            subscriptConnection->data.ExportToExcel(QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true,WorksheetName);
                                 }
                                 else if(subCommandPatterns[i] == "SilentSubexecAppendExcelWorksheet")
                                 {
                                     savefilecount++;
                                     if(!nodebug) qDebug() << "silent exporting to Excel Worksheet" << saveName;
 
-                                    if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
-                                        if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
-                                            subscriptConnesction->data.ExportToExcel(QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true,WorksheetName,true);
+                                    if(subscriptConnection->data.headers.size() > 0 && !subscriptConnection->data.headers[0].startsWith("Error"))
+                                        if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0)
+                                            subscriptConnection->data.ExportToExcel(QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true,WorksheetName,true);
 
 
 
@@ -1622,41 +1632,9 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
 
 
 
-                                    #ifdef _WIN32
-                                    QAxObject* excel = new QAxObject("Excel.Application");
-                                    if (excel)
-                                    {
-                                        excel->setProperty("Visible", false); // Set to true for visible Excel window
-
-                                        QAxObject* workbooks = excel->querySubObject("Workbooks");
-                                        QAxObject* workbook = workbooks->querySubObject("Open(const QString&)", QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx")); // Replace with your workbook path
-
-                                        if(workbook )
-                                        {
-                                            QAxObject* sheets = workbook->querySubObject( "Worksheets" );
-                                            QAxObject* sheet = sheets->querySubObject( "Item(const QVariant&)", WorksheetName);
-                                            if(sheet)
-                                            {
-                                                QString rangeString = QString("%1:%2").arg(2).arg(1048576); // xls and others are obsolite anyways
-                                                QAxObject* rowsToDelete = sheet->querySubObject("Rows(const QString&)", rangeString);
-                                                rowsToDelete->dynamicCall("Delete()");
-
-                                                delete rowsToDelete;
-                                                delete sheet;
-                                            }
-                                            workbook->dynamicCall("Save()"); // Save changes if needed
-                                            workbook->dynamicCall("Close(Boolean)", true);
-                                            delete sheets;
-                                            delete workbook;
-                                        }
-                                        excel->dynamicCall("Quit()");
-                                        delete workbooks;
-                                    }
-                                    delete excel;
-                                    #endif
-                                    if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
-                                        if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
-                                            subscriptConnesction->data.ExportToExcel(QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true,WorksheetName,true);
+                                    if(subscriptConnection->data.headers.size() > 0 && !subscriptConnection->data.headers[0].startsWith("Error"))
+                                        if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0)
+                                            subscriptConnection->data.ExportToExcel(QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true,WorksheetName,true);
                                 }
                                 else if(subCommandPatterns[i] == "SubexecAppendExcelWorksheetUniqueColumn")
                                 {
@@ -1664,119 +1642,28 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                     qDebug() << "UniqueExcelColumnName" << UniqueExcelColumnName;
 
 
-                                    std::map<QString,int> uniqueColumnValues;
-                                    int unique_col_id = -1;
-                                    for(int hi =0; hi < subscriptConnesction->data.headers.size(); hi++)
-                                    {
-                                        qDebug() << "comparing " << subscriptConnesction->data.headers[hi].toLower().trimmed() << UniqueExcelColumnName.toLower().trimmed();
-                                        if(subscriptConnesction->data.headers[hi].toLower().trimmed() == UniqueExcelColumnName.toLower().trimmed())
-                                        {
-                                            unique_col_id = hi;
-                                            break;
-                                        }
-                                    }
-                                    qDebug() << "unique_col_id " << unique_col_id;
 
+                                    if(subscriptConnection->data.headers.size() > 0 && !subscriptConnection->data.headers[0].startsWith("Error"))
+                                        if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0)
+                                            subscriptConnection->data.ExportToExcelUniqueColumn(QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx"),WorksheetName,UniqueExcelColumnName);
 
-
-                                    if(unique_col_id >= 0)
-                                    {
-
-                                        for(int ti = 0; ti < subscriptConnesction->data.tbldata[unique_col_id].size(); ti++)
-                                        {
-                                            uniqueColumnValues[subscriptConnesction->data.tbldata[unique_col_id][ti]]++;// count for fun
-                                        }
-
-                                        for(auto keys : uniqueColumnValues)
-                                        {
-                                            qDebug() << "key added: " <<keys.first;
-                                        }
-
-
-                                        if(WorksheetName == "")
-                                            WorksheetName = "Sheet1";
-
-                                        TableData tmp_data;
-                                        tmp_data.ImportFromExcel(QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx"),0,0,0,0,true,WorksheetName);
-
-
-                                        if(tmp_data.tbldata.size() > 0 && tmp_data.tbldata[0].size() > 0)
-                                        {
-                                            #ifdef _WIN32
-                                            QAxObject* excel = new QAxObject("Excel.Application");
-                                            if (!excel) {
-                                                qDebug() << "Excel application could not be started.";
-                                            }
-
-                                            excel->setProperty("Visible", true); // Set to true for visible Excel window
-
-                                            QAxObject* workbooks = excel->querySubObject("Workbooks");
-                                            QAxObject* workbook = workbooks->querySubObject("Open(const QString&)", QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx"));
-                                            if (workbook) {
-                                                QAxObject* sheets = workbook->querySubObject( "Worksheets" );
-                                                QAxObject* sheet = sheets->querySubObject( "Item(const QVariant&)", WorksheetName);
-                                                for(auto keys : uniqueColumnValues)
-                                                {
-                                                        for(int row=0; row < tmp_data.tbldata[0].size();  row++)
-                                                        {
-                                                            if(tmp_data.tbldata[unique_col_id][row].toLower().trimmed() == keys.first.toLower().trimmed())
-                                                            {
-                                                                for(int col=0; col < tmp_data.tbldata.size();  col++)
-                                                                {
-                                                                   tmp_data.tbldata[col].remove(row,1);
-                                                                }
-                                                                QAxObject* row_to_delete = sheet->querySubObject(("Rows("+ QVariant(row).toString() +")").toStdString().c_str());
-                                                                row_to_delete->dynamicCall("Delete()");
-                                                                delete row_to_delete;
-                                                                row--;
-                                                            }
-                                                        }
-                                                }
-
-
-
-                                                workbook->dynamicCall("RefreshAll()"); // Refresh all PivotTables in the workbook
-                                                workbook->dynamicCall("Save()"); // Save changes if needed
-                                                workbook->dynamicCall("Close(Boolean)", true); // Close without saving if not saved
-                                                delete sheet;
-                                                delete sheets;
-
-                                            } else {
-                                                qDebug() << "Workbook could not be opened.";
-                                            }
-
-                                            excel->dynamicCall("Quit()");
-                                            delete workbook;
-                                            delete workbooks;
-                                            delete excel;
-                                            #endif
-                                            if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
-                                                if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
-                                                    subscriptConnesction->data.ExportToExcel(QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx"),0,0,0,0,true,WorksheetName,true);
-
-
-                                        }
-
-
-
-                                    }
                                 }
 
                                 else if(subCommandPatterns[i] == "SilentSubexecToCSV")
                                 {
                                     savefilecount++;
                                     if(!nodebug) qDebug() << "silent exporting to CSV " << saveName;
-                                    if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
-                                        if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
-                                            subscriptConnesction->data.ExportToCSV(QString(documentsDir + "/" +"CSV/") + QString(saveName) + QString(".csv"),csvDelimeter,true);
+                                    if(subscriptConnection->data.headers.size() > 0 && !subscriptConnection->data.headers[0].startsWith("Error"))
+                                        if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0)
+                                            subscriptConnection->data.ExportToCSV(QString(documentsDir + "/" +"CSV/") + QString(saveName) + QString(".csv"),csvDelimeter,true);
                                 }
                                 else if(subCommandPatterns[i] == "SilentSubexecAppendCSV")
                                 {
                                     savefilecount++;
                                     if(!nodebug) qDebug() << "silent exporting(Append) to CSV " << saveName;
-                                    if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
-                                        if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
-                                            subscriptConnesction->data.AppendToCSV(QString(documentsDir + "/" +"CSV/") + QString(saveName) + QString(".csv"),csvDelimeter);
+                                    if(subscriptConnection->data.headers.size() > 0 && !subscriptConnection->data.headers[0].startsWith("Error"))
+                                        if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0)
+                                            subscriptConnection->data.AppendToCSV(QString(documentsDir + "/" +"CSV/") + QString(saveName) + QString(".csv"),csvDelimeter);
                                 }
 
                                 else if(subCommandPatterns[i].startsWith("SilentSubexecBypassToLocalDBTable"))
@@ -1786,10 +1673,10 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                 {
                                     savefilecount++;
                                     if(!nodebug) qDebug() << "exporting to SQLite " << saveName;
-                                    if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
+                                    if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0)
                                     {
                                         QString saveErrorStr = "";
-                                        if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
+                                        if(subscriptConnection->data.headers.size() > 0 && subscriptConnection->data.headers[0] == "Error")
                                             formatedSql += " 'Error' as \"Status\", ";
                                         else if (saveErrorStr.size() > 0)
                                         {
@@ -1801,11 +1688,11 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                         else
                                             formatedSql += " 'Success' as \"Status\", ";
 
-                                        if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
+                                        if(subscriptConnection->data.headers.size() > 0 && subscriptConnection->data.headers[0] == "Error")
                                         {
                                             formatedSql += "'";
-                                            if(subscriptConnesction->data.tbldata.size() > 0 && subscriptConnesction->data.tbldata[0].size()>0)
-                                                formatedSql += subscriptConnesction->data.tbldata[0][0];
+                                            if(subscriptConnection->data.tbldata.size() > 0 && subscriptConnection->data.tbldata[0].size()>0)
+                                                formatedSql += subscriptConnection->data.tbldata[0][0];
                                             formatedSql += "'";
                                             formatedSql += " as \"Error message\", ";
                                         }
@@ -1817,12 +1704,12 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                             formatedSql += " as \"Error message\", ";
                                         }
                                         formatedSql += "'";
-                                        formatedSql += QVariant(subscriptConnesction->data.tbldata.size()).toString();
+                                        formatedSql += QVariant(subscriptConnection->data.tbldata.size()).toString();
                                         formatedSql += "'";
                                         formatedSql += " as \"Column count\", ";
                                         formatedSql += "'";
-                                        if(subscriptConnesction->data.tbldata.size() > 0)
-                                            formatedSql += QVariant(subscriptConnesction->data.tbldata[0].size()).toString();
+                                        if(subscriptConnection->data.tbldata.size() > 0)
+                                            formatedSql += QVariant(subscriptConnection->data.tbldata[0].size()).toString();
                                         else
                                             formatedSql += " 0 ";
                                         formatedSql += "'";
@@ -1842,13 +1729,13 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                 {
                                     savefilecount++;
                                     if(!nodebug) qDebug() << "exporting to SQLite " << saveName;
-                                    if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
+                                    if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0)
                                     {
                                         QString saveErrorStr = "";
-                                        if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] != "Error")
-                                            if(!subscriptConnesction->data.ExportToSQLiteTable(saveName))
+                                        if(subscriptConnection->data.headers.size() > 0 && subscriptConnection->data.headers[0] != "Error")
+                                            if(!subscriptConnection->data.ExportToSQLiteTable(saveName))
                                                 saveErrorStr = "Failed to save to SQLite table, check columnName repetitions/spaces, special symbols";
-                                        if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
+                                        if(subscriptConnection->data.headers.size() > 0 && subscriptConnection->data.headers[0] == "Error")
                                             formatedSql += " 'Error' as \"Status\", ";
                                         else if (saveErrorStr.size() > 0)
                                         {
@@ -1860,11 +1747,11 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                         else
                                             formatedSql += " 'Success' as \"Status\", ";
 
-                                        if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
+                                        if(subscriptConnection->data.headers.size() > 0 && subscriptConnection->data.headers[0] == "Error")
                                         {
                                             formatedSql += "'";
-                                            if(subscriptConnesction->data.tbldata.size() > 0 && subscriptConnesction->data.tbldata[0].size()>0)
-                                                formatedSql += subscriptConnesction->data.tbldata[0][0];
+                                            if(subscriptConnection->data.tbldata.size() > 0 && subscriptConnection->data.tbldata[0].size()>0)
+                                                formatedSql += subscriptConnection->data.tbldata[0][0];
                                             formatedSql += "'";
                                             formatedSql += " as \"Error message\", ";
                                         }
@@ -1876,12 +1763,12 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                             formatedSql += " as \"Error message\", ";
                                         }
                                         formatedSql += "'";
-                                        formatedSql += QVariant(subscriptConnesction->data.tbldata.size()).toString();
+                                        formatedSql += QVariant(subscriptConnection->data.tbldata.size()).toString();
                                         formatedSql += "'";
                                         formatedSql += " as \"Column count\", ";
                                         formatedSql += "'";
-                                        if(subscriptConnesction->data.tbldata.size() > 0)
-                                            formatedSql += QVariant(subscriptConnesction->data.tbldata[0].size()).toString();
+                                        if(subscriptConnection->data.tbldata.size() > 0)
+                                            formatedSql += QVariant(subscriptConnection->data.tbldata[0].size()).toString();
                                         else
                                             formatedSql += " 0 ";
                                         formatedSql += "'";
@@ -1899,9 +1786,9 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                     savefilecount++;
                                     if(!nodebug) qDebug() << "exporting to Excel " << saveName;
                                     QString saveErrorStr = "";
-                                    if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
-                                        if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0 && subscriptConnesction->data.tbldata[0].size() > 0)
-                                            if(!subscriptConnesction->data.ExportToExcel(QString(documentsDir + "/" +"excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true))
+                                    if(subscriptConnection->data.headers.size() > 0 && !subscriptConnection->data.headers[0].startsWith("Error"))
+                                        if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0 && subscriptConnection->data.tbldata[0].size() > 0)
+                                            if(!subscriptConnection->data.ExportToExcel(QString(documentsDir + "/" +"excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true))
                                                 saveErrorStr = "Failed to save to excel, probably file is opened";
 
 
@@ -1916,11 +1803,11 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                     else
                                         formatedSql += " 'Success' as \"Status\", ";
 
-                                    if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
+                                    if(subscriptConnection->data.headers.size() > 0 && !subscriptConnection->data.headers[0].startsWith("Error"))
                                     {
                                         formatedSql += "'";
-                                        if(subscriptConnesction->data.tbldata.size() > 0 && subscriptConnesction->data.tbldata[0].size()>0)
-                                            formatedSql += subscriptConnesction->data.tbldata[0][0];
+                                        if(subscriptConnection->data.tbldata.size() > 0 && subscriptConnection->data.tbldata[0].size()>0)
+                                            formatedSql += subscriptConnection->data.tbldata[0][0];
                                         formatedSql += "'";
                                         formatedSql += " as \"Error message\", ";
                                     }
@@ -1932,12 +1819,12 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                         formatedSql += " as \"Error message\", ";
                                     }
                                     formatedSql += "'";
-                                    formatedSql += QVariant(subscriptConnesction->data.tbldata.size()).toString();
+                                    formatedSql += QVariant(subscriptConnection->data.tbldata.size()).toString();
                                     formatedSql += "'";
                                     formatedSql += " as \"Column count\", ";
                                     formatedSql += "'";
-                                    if(subscriptConnesction->data.tbldata.size() > 0)
-                                        formatedSql += QVariant(subscriptConnesction->data.tbldata[0].size()).toString();
+                                    if(subscriptConnection->data.tbldata.size() > 0)
+                                        formatedSql += QVariant(subscriptConnection->data.tbldata[0].size()).toString();
                                     else
                                         formatedSql += " 0 ";
                                     formatedSql += "'";
@@ -1954,9 +1841,9 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                     savefilecount++;
                                     if(!nodebug) qDebug() << "exporting to Excel " << saveName;
                                     QString saveErrorStr = "";
-                                    if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
-                                        if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0 && subscriptConnesction->data.tbldata[0].size() > 0)
-                                            if(!subscriptConnesction->data.ExportToExcel(QString(documentsDir + "/" +"excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true,WorksheetName))
+                                    if(subscriptConnection->data.headers.size() > 0 && !subscriptConnection->data.headers[0].startsWith("Error"))
+                                        if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0 && subscriptConnection->data.tbldata[0].size() > 0)
+                                            if(!subscriptConnection->data.ExportToExcel(QString(documentsDir + "/" +"excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true,WorksheetName))
                                                 saveErrorStr = "Failed to save to excel, probably file is opened";
 
                                     if (saveErrorStr.size() > 0)
@@ -1969,11 +1856,11 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                     else
                                         formatedSql += " 'Success' as \"Status\", ";
 
-                                    if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
+                                    if(subscriptConnection->data.headers.size() > 0 && !subscriptConnection->data.headers[0].startsWith("Error"))
                                     {
                                         formatedSql += "'";
-                                        if(subscriptConnesction->data.tbldata.size() > 0 && subscriptConnesction->data.tbldata[0].size()>0)
-                                            formatedSql += subscriptConnesction->data.tbldata[0][0];
+                                        if(subscriptConnection->data.tbldata.size() > 0 && subscriptConnection->data.tbldata[0].size()>0)
+                                            formatedSql += subscriptConnection->data.tbldata[0][0];
                                         formatedSql += "'";
                                         formatedSql += " as \"Error message\", ";
                                     }
@@ -1985,12 +1872,12 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                         formatedSql += " as \"Error message\", ";
                                     }
                                     formatedSql += "'";
-                                    formatedSql += QVariant(subscriptConnesction->data.tbldata.size()).toString();
+                                    formatedSql += QVariant(subscriptConnection->data.tbldata.size()).toString();
                                     formatedSql += "'";
                                     formatedSql += " as \"Column count\", ";
                                     formatedSql += "'";
-                                    if(subscriptConnesction->data.tbldata.size() > 0)
-                                        formatedSql += QVariant(subscriptConnesction->data.tbldata[0].size()).toString();
+                                    if(subscriptConnection->data.tbldata.size() > 0)
+                                        formatedSql += QVariant(subscriptConnection->data.tbldata[0].size()).toString();
                                     else
                                         formatedSql += " 0 ";
                                     formatedSql += "'";
@@ -2007,9 +1894,9 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                     savefilecount++;
                                     if(!nodebug) qDebug() << "exporting to Excel " << saveName;
                                     QString saveErrorStr = "";
-                                    if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
-                                        if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0 && subscriptConnesction->data.tbldata[0].size() > 0)
-                                            if(!subscriptConnesction->data.ExportToExcel(QString(documentsDir + "/" +"excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true,WorksheetName,true))
+                                    if(subscriptConnection->data.headers.size() > 0 && !subscriptConnection->data.headers[0].startsWith("Error"))
+                                        if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0 && subscriptConnection->data.tbldata[0].size() > 0)
+                                            if(!subscriptConnection->data.ExportToExcel(QString(documentsDir + "/" +"excel/") + QString(saveName) + QString(".xlsx"),saveStart_X,saveEnd_X,saveStart_Y,saveEnd_Y,true,WorksheetName,true))
                                                 saveErrorStr = "Failed to save to excel, probably file is opened";
 
                                     if (saveErrorStr.size() > 0)
@@ -2022,11 +1909,11 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                     else
                                         formatedSql += " 'Success' as \"Status\", ";
 
-                                    if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
+                                    if(subscriptConnection->data.headers.size() > 0 && !subscriptConnection->data.headers[0].startsWith("Error"))
                                     {
                                         formatedSql += "'";
-                                        if(subscriptConnesction->data.tbldata.size() > 0 && subscriptConnesction->data.tbldata[0].size()>0)
-                                            formatedSql += subscriptConnesction->data.tbldata[0][0];
+                                        if(subscriptConnection->data.tbldata.size() > 0 && subscriptConnection->data.tbldata[0].size()>0)
+                                            formatedSql += subscriptConnection->data.tbldata[0][0];
                                         formatedSql += "'";
                                         formatedSql += " as \"Error message\", ";
                                     }
@@ -2038,12 +1925,12 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                         formatedSql += " as \"Error message\", ";
                                     }
                                     formatedSql += "'";
-                                    formatedSql += QVariant(subscriptConnesction->data.tbldata.size()).toString();
+                                    formatedSql += QVariant(subscriptConnection->data.tbldata.size()).toString();
                                     formatedSql += "'";
                                     formatedSql += " as \"Column count\", ";
                                     formatedSql += "'";
-                                    if(subscriptConnesction->data.tbldata.size() > 0)
-                                        formatedSql += QVariant(subscriptConnesction->data.tbldata[0].size()).toString();
+                                    if(subscriptConnection->data.tbldata.size() > 0)
+                                        formatedSql += QVariant(subscriptConnection->data.tbldata[0].size()).toString();
                                     else
                                         formatedSql += " 0 ";
                                     formatedSql += "'";
@@ -2059,18 +1946,18 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                 {
                                     savefilecount++;
                                     if(!nodebug) qDebug() << "exporting to CSV " << saveName;
-                                    if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
-                                        if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
-                                            subscriptConnesction->data.ExportToCSV(QString(documentsDir + "/" +"CSV/") + QString(saveName) + QString(".csv"),csvDelimeter,true);
-                                    if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
+                                    if(subscriptConnection->data.headers.size() > 0 && !subscriptConnection->data.headers[0].startsWith("Error"))
+                                        if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0)
+                                            subscriptConnection->data.ExportToCSV(QString(documentsDir + "/" +"CSV/") + QString(saveName) + QString(".csv"),csvDelimeter,true);
+                                    if(subscriptConnection->data.headers.size() > 0 && subscriptConnection->data.headers[0] == "Error")
                                         formatedSql += " 'Error' as \"Status\", ";
                                     else
                                         formatedSql += " 'Success' as \"Status\", ";
 
-                                    if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
+                                    if(subscriptConnection->data.headers.size() > 0 && subscriptConnection->data.headers[0] == "Error")
                                     {
                                         formatedSql += "'";
-                                        formatedSql += subscriptConnesction->data.tbldata[0][0];
+                                        formatedSql += subscriptConnection->data.tbldata[0][0];
                                         formatedSql += "'";
                                         formatedSql += " as \"Error message\", ";
                                     }
@@ -2082,12 +1969,12 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                         formatedSql += " as \"Error message\", ";
                                     }
                                     formatedSql += "'";
-                                    formatedSql += QVariant(subscriptConnesction->data.tbldata.size()).toString();
+                                    formatedSql += QVariant(subscriptConnection->data.tbldata.size()).toString();
                                     formatedSql += "'";
                                     formatedSql += " as \"Column count\", ";
                                     formatedSql += "'";
-                                    if(subscriptConnesction->data.tbldata.size() > 0)
-                                        formatedSql += QVariant(subscriptConnesction->data.tbldata[0].size()).toString();
+                                    if(subscriptConnection->data.tbldata.size() > 0)
+                                        formatedSql += QVariant(subscriptConnection->data.tbldata[0].size()).toString();
                                     else
                                         formatedSql += " 0 ";
                                     formatedSql += "'";
@@ -2105,19 +1992,19 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                     savefilecount++;
                                     if(!nodebug) qDebug() << "exporting (Append) to CSV " << saveName;
 
-                                    if(subscriptConnesction->data.headers.size() > 0 && !subscriptConnesction->data.headers[0].startsWith("Error"))
-                                        if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
-                                            subscriptConnesction->data.AppendToCSV(QString(documentsDir + "/" +"CSV/") + QString(saveName) + QString(".csv"),csvDelimeter);
+                                    if(subscriptConnection->data.headers.size() > 0 && !subscriptConnection->data.headers[0].startsWith("Error"))
+                                        if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0)
+                                            subscriptConnection->data.AppendToCSV(QString(documentsDir + "/" +"CSV/") + QString(saveName) + QString(".csv"),csvDelimeter);
 
-                                    if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
+                                    if(subscriptConnection->data.headers.size() > 0 && subscriptConnection->data.headers[0] == "Error")
                                         formatedSql += " 'Error' as \"Status\", ";
                                     else
                                         formatedSql += " 'Success' as \"Status\", ";
 
-                                    if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
+                                    if(subscriptConnection->data.headers.size() > 0 && subscriptConnection->data.headers[0] == "Error")
                                     {
                                         formatedSql += "'";
-                                        formatedSql += subscriptConnesction->data.tbldata[0][0];
+                                        formatedSql += subscriptConnection->data.tbldata[0][0];
                                         formatedSql += "'";
                                         formatedSql += " as \"Error message\", ";
                                     }
@@ -2129,12 +2016,12 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                         formatedSql += " as \"Error message\", ";
                                     }
                                     formatedSql += "'";
-                                    formatedSql += QVariant(subscriptConnesction->data.tbldata.size()).toString();
+                                    formatedSql += QVariant(subscriptConnection->data.tbldata.size()).toString();
                                     formatedSql += "'";
                                     formatedSql += " as \"Column count\", ";
                                     formatedSql += "'";
-                                    if(subscriptConnesction->data.tbldata.size() > 0)
-                                        formatedSql += QVariant(subscriptConnesction->data.tbldata[0].size()).toString();
+                                    if(subscriptConnection->data.tbldata.size() > 0)
+                                        formatedSql += QVariant(subscriptConnection->data.tbldata[0].size()).toString();
                                     else
                                         formatedSql += " 0 ";
                                     formatedSql += "'";
@@ -2155,35 +2042,35 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                     savefilecount++;
                                     if(!nodebug) qDebug() <<"Reached SubexecToUnionAllTable implementation";
 
-                                    if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
+                                    if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0)
                                     {
-                                        if(subscriptConnesction->data.tbldata[0].size() > 0)
+                                        if(subscriptConnection->data.tbldata[0].size() > 0)
                                         {
                                             formatedSql += "Select ";
-                                            for(int t=0;t<subscriptConnesction->data.tbldata.size();t++)
+                                            for(int t=0;t<subscriptConnection->data.tbldata.size();t++)
                                             {
                                                 formatedSql += "'";
-                                                formatedSql += subscriptConnesction->data.tbldata[t][0];
+                                                formatedSql += subscriptConnection->data.tbldata[t][0];
                                                 formatedSql += "'";
                                                 formatedSql += " as \"";
-                                                formatedSql += subscriptConnesction->data.headers[t];
+                                                formatedSql += subscriptConnection->data.headers[t];
                                                 formatedSql += "\"";
 
-                                                if(t + 1 <subscriptConnesction->data.tbldata.size()) // there will be next
+                                                if(t + 1 <subscriptConnection->data.tbldata.size()) // there will be next
                                                     formatedSql += ",";
                                             }
                                             if(oracle)
                                                 formatedSql += "from dual";
-                                            for(int j=1;j<subscriptConnesction->data.tbldata[0].size();j++)
+                                            for(int j=1;j<subscriptConnection->data.tbldata[0].size();j++)
                                             {
                                                 formatedSql += " union all Select ";
-                                                for(int t=0;t<subscriptConnesction->data.tbldata.size();t++)
+                                                for(int t=0;t<subscriptConnection->data.tbldata.size();t++)
                                                 {
                                                     formatedSql += "'";
-                                                    formatedSql += subscriptConnesction->data.tbldata[t][j];
+                                                    formatedSql += subscriptConnection->data.tbldata[t][j];
                                                     formatedSql += "'";
 
-                                                    if(t + 1 <subscriptConnesction->data.tbldata.size()) // there will be next
+                                                    if(t + 1 <subscriptConnection->data.tbldata.size()) // there will be next
                                                         formatedSql += ",";
                                                 }
                                                 if(oracle)
@@ -2193,16 +2080,16 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                         else
                                         {
                                             formatedSql += "Select ";
-                                            for(int t=0;t<subscriptConnesction->data.tbldata.size();t++)
+                                            for(int t=0;t<subscriptConnection->data.tbldata.size();t++)
                                             {
                                                 formatedSql += "'";
                                                 formatedSql += "Empty_query";
                                                 formatedSql += "'";
                                                 formatedSql += " as \"";
-                                                formatedSql += subscriptConnesction->data.headers[t];
+                                                formatedSql += subscriptConnection->data.headers[t];
                                                 formatedSql += "\"";
 
-                                                if(t + 1 <subscriptConnesction->data.tbldata.size()) // there will be next
+                                                if(t + 1 <subscriptConnection->data.tbldata.size()) // there will be next
                                                     formatedSql += ",";
                                             }
                                             if(oracle)
@@ -2219,24 +2106,24 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                     savefilecount++;
                                     if(!nodebug) qDebug() <<"Reached SubexecToMagic implementation";
 
-                                    if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
+                                    if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0)
                                     {
-                                        for(int j=0;j<subscriptConnesction->data.tbldata[0].size();j++)
+                                        for(int j=0;j<subscriptConnection->data.tbldata[0].size();j++)
                                         {
                                             if(TableCutoffEnd>=0  && TableCutoffStart>=0 && j < TableCutoffStart)
                                                 continue;
                                             if(TableCutoffEnd>=0 && TableCutoffStart>=0  && j > TableCutoffEnd)
                                                 break;
-                                            for(int t=0;t<subscriptConnesction->data.tbldata.size();t++)
+                                            for(int t=0;t<subscriptConnection->data.tbldata.size();t++)
                                             {
                                                 if(t == neededMagicColumn || neededMagicColumn == -1)
                                                 {
                                                     formatedSql += "('magic',";
                                                     formatedSql += "'";
-                                                    formatedSql += subscriptConnesction->data.tbldata[t][j];
+                                                    formatedSql += subscriptConnection->data.tbldata[t][j];
                                                     formatedSql += "'";
                                                     formatedSql += ")";
-                                                    if(((TableCutoffEnd>=0 && TableCutoffStart>=0  && j+1 <= TableCutoffEnd && j + 1 <subscriptConnesction->data.tbldata[0].size()) || (TableCutoffEnd<0 && TableCutoffStart<0 && j + 1 <subscriptConnesction->data.tbldata[0].size())) || (t + 1 <subscriptConnesction->data.tbldata.size() && neededMagicColumn == -1)) // there will be next
+                                                    if(((TableCutoffEnd>=0 && TableCutoffStart>=0  && j+1 <= TableCutoffEnd && j + 1 <subscriptConnection->data.tbldata[0].size()) || (TableCutoffEnd<0 && TableCutoffStart<0 && j + 1 <subscriptConnection->data.tbldata[0].size())) || (t + 1 <subscriptConnection->data.tbldata.size() && neededMagicColumn == -1)) // there will be next
                                                         formatedSql += ",";
                                                 }
                                             }
@@ -2247,22 +2134,22 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                 {// exec into 'element1','element2','element3'
                                     savefilecount++;
                                     if(!nodebug) qDebug() <<"Reached SubexecToArray implementation";
-                                    if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
+                                    if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0)
                                     {
-                                        for(int j=0;j<subscriptConnesction->data.tbldata[0].size();j++)
+                                        for(int j=0;j<subscriptConnection->data.tbldata[0].size();j++)
                                         {
                                             if(TableCutoffEnd>=0  && TableCutoffStart>=0 && j < TableCutoffStart)
                                                 continue;
                                             if(TableCutoffEnd>=0 && TableCutoffStart>=0  && j > TableCutoffEnd)
                                                 break;
-                                            for(int t=0;t<subscriptConnesction->data.tbldata.size();t++)
+                                            for(int t=0;t<subscriptConnection->data.tbldata.size();t++)
                                             {
                                                 if(t == neededMagicColumn || neededMagicColumn == -1)
                                                 {
                                                     formatedSql += "'";
-                                                    formatedSql += subscriptConnesction->data.tbldata[t][j];
+                                                    formatedSql += subscriptConnection->data.tbldata[t][j];
                                                     formatedSql += "' ";
-                                                    if(((TableCutoffEnd>=0 && TableCutoffStart>=0  && j+1 <= TableCutoffEnd && j + 1 <subscriptConnesction->data.tbldata[0].size()) || (TableCutoffEnd<0 && TableCutoffStart<0 && j + 1 <subscriptConnesction->data.tbldata[0].size())) || (t + 1 <subscriptConnesction->data.tbldata.size() && neededMagicColumn == -1)) // there will be next
+                                                    if(((TableCutoffEnd>=0 && TableCutoffStart>=0  && j+1 <= TableCutoffEnd && j + 1 <subscriptConnection->data.tbldata[0].size()) || (TableCutoffEnd<0 && TableCutoffStart<0 && j + 1 <subscriptConnection->data.tbldata[0].size())) || (t + 1 <subscriptConnection->data.tbldata.size() && neededMagicColumn == -1)) // there will be next
                                                         formatedSql += ",";
                                                 }
                                             }
@@ -2275,39 +2162,39 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                 }
                                 else if(subCommandPatterns[i] == "ExcelToSqliteTable"|| subCommandPatterns[i] == "CSVToSqliteTable" || subCommandPatterns[i] == "ExcelToLocalDBTable"|| subCommandPatterns[i] == "CSVToLocalDBTable")
                                 {
-                                    qDebug() << "subscriptDBname (exceltosqlitetable local table name): " << subscriptDBname;
-                                    if(subscriptConnesction->data.headers.size() > 0)
+                                    qDebug() << "subscriptDBname (exceltosqlitetable local table name): " << ExcelImportColumnName;
+                                    if(subscriptConnection->data.headers.size() > 0)
                                     {
-                                        if(subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0)
+                                        if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0)
                                         {
-                                            subscriptConnesction->data.ExportToSQLiteTable(subscriptDBname);
+                                            subscriptConnection->data.ExportToSQLiteTable(ExcelImportColumnName);
                                         }
                                         else
-                                            qDebug() << "subscriptConnesction != nullptr && subscriptConnesction->data.tbldata.size() > 0 Failed";
+                                            qDebug() << "subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0 Failed";
                                     }
                                     else
-                                        qDebug() << "subscriptConnesction->data.headers.size() > 0 Failed";
+                                        qDebug() << "subscriptConnection->data.headers.size() > 0 Failed";
                                 }
 
                                 if(subCommandPatterns[i].trimmed() == "SubexecToGraph")
                                 {
 
                                     loadWind->gw.manual_override = true;
-                                    loadWind->gw.manual_groupColumn = funcVariables[3].toInt();
-                                    loadWind->gw.manual_separateColumn = funcVariables[4].toInt();
-                                    loadWind->gw.manual_dataColumn = funcVariables[5].toInt();
+                                    loadWind->gw.manual_groupColumn = funcVariables[2].toInt();
+                                    loadWind->gw.manual_separateColumn = funcVariables[3].toInt();
+                                    loadWind->gw.manual_dataColumn = funcVariables[4].toInt();
                                     loadWind->gw.savename = saveName;
-                                    emit saveGraph(subscriptConnesction);
+                                    emit saveGraph(subscriptConnection);
 
-                                    if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
+                                    if(subscriptConnection->data.headers.size() > 0 && subscriptConnection->data.headers[0] == "Error")
                                         formatedSql += " 'Error' as \"Status\", ";
                                     else
                                         formatedSql += " 'Success' as \"Status\", ";
 
-                                    if(subscriptConnesction->data.headers.size() > 0 && subscriptConnesction->data.headers[0] == "Error")
+                                    if(subscriptConnection->data.headers.size() > 0 && subscriptConnection->data.headers[0] == "Error")
                                     {
                                         formatedSql += "'";
-                                        formatedSql += subscriptConnesction->data.tbldata[0][0];
+                                        formatedSql += subscriptConnection->data.tbldata[0][0];
                                         formatedSql += "'";
                                         formatedSql += " as \"Error message\", ";
                                     }
@@ -2319,12 +2206,12 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                         formatedSql += " as \"Error message\", ";
                                     }
                                     formatedSql += "'";
-                                    formatedSql += QVariant(subscriptConnesction->data.tbldata.size()).toString();
+                                    formatedSql += QVariant(subscriptConnection->data.tbldata.size()).toString();
                                     formatedSql += "'";
                                     formatedSql += " as \"Column count\", ";
                                     formatedSql += "'";
-                                    if(subscriptConnesction->data.tbldata.size() > 0)
-                                        formatedSql += QVariant(subscriptConnesction->data.tbldata[0].size()).toString();
+                                    if(subscriptConnection->data.tbldata.size() > 0)
+                                        formatedSql += QVariant(subscriptConnection->data.tbldata[0].size()).toString();
                                     else
                                         formatedSql += " 0 ";
                                     formatedSql += "'";
@@ -2338,9 +2225,9 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                 }
 
                                 if(!nodebug) qDebug() << "closing subconnection";
-                                subscriptConnesction->db.close();
-                                delete subscriptConnesction;
-                                subscriptConnesction = nullptr;
+                                subscriptConnection->db.close();
+                                delete subscriptConnection;
+                                subscriptConnection = nullptr;
                                 if(!nodebug) qDebug() << "closed";
 
 
@@ -3468,7 +3355,7 @@ bool DatabaseConnection::execSql(QString sql)
             emit execedSql();
             return true;
         }
-        catch (oracle::occi::SQLException ex){
+        catch (oracle::occi::SQLException ex) {
             if(!nodebug) qDebug() << "oracledb error";
             lastLaunchIsError = true;
             lastErrorPos = -1;
@@ -3480,6 +3367,7 @@ bool DatabaseConnection::execSql(QString sql)
             data.headers.push_back("Error");
             data.headers.push_back("db Error");
             data.headers.push_back("driver Error");
+            oracleCreationMutex.unlock();
 
             QString errStr = ex.getMessage().c_str();
             if(errStr.contains(" line "))
@@ -3538,6 +3426,7 @@ bool DatabaseConnection::execSql(QString sql)
         }
         catch (...)//  i looove oracle
         {
+            oracleCreationMutex.unlock();// this is definetly not safe, but still safer than nothing
             qDebug() << "unknown error when trying to create error for oracle db";
             QMessageBox mb;
             mb.setText("Unknown error when trying to create error for oracle db. Change db");
@@ -3548,6 +3437,7 @@ bool DatabaseConnection::execSql(QString sql)
 
         OCI_lastenv = nullptr;
         OCI_lastcon = nullptr;
+        oracleCreationMutex.unlock();// this is definetly not safe, but still safer than nothing
         //currentRunningOracleDriver = nullptr;
         executionEnd = QDateTime::currentDateTime();
         executionTime = executionEnd.toSecsSinceEpoch() - executionStart.toSecsSinceEpoch();
@@ -4056,9 +3946,9 @@ void DatabaseConnection::stopRunning()
     }
 
     stopNow = true;
-    if(subscriptConnesction != nullptr && subscriptConnesction->executing)
+    if(subscriptConnection != nullptr && subscriptConnection->executing)
     {
-        subscriptConnesction->stopRunning();
+        subscriptConnection->stopRunning();
         stopNow = true;
         return;
     }

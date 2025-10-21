@@ -29,7 +29,10 @@
 #include "docwindow.h"
 #include <QInputDialog>
 #include <QMessageBox>
-
+#include "predictorwindow.h"
+#include "connectionmanager.h"
+#include "importdialog.h"
+#include "exportdialog.h"
 /*
 +                                          add togglable "add db name into file name" // feature added, not togglable
 +                                          add ability to stop downloading query at any point of downloading, mb togglable autopause at 500
@@ -73,12 +76,12 @@ inline std::map<int,QString> uniqueTokenIdMap;
 inline QString appfilename;
 inline int thrnum;
 inline QTime lastMultiRunPress = QTime::currentTime();
-
-GlContext gl_compute_context;
-ComputeShader gl_compute_shader;
-ComputeShader gl_compute_shader_output_error;
-ComputeShader gl_compute_shader_backpropagate_hidden;
-ComputeShader gl_compute_shader_update_weights_biases;
+inline PredictorWindow* ptrPredictorWindow = nullptr;
+// GlContext gl_compute_context;
+// ComputeShader gl_compute_shader;
+// ComputeShader gl_compute_shader_output_error;
+// ComputeShader gl_compute_shader_backpropagate_hidden;
+// ComputeShader gl_compute_shader_update_weights_biases;
 
 QStringList allPosibbleTokens;
 QMap<QString,int> allPosibbleTokensMap;
@@ -120,6 +123,79 @@ void asyncLoadFrequencyMapFunc(QString filename)
     qDebug() << "loaded token processor";
 }
 
+void _async_save_to_xlsx(LoaderWidnow* ldw, QString savetext, QString sheetname,bool header, bool replace, bool append, bool sync, QString uniqueColumn)
+{
+    qDebug()<<"on_SaveXLSXButton_pressed()";
+
+    ldw->dc->data.sqlCode = ldw->dc->sqlCode;
+    ldw->dc->data.allSqlCode = ldw->cd->toPlainText();
+
+    qDebug() << (append && sync && uniqueColumn.size() > 0) << append << sync << (uniqueColumn.size() > 0) << uniqueColumn;
+    if(append && sync && uniqueColumn.size() > 0)
+        ldw->dc->data.lastExportSuccess = ldw->dc->data.ExportToExcelUniqueColumn(savetext,sheetname,uniqueColumn);
+    else
+        ldw->dc->data.lastExportSuccess = ldw->dc->data.ExportToExcel(savetext,0,0,0,0,header,sheetname,append);
+
+
+    ldw->executionTimer.stop();
+}
+
+void _async_save_to_csv(LoaderWidnow* ldw, QString savetext, QString delimeter, bool header, bool append)
+{
+    qDebug()<<"on_SaveCSVButton_pressed()";
+
+    char c_delimeter = ';';
+    if(delimeter == "tab")
+        c_delimeter = '\t';
+    if(delimeter == "space")
+        c_delimeter = ' ';
+    if(delimeter == ',')
+        c_delimeter = ',';
+    if(!append)
+        ldw->dc->data.lastExportSuccess = ldw->dc->data.ExportToCSV(savetext,c_delimeter,header);
+    else
+        ldw->dc->data.lastExportSuccess = ldw->dc->data.AppendToCSV(savetext,c_delimeter);
+
+
+    ldw->executionTimer.stop();
+}
+
+void _async_save_to_local(LoaderWidnow* ldw, QString savetext, QString conname, bool append)
+{
+    qDebug()<<"on_SaveCSVButton_pressed()";
+    if(!append)
+        ldw->dc->data.lastExportSuccess = ldw->dc->data.ExportToSQLiteTable(savetext,conname);
+    else
+        ldw->dc->data.lastExportSuccess = ldw->dc->data.AppendLocalTable(savetext,conname);
+
+
+    ldw->executionTimer.stop();
+}
+
+void _async_import_from_csv(LoaderWidnow* ldw, QString filename, QString delimeter, bool headers, bool bypass, QString localDBTableName)
+{
+    char c_delimeter = ';';
+    if(delimeter == "tab")
+        c_delimeter = '\t';
+    if(delimeter == "space")
+        c_delimeter = ' ';
+    if(delimeter == ',')
+        c_delimeter = ',';
+
+
+    ldw->dc->data.csvBypassTableName = localDBTableName;
+    if(!bypass)
+        ldw->dc->data.ImportFromCSV(filename,c_delimeter,headers);
+    else
+        ldw->dc->data.ImportFromCSVToLocalDB(filename,c_delimeter,headers);
+}
+
+void _async_import_from_xlsx(LoaderWidnow* ldw, QString filename, QString Sheetname,bool headers)
+{
+    ldw->dc->data.ImportFromExcel(filename,0,0,0,0,headers,Sheetname);
+}
+
+
 LoaderWidnow::LoaderWidnow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::LoaderWidnow)
@@ -132,18 +208,18 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 
     // setup compute shader stuff
     //Context - for create and maintaing OpenGL context
-    gl_compute_context.setup();
+    // gl_compute_context.setup();
 
-    //Compute shader
-    QString shader_file = "./shader/compute_shader.csh";
-    QString shader_file_output_error = "./shader/compute_shader_output_error.csh";
-    QString shader_file_backpropagate_hidden = "./shader/compute_shader_backpropagate_hidden.csh";
-    QString shader_file_update_weights_biases = "./shader/compute_shader_update_weights_biases.csh";
+    // //Compute shader
+    // QString shader_file = "./shader/compute_shader.csh";
+    // QString shader_file_output_error = "./shader/compute_shader_output_error.csh";
+    // QString shader_file_backpropagate_hidden = "./shader/compute_shader_backpropagate_hidden.csh";
+    // QString shader_file_update_weights_biases = "./shader/compute_shader_update_weights_biases.csh";
 
-    gl_compute_shader.setup(shader_file, &gl_compute_context);
-    gl_compute_shader_output_error.setup(shader_file_output_error, &gl_compute_context);
-    gl_compute_shader_backpropagate_hidden.setup(shader_file_backpropagate_hidden, &gl_compute_context);
-    gl_compute_shader_update_weights_biases.setup(shader_file_update_weights_biases, &gl_compute_context);
+    // gl_compute_shader.setup(shader_file, &gl_compute_context);
+    // gl_compute_shader_output_error.setup(shader_file_output_error, &gl_compute_context);
+    // gl_compute_shader_backpropagate_hidden.setup(shader_file_backpropagate_hidden, &gl_compute_context);
+    // gl_compute_shader_update_weights_biases.setup(shader_file_update_weights_biases, &gl_compute_context);
 
     // Remove old shader loading
     // QString shader_file_learn = "./shader/compute_shader_learn.csh";
@@ -303,19 +379,34 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     connect(ui->actionSplit_column,  &QAction::triggered, this, [this]() {
         splitColumn();
     });
-    // Add numerator column
+
     connect(ui->actionAdd_Numerator_column,  &QAction::triggered, this, [this]() {
         addNumeratorColumn();
     });
-    // Add numerator column
+
     connect(ui->actionDelete_dublicates,  &QAction::triggered, this, [this]() {
         deleteDublicates();
     });
 
-    // Add numerator column
     connect(ui->actionLevenstein_join,  &QAction::triggered, this, [this]() {
         levensteinJoin();
     });
+
+
+
+    // Add numerator column
+    connect(ui->actionNeural_networks,  &QAction::triggered, this, [this]() {
+        if(ptrPredictorWindow == nullptr)
+        {
+            PredictorWindow* pw = new PredictorWindow();
+            pw->sourceWindow = this;
+            pw->show();
+            ptrPredictorWindow = pw;
+            ptrPredictorWindow->updateSourceData();
+        }
+        else ptrPredictorWindow->activateWindow();
+    });
+
 
 
 
@@ -337,6 +428,10 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     connect(ui->actionAutorun,  &QAction::triggered, this, [this]() {
         ShowTimerWindow();
     });
+    connect(ui->actionConnections,  &QAction::triggered, this, [this]() {
+        (new ConnectionManager())->show();// yep, this is a humanoid lookin code
+    });
+
 
     new QShortcut(QKeySequence(Qt::CTRL | 96), this, SLOT(cycleTabs())); // ctrl + ` || ctrl + ~ || ctrl + Ё
 
@@ -367,6 +462,82 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
         openDescriptorWindow();
     });
 
+    connect(ui->actionImport, &QAction::triggered, this, [this]() {
+
+        if(((*sqlexecThread)!= nullptr && (*sqlexecThread)->isRunning()) || dc->data.exporting || dc->executing)
+        {
+            return;
+        }
+
+        ImportDialog* diag = new ImportDialog(this);
+        if(dc)
+            diag->data = &dc->data;
+        diag->Setup();
+        diag->exec();
+
+        if(diag->do_import)
+        {
+            if(diag->importType == 1)
+            {
+                ImportFromCSV(diag->csvTableName,diag->csvDelimeter,diag->csvIncludeHeaders,diag->csvBypassToLocalDb, diag->csvLocalDbTableName);
+            }
+            else
+                ImportFromXlsx(diag->excelTableName,diag->excelWorksheetName,diag->excelIncludeHeaders);
+        }
+
+        //ui->stopLoadingQueryButton->show();
+        //ui->pushButton_3->hide();
+
+    });
+
+    connect(ui->actionExport, &QAction::triggered, this, [this]() {
+
+        if(((*sqlexecThread)!= nullptr && (*sqlexecThread)->isRunning()) || dc->data.exporting || dc->executing)
+        {
+            return;
+        }
+        ExportDialog* diag = new ExportDialog(this);
+        if(dc)
+            diag->data = &dc->data;
+        diag->Setup();
+        diag->exec();
+
+        ui->stopLoadingQueryButton->show();
+        ui->pushButton_3->hide();
+
+        if(diag->exportType == 0)
+        {// excel export
+
+            qDebug() <<  diag->excelAppendSheet;
+
+            (*sqlexecThread) = QThread::create(_async_save_to_xlsx,this,diag->excelTableName,
+                                                                        diag->excelWorksheetName,
+                                                                        diag->excelIncludeHeaders,
+                                                                        diag->excelReplaceSheet,
+                                                                        diag->excelAppendSheet,
+                                                                        diag->excelSyncUniqueColumn,
+                                                                        diag->excelUniqueColumnName);
+
+            (*sqlexecThread)->start();
+        }
+        if(diag->exportType == 1)
+        {// csv export
+
+            (*sqlexecThread) = QThread::create(_async_save_to_csv,this,diag->csvTableName,diag->csvDelimeter,diag->csvIncludeHeaders,diag->csvAppend);
+            (*sqlexecThread)->start();
+        }
+        if(diag->exportType == 2)
+        {// database export
+
+            (*sqlexecThread) = QThread::create(_async_save_to_local,this,diag->dbTablename,diag->dbConnectionName,diag->dbAppend);
+            (*sqlexecThread)->start();
+        }
+        executionTimer.setSingleShot(false);
+        executionTimer.setTimerType(Qt::CoarseTimer);
+        executionTimer.setInterval(15);
+        executionTimer.start();
+    });
+
 
 
     //signal binding
@@ -379,6 +550,9 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
     connect( &dc->data, SIGNAL(ExportedToCSV()), this, SLOT(on_exportDone()), Qt::QueuedConnection );
     connect( &dc->data, SIGNAL(ExportedToExcel()), this, SLOT(on_exportDone()), Qt::QueuedConnection );
     connect( &dc->data, SIGNAL(ExportedToSQLiteTable()), this, SLOT(on_exportDone()), Qt::QueuedConnection );
+    connect( &dc->data, SIGNAL(ImportedFromCSV()), this, SLOT(on_exportDone()), Qt::QueuedConnection );
+    connect( &dc->data, SIGNAL(ImportedFromExcel()), this, SLOT(on_exportDone()), Qt::QueuedConnection );
+    connect( &dc->data, SIGNAL(ImportedFromSQLiteTable()), this, SLOT(on_exportDone()), Qt::QueuedConnection );
 
 
     connect( dc, SIGNAL(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList, QStringList)), this, SLOT(sendMail(QString, QString, QString, QStringList,QStringList, QString, QString, QStringList, QStringList)), Qt::QueuedConnection );
@@ -401,6 +575,8 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 
     connect( ui->tableWidget, SIGNAL(ui->tableWidget->verticalHeader()->sectionDoubleClicked(int)),this, SLOT(tableHeaderDoubleClicked(int)), Qt::QueuedConnection );
 
+
+
     //workspace/history change
     //connect( workspace_tree, SIGNAL(activated(QModelIndex&)), this, SLOT(on_TreeItem_Changed(QModelIndex&)), Qt::QueuedConnection );
     QItemSelectionModel *selectionModel = workspace_tree->selectionModel();
@@ -416,26 +592,14 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 
     ui->CodeEditorSplitter->setSizes({0,2000});
 
+
+    QString lastConname = "";
     // load last database/driver
     if(userDS.Load((documentsDir + "/userdata.txt")))
     {
         qDebug() << "Loaded ds:" <<(documentsDir + "/userdata.txt");
-        QStringList strl;
-        for( auto x : userDS.data["UserDBs"])
-        {
-            strl.push_back((x.first + " " +  x.second));
-            strl.back() = strl.back().trimmed();
-        }
-        ui->DBNameComboBox->addItems(strl);
-        ui->DBNameComboBox->setCurrentText(userDS.GetProperty("User","lastDBName"));
-        strl.clear();
-        for( auto x : userDS.data["UserDrivers"])
-        {
-            strl.push_back((x.second));
-            strl.back() = strl.back().trimmed();
-        }
-        ui->driverComboBox->addItems(strl);
-        ui->driverComboBox->setCurrentText(userDS.GetProperty("User","lastDriver"));
+
+        lastConname = (userDS.GetProperty("User","lastConname").trimmed());
 
         if(QString(userDS.data["UserTheme"]["Workspace_Directory"]).trimmed().size() < 3)
             userDS.data["UserTheme"]["Workspace_Directory"] = "documents";
@@ -505,7 +669,7 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
             {
                 tokens.back() = tokens.back().trimmed();
                 inbrakets = true;
-                if(tokens.size() == 2)
+                if(tokens.size() == 1)
                     break;
                 i++;
                 continue;
@@ -517,17 +681,14 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
             i++;
 
         }
-        if(tokens.size() >= 2)
+        if(tokens.size() >= 1)
         {
-            ui->driverComboBox->setCurrentText(tokens[0].trimmed());
-            ui->DBNameComboBox->setCurrentText(tokens[1].trimmed());
+            lastConname = tokens[0].trimmed();
+
 
         }
     }
 
-    // grep name/password
-    QString username = userDS.GetObject( ui->DBNameComboBox->currentText())["name"];
-    QString password = userDS.GetObject(ui->DBNameComboBox->currentText())["password"];
 
     // set focus on code editor
     cd->setFocus();
@@ -551,23 +712,48 @@ LoaderWidnow::LoaderWidnow(QWidget *parent)
 
     qDebug() << uniqueTokens.data["tokens"].size() << "uniqueTokens.data[\"tokens\"].size()";
 
-    int arch[3] = {1,500,1};
-    // arch[0] = uniqueTokens.data["tokens"].size();
-    // arch[2] = uniqueTokens.data["tokens"].size();
+    // int arch[3] = {1,500,1};
+    // // arch[0] = uniqueTokens.data["tokens"].size();
+    // // arch[2] = uniqueTokens.data["tokens"].size();
 
-    nn.CreateGPU(arch,3);
-    nn.lastCost = 10000000;
+    // nn.CreateGPU(arch,3);
+    // nn.lastCost = 10000000;
 
-    for (int i=0; i<nn.Weights_Size; i++) {
-        nn.weights[i] = 0.0f;
-    }
-    nn.Randomize();
-    nn.InitGPUBuffers();
+    // for (int i=0; i<nn.Weights_Size; i++) {
+    //     nn.weights[i] = 0.0f;
+    // }
+    // nn.Randomize();
+    // nn.InitGPUBuffers();
 
 
-    nn.backPropagateShader = new ComputeShader();
-    nn.backPropagateShader->setup("./shader/compute_shader_backpropagate.csh", nn.glContext);
+    // nn.backPropagateShader = new ComputeShader();
+    // nn.backPropagateShader->setup("./shader/compute_shader_backpropagate.csh", nn.glContext);
     //nn.LoadFrom((documentsDir + "/nntest_RunTest.nn").toStdString());
+
+
+    // ui->driverComboBox->hide();
+    // ui->DBNameComboBox->hide();
+    // ui->userNameLineEdit->hide();
+    // ui->passwordLineEdit->hide();
+
+    disableAutoconnect = true;
+    ui->connection_comboBox->clear();
+    QStringList strl;
+    for(auto x : userDS.data["Connections"])
+        strl.push_back(x.first);
+    ui->connection_comboBox->addItems(strl);
+    disableAutoconnect = false;
+
+    if(userDS.data["Connections"].count(lastConname) > 0)
+        ui->connection_comboBox->setCurrentText(lastConname);
+
+
+    // icon update timer setup
+    QTimer* iconUpdateTimer = new QTimer();
+    iconUpdateTimer->setInterval(100);
+    iconUpdateTimer->setSingleShot(false);
+    connect(iconUpdateTimer, SIGNAL(timeout()), this, SLOT(updateTabIcons()));
+    iconUpdateTimer->start();
 }
 
 
@@ -629,11 +815,13 @@ void LoaderWidnow::on_ConnectButton_pressed()
 
 
     // get data from fields
+
+
     QString conname = QVariant(_dbconnectcount++).toString();
-    QString driver = ui->driverComboBox->currentText();
-    QString dbname = ui->DBNameComboBox->currentText();
-    QString usrname = ui->userNameLineEdit->text();
-    QString password = ui->passwordLineEdit->text();
+    QString driver = userDS.data[ui->connection_comboBox->currentText().trimmed()]["Driver"].trimmed();
+    QString dbname = userDS.data[ui->connection_comboBox->currentText().trimmed()]["Connstr"].trimmed();
+    QString usrname = userDS.data[ui->connection_comboBox->currentText().trimmed()]["User"].trimmed();
+    QString password = userDS.data[ui->connection_comboBox->currentText().trimmed()]["Password"].trimmed();
 
     //if local db selected, swap all data for local database, in which the save goes
     if(driver.trimmed() == "LOCAL" || dbname.trimmed() == "LOCAL")
@@ -652,63 +840,17 @@ void LoaderWidnow::on_ConnectButton_pressed()
     }
     dc->disableSaveToUserDS=false;
 
-    dc->connectionName = conname;// set new connection name for all the QT 'native' drivers.
 
     if(!dc->executing && dc->Create(driver, dbname, usrname, password))
     {
+        dc->conname = conname;
 
-        ui->driverComboBox->setCurrentText(dc->driver);
-        ui->DBNameComboBox->setCurrentText(dc->dbname);
-        ui->userNameLineEdit->setText(dc->usrname);
-        ui->passwordLineEdit->setText(dc->password);
-        ui->connectionStatusLabel_2->setText(QString("connected to ") + dc->dbname);
+        ui->connectionStatusLabel_2->setText(QString("connected to ") + dc->dbname.replace('\n',""));
 
         if(userDS.Load(documentsDir + "/userdata.txt"))
         {
-            QString LastTmpDriverName =  ui->driverComboBox->currentText();
-            QString LastTmpDbName = ui->DBNameComboBox->currentText();
+            userDS.data["User"]["lastConname"] = conname;
 
-            userDS.data[ui->DBNameComboBox->currentText()]["name"] = dc->usrname;
-            userDS.data[ui->DBNameComboBox->currentText()]["password"] = dc->password;
-            userDS.data["User"]["lastDriver"] = dc->driver;
-            userDS.data["User"]["lastDBName"] = dc->dbname;
-            userDS.data["User"]["name"] = dc->usrname;
-            userDS.data["User"]["password"] = dc->password;
-
-            QStringList strl;
-            userDS.data["UserDBs"][ui->DBNameComboBox->currentText()];
-            for( auto x : userDS.data["UserDBs"])
-            {
-                strl.push_back((x.first + " " + x.second));
-                strl.back() = strl.back().trimmed();
-            }
-            ui->DBNameComboBox->clear();
-            ui->DBNameComboBox->addItems(strl);
-
-            strl.clear();
-
-            for( auto x : userDS.data["UserDrivers"])
-            {
-                strl.push_back(x.second);
-                strl.back() = strl.back().trimmed();
-            }
-
-            if(!strl.contains(ui->driverComboBox->currentText()))
-                userDS.data["UserDrivers"][QVariant(ui->driverComboBox->count()).toString()] = ui->driverComboBox->currentText();
-            ui->driverComboBox->clear();
-            ui->driverComboBox->addItems(strl);
-
-            ui->DBNameComboBox->setCurrentText( LastTmpDbName );
-            ui->driverComboBox->setCurrentText( LastTmpDriverName );
-
-
-            userDS.data[ui->DBNameComboBox->currentText()]["name"] = dc->usrname;
-            userDS.data[ui->DBNameComboBox->currentText()]["password"] = dc->password;
-            userDS.data["User"]["lastDriver"] = driver;
-            userDS.data["User"]["lastDBName"] = dc->dbname;
-            userDS.data["User"]["name"] = dc->usrname;
-            userDS.data["User"]["password"] = dc->password;
-            userDS.data["UserDBs"][ui->DBNameComboBox->currentText()] = "";
 
             userDS.Save((documentsDir + "/userdata.txt"));
             qDebug()<<"Saved usedata.txt";
@@ -727,14 +869,10 @@ void LoaderWidnow::on_ConnectButton_pressed()
 
         cd->updateMisc();
 
-    cd->highlighter->updateAllHighlighting = true;
-    cd->highlighter->rehighlight();
-    cd->highlighter->updateAllHighlighting = false;
+        cd->highlighter->updateAllHighlighting = true;
+        cd->highlighter->rehighlight();
+        cd->highlighter->updateAllHighlighting = false;
 
-        ui->driverComboBox->setCurrentText(dc->driver);
-        ui->DBNameComboBox->setCurrentText(dc->dbname);
-        ui->userNameLineEdit->setText(dc->usrname);
-        ui->passwordLineEdit->setText(dc->password);
     }
     else
         ui->connectionStatusLabel_2->setText("Not connected: " + dc->Last_ConnectError.trimmed());
@@ -767,11 +905,7 @@ void LoaderWidnow::runSqlAsync()
 
 
     QString conname = QVariant(_dbconnectcount++).toString();
-    QString driver = ui->driverComboBox->currentText();
-    QString dbname = ui->DBNameComboBox->currentText();
-    QString usrname = ui->userNameLineEdit->text();
-    QString password = ui->passwordLineEdit->text();
-    if(driver != dc->driver || dc->dbname!=dbname || usrname != dc->usrname || password != dc->password)
+    if(dc->conname.trimmed() != ui->connection_comboBox->currentText().trimmed())
     {
         on_ConnectButton_pressed();
     }
@@ -884,13 +1018,7 @@ void LoaderWidnow::runSqlAsync()
     if((*sqlexecThread)!=nullptr)
         (*sqlexecThread)->terminate();
 
-    // reconnect if needed
-    if((!dc->db.isOpen() && !dc->customOracle && !dc->customSQlite && !dc->customPSQL) || dc->driver != ui->driverComboBox->currentText() || dc->dbname != ui->DBNameComboBox->currentText())
-    {
-        qDebug() << "autocreating connection";
-        on_ConnectButton_pressed();
-        qDebug() << "autocreated connection";
-    }
+
 
     //launch thread with query
     ui->miscStatusLabel->setText("running sql...");
@@ -1134,7 +1262,10 @@ void LoaderWidnow::executionTimerTimeout()
         ui->exportProgressBar->show();
         ui->miscStatusLabel->show();
 
-        ui->miscStatusLabel->setText("Exporting: " + QTime::fromMSecsSinceStartOfDay( dc->data.LastSaveDuration.msecsTo(QTime::currentTime())).toString() + "." +  QVariant(dc->data.LastSaveDuration.msecsTo(QTime::currentTime())).toString());
+        if(!dc->data.importing)
+            ui->miscStatusLabel->setText("Exporting: " + QTime::fromMSecsSinceStartOfDay( dc->data.LastSaveDuration.msecsTo(QTime::currentTime())).toString() + "." +  QVariant(dc->data.LastSaveDuration.msecsTo(QTime::currentTime())).toString());
+        else
+            ui->miscStatusLabel->setText("Importing: " + QTime::fromMSecsSinceStartOfDay( dc->data.LastSaveDuration.msecsTo(QTime::currentTime())).toString() + "." +  QVariant(dc->data.LastSaveDuration.msecsTo(QTime::currentTime())).toString());
 
         if(dc->data.saveRowSize>0)
             ui->exportProgressBar->setMaximum(dc->data.saveRowSize);
@@ -1270,7 +1401,7 @@ void LoaderWidnow::UpdateTable()
         }
     }
 
-    ui->tableWidget->resizeColumnsToContents();
+    //ui->tableWidget->resizeColumnsToContents();
 
     QString msg = "";
     msg += QVariant(dc->data.tbldata.size()).toString();
@@ -1316,6 +1447,9 @@ void LoaderWidnow::UpdateTable()
 
     if(ui->updateGraphCheckBox->isChecked())
         UpdateGraph();
+
+    if(ptrPredictorWindow!= nullptr)
+        ptrPredictorWindow->updateSourceData();
 }
 
 void LoaderWidnow::OpenDirectory()
@@ -2159,64 +2293,7 @@ void LoaderWidnow::CommentSelected()
     cd->CommentSelected();
 }
 
-void _async_save_to_xlsx(LoaderWidnow* ldw, QString savetext)
-{
-    qDebug()<<"on_SaveXLSXButton_pressed()";
-    QString str = documentsDir + "/excel/";
 
-    str += userDS.data["ExcelPrefixAliases"][ldw->cd->highlighter->dbSchemaName];
-    str += savetext;
-    if(str.size() > 200)// backup against too long filenames, cuz windosheet
-        str.resize(200);
-    if(!str.endsWith(".xlsx"))
-        str += ".xlsx";
-    ldw->dc->data.sqlCode = ldw->dc->sqlCode;
-    ldw->dc->data.allSqlCode = ldw->cd->toPlainText();
-
-    ldw->dc->data.lastExportSuccess = ldw->dc->data.ExportToExcel(str,0,0,0,0,true);
-
-    // if(dc->data.lastExportSuccess)
-    //     ui->miscStatusLabel->setText(QString("Saved as XLSX ") + str);
-    // else
-    //     ui->miscStatusLabel->setText(QString("Failed to save xlsx, file probably opened") + str);
-
-    ldw->executionTimer.stop();
-}
-
-void _async_save_to_csv(LoaderWidnow* ldw, QString savetext)
-{
-    qDebug()<<"on_SaveCSVButton_pressed()";
-    QString str = documentsDir + "/CSV/";
-    if(!ldw->cd->highlighter->dbSchemaName.contains('.'))
-        str += ldw->cd->highlighter->dbSchemaName;
-    str += savetext;
-    if(str.size() > 200)// backup against too long filenames, cuz windosheet
-        str.resize(200);
-    if(!str.endsWith(".csv"))
-        str += ".csv";
-
-    ldw->dc->data.lastExportSuccess = ldw->dc->data.ExportToCSV(str,';',true);
-    // if(dc->data.lastExportSuccess)
-    //     ui->miscStatusLabel->setText(QString("Saved as CSV ") + str);
-    // else
-    //     ui->miscStatusLabel->setText(QString("failed to save to CSV, file probably opened") + str);
-
-    ldw->executionTimer.stop();
-}
-
-void _async_save_to_local(LoaderWidnow* ldw, QString savetext)
-{
-    qDebug()<<"on_SaveCSVButton_pressed()";
-    ldw->dc->data.lastExportSuccess = ldw->dc->data.ExportToSQLiteTable(savetext);
-
-
-    // if(dc->data.lastExportSuccess)
-    //     ui->miscStatusLabel->setText(QString("Saved to local database, table:") + str);
-    // else
-    //     ui->miscStatusLabel->setText(QString("Failed to save to local database, table: ") + str);
-
-    ldw->executionTimer.stop();
-}
 // export
 void LoaderWidnow::on_SaveXLSXButton_pressed()
 {
@@ -2229,7 +2306,17 @@ void LoaderWidnow::on_SaveXLSXButton_pressed()
     ui->stopLoadingQueryButton->show();
     ui->pushButton_3->hide();
     ui->miscStatusLabel->setText("running sql...");
-    (*sqlexecThread) = QThread::create(_async_save_to_xlsx,this,ui->saveLineEdit->text());
+
+    QString str = documentsDir + "/excel/";
+
+    str += userDS.data["ExcelPrefixAliases"][cd->highlighter->dbSchemaName];
+    str += ui->saveLineEdit->text();
+    if(str.size() > 200)// backup against too long filenames, cuz windosheet
+        str.resize(200);
+    if(!str.endsWith(".xlsx"))
+        str += ".xlsx";
+
+    (*sqlexecThread) = QThread::create(_async_save_to_xlsx,this,str,"",true,false,false,false,"");
     (*sqlexecThread)->start();
     ui->miscStatusLabel->setText("running sql...");
 
@@ -2250,7 +2337,21 @@ void LoaderWidnow::on_SaveCSVButton_pressed()
     ui->pushButton_3->hide();
 
     ui->miscStatusLabel->setText("running sql...");
-    (*sqlexecThread) = QThread::create(_async_save_to_csv,this,ui->saveLineEdit->text());
+
+    QString str = documentsDir ;
+    if(!ui->saveLineEdit->text().contains(':'))
+    {
+        str += + "/CSV/";
+        str += ui->saveLineEdit->text();
+    }
+    else // absolute path
+        str = ui->saveLineEdit->text();
+    if(str.size() > 200)// backup against too long filenames, cuz windosheet
+        str.resize(200);
+    if(!str.endsWith(".csv"))
+        str += ".csv";
+
+    (*sqlexecThread) = QThread::create(_async_save_to_csv,this,str,";",true,false);
     (*sqlexecThread)->start();
     ui->miscStatusLabel->setText("running sql...");
 
@@ -2271,7 +2372,7 @@ void LoaderWidnow::on_SaveSQLiteButton_pressed()
     ui->stopLoadingQueryButton->show();
     ui->pushButton_3->hide();
     ui->miscStatusLabel->setText("running sql...");
-    (*sqlexecThread) = QThread::create(_async_save_to_local,this,ui->saveLineEdit->text());
+    (*sqlexecThread) = QThread::create(_async_save_to_local,this,ui->saveLineEdit->text(),"",false);
     (*sqlexecThread)->start();
     ui->miscStatusLabel->setText("running sql...");
 
@@ -2280,6 +2381,49 @@ void LoaderWidnow::on_SaveSQLiteButton_pressed()
     executionTimer.setInterval(15);
     executionTimer.start();
 
+}
+
+
+
+void LoaderWidnow::ImportFromCSV(QString filename, QString delimeter, bool headers, bool bypass , QString localDBTableName)
+{
+    if(((*sqlexecThread)!= nullptr && (*sqlexecThread)->isRunning()) || dc->data.exporting || dc->executing)
+    {
+        return;
+    }
+
+    ui->stopLoadingQueryButton->show();
+    ui->pushButton_3->hide();
+
+
+    (*sqlexecThread) = QThread::create(_async_import_from_csv,this,filename,delimeter,headers,bypass,localDBTableName);
+    (*sqlexecThread)->start();
+
+    executionTimer.setSingleShot(false);
+    executionTimer.setTimerType(Qt::CoarseTimer);
+    executionTimer.setInterval(15);
+    executionTimer.start();
+
+}
+void LoaderWidnow::ImportFromXlsx(QString filename,QString Sheetname,bool headers)
+{
+
+    if(((*sqlexecThread)!= nullptr && (*sqlexecThread)->isRunning()) || dc->data.exporting || dc->executing)
+    {
+        return;
+    }
+
+    ui->stopLoadingQueryButton->show();
+    ui->pushButton_3->hide();
+
+
+    (*sqlexecThread) = QThread::create(_async_import_from_xlsx,this, filename,Sheetname,headers);
+    (*sqlexecThread)->start();
+
+    executionTimer.setSingleShot(false);
+    executionTimer.setTimerType(Qt::CoarseTimer);
+    executionTimer.setInterval(15);
+    executionTimer.start();
 }
 
 void LoaderWidnow::on_exportDone()
@@ -2295,59 +2439,57 @@ void LoaderWidnow::on_exportDone()
         ui->exportProgressBar->setMaximum(1);
     ui->exportProgressBar->setValue(dc->data.saveRowsDone);
 
-    if(!dc->executing)
+    if(!dc->executing && !dc->data.importing && !dc->data.exporting)
     {
         ui->stopLoadingQueryButton->hide();
         ui->pushButton_3->show();
+        UpdateTable();
     }
 
+
+    QString importexportstr = "Saved as ";
+    if(dc->data.imported && !dc->data.exported)
+        importexportstr = "Imported from ";
+
+    QString actionstr = "export";
+    if(dc->data.imported && !dc->data.exported)
+        actionstr = "import";
+
+    QString filename = dc->data.LastFilename;
+
+
+    dc->data.LastSaveDuration = QTime::fromMSecsSinceStartOfDay(dc->data.LastSaveDuration.msecsTo(dc->data.LastSaveEndDate));
 
     if (dc->data.lastexporttype == "csv")
     {
         if(dc->data.lastExportSuccess)
-            ui->miscStatusLabel->setText(QString("Saved as CSV ") + ui->saveLineEdit->text()
-                                             + " exporttime: " + dc->data.LastSaveDuration.toString() + "." +  QVariant(dc->data.LastSaveDuration.msec()).toString());
+            ui->miscStatusLabel->setText(importexportstr + QString("CSV ") + filename
+                                             + " "+actionstr+"time: " + dc->data.LastSaveDuration.toString() + "." +  QVariant(dc->data.LastSaveDuration.msec()).toString());
         else
-            ui->miscStatusLabel->setText(QString("failed to save to CSV, file probably opened") + ui->saveLineEdit->text()
-                                             + " exporttime: " + dc->data.LastSaveDuration.toString() + "." +  QVariant(dc->data.LastSaveDuration.msec()).toString());
+            ui->miscStatusLabel->setText(QString("failed to " + actionstr + "CSV, file probably opened")  + filename
+                                             + " "+actionstr+"time: " + dc->data.LastSaveDuration.toString() + "." +  QVariant(dc->data.LastSaveDuration.msec()).toString());
     }
     else if (dc->data.lastexporttype == "xlsx")
     {
         if(dc->data.lastExportSuccess)
-            ui->miscStatusLabel->setText(QString("Saved as XLSX ") + ui->saveLineEdit->text()
-                                             + " exporttime: " + dc->data.LastSaveDuration.toString() + "." +  QVariant(dc->data.LastSaveDuration.msec()).toString());
+            ui->miscStatusLabel->setText( importexportstr + QString("XLSX ") + filename
+                                             + " "+actionstr+"time: " + dc->data.LastSaveDuration.toString() + "." +  QVariant(dc->data.LastSaveDuration.msec()).toString());
         else
-            ui->miscStatusLabel->setText(QString("Failed to save xlsx, file probably opened") + ui->saveLineEdit->text()
-                                             + " exporttime: " + dc->data.LastSaveDuration.toString() + "." +  QVariant(dc->data.LastSaveDuration.msec()).toString());
+            ui->miscStatusLabel->setText(QString("Failed to " + actionstr + "xlsx, file probably opened") + filename
+                                             + " "+actionstr+"time: " + dc->data.LastSaveDuration.toString() + "." +  QVariant(dc->data.LastSaveDuration.msec()).toString());
     }
     else if (dc->data.lastexporttype == "Local")
     {
         if(dc->data.lastExportSuccess)
-            ui->miscStatusLabel->setText(QString("Saved to local database, table:") + ui->saveLineEdit->text()
-                                             + " exporttime: " + dc->data.LastSaveDuration.toString() + "." +  QVariant(dc->data.LastSaveDuration.msec()).toString());
+            ui->miscStatusLabel->setText( importexportstr + QString("local database, table:") + filename
+                                             + " "+actionstr+"time: " + dc->data.LastSaveDuration.toString() + "." +  QVariant(dc->data.LastSaveDuration.msec()).toString());
         else
-            ui->miscStatusLabel->setText(QString("Failed to save to local database, table: ") + ui->saveLineEdit->text()
-                                             + " exporttime: " + dc->data.LastSaveDuration.toString() + "." +  QVariant(dc->data.LastSaveDuration.msec()).toString());
+            ui->miscStatusLabel->setText(QString("Failed to " + actionstr + " local database, table: ") + filename
+                                             + " "+actionstr+"time: " + dc->data.LastSaveDuration.toString() + "." +  QVariant(dc->data.LastSaveDuration.msec()).toString());
     }
 }
 
-void LoaderWidnow::on_ImportFromCSVButton_pressed()
-{
 
-    dc->data.silentExcelImport=false;
-    dc->data.ImportFromCSVToLocalDB(QFileDialog::getOpenFileName(this, tr("Select csv file")),',',false);
-    UpdateTable();
-    ui->tableDBNameLabel->setText("Imported from csv");
-    dc->data.silentExcelImport=true;
-}
-void LoaderWidnow::on_importFromExcelButton_pressed()
-{
-    dc->data.silentExcelImport=false;
-    dc->data.ImportFromExcel(QFileDialog::getOpenFileName(),0,0,0,0,true);
-    UpdateTable();
-    ui->tableDBNameLabel->setText("Imported from Excel");
-    dc->data.silentExcelImport=true;
-}
 
 //Workspaces, history
 void LoaderWidnow::SaveWorkspace()
@@ -2385,8 +2527,7 @@ void LoaderWidnow::SaveWorkspace()
                 }
             }
         }
-        stream2 << "-- {" << ui->driverComboBox->currentText().toStdString() << "} ";
-        stream2 << " {" <<   ui->DBNameComboBox->currentText().toStdString() << "}\n";
+        stream2 << "-- {" << ui->connection_comboBox->currentText().toStdString() << "}\n";
         stream2 << text.toStdString();
         stream2.close();
     }
@@ -2417,8 +2558,7 @@ void LoaderWidnow::SaveWorkspace()
             }
         }
     }
-    stream2 << "-- {" << ui->driverComboBox->currentText().toStdString() << "} ";
-    stream2 << " {" <<   ui->DBNameComboBox->currentText().toStdString() << "}\n";
+    stream2 << "-- {" << ui->connection_comboBox->currentText().toStdString() << "}\n";
     stream2 << text.toStdString();
     stream2.close();
 
@@ -2500,7 +2640,7 @@ void LoaderWidnow::on_TreeItem_Changed(const QItemSelection &selected, const QIt
                     {
                         tokens.back() = tokens.back().trimmed();
                         inbrakets = true;
-                        if(tokens.size() == 2)
+                        if(tokens.size() == 1)
                             break;
                         i++;
                         continue;
@@ -2512,34 +2652,13 @@ void LoaderWidnow::on_TreeItem_Changed(const QItemSelection &selected, const QIt
                     i++;
 
                 }
-                if(tokens.size() >= 2)
+                if(tokens.size() >= 1)
                 {
-                    ui->driverComboBox->setCurrentText(tokens[0].trimmed());
-                    ui->DBNameComboBox->setCurrentText(tokens[1].trimmed());
+                    disableAutoconnect = true;
+                    ui->connection_comboBox->setCurrentText(tokens[0].trimmed());
+                    disableAutoconnect = false;
 
 
-                    dc->driver = tokens[0].trimmed();
-                    dc->dbname = tokens[1].trimmed();
-
-                    if(userDS.Load((documentsDir + "/userdata.txt")))
-                    {
-
-                        dc->usrname = userDS.data[ui->DBNameComboBox->currentText()]["name"];
-                        dc->password = userDS.data[ui->DBNameComboBox->currentText()]["password"];
-
-                        ui->userNameLineEdit->setText(dc->usrname.trimmed());
-                        ui->passwordLineEdit->setText(dc->password.trimmed());
-                        dc->usrname = dc->usrname.trimmed();
-                        dc->password = dc->password.trimmed();
-                    }
-                    else
-                    {
-                        ui->userNameLineEdit->setText("");
-                        ui->passwordLineEdit->setText("");
-                        dc->usrname =  "";
-                        dc->password = "";
-
-                    }
                 }
             }
         }
@@ -2547,9 +2666,7 @@ void LoaderWidnow::on_TreeItem_Changed(const QItemSelection &selected, const QIt
 }
 void LoaderWidnow::on_DBNameComboBox_currentTextChanged(const QString &arg1)
 {
-    ui->userNameLineEdit->setText(userDS.GetProperty(ui->DBNameComboBox->currentText(),"name"));
-    ui->passwordLineEdit->setText(userDS.GetProperty(ui->DBNameComboBox->currentText(),"password"));
-    ui->driverComboBox->setCurrentText(userDS.GetProperty(ui->DBNameComboBox->currentText(),"lastDriver"));
+
 
 }
 
@@ -2709,6 +2826,10 @@ void LoaderWidnow::on_tabWidget_currentChanged(int index)
     disconnect( &dc->data, SIGNAL(ExportedToCSV()), this, SLOT(on_exportDone()));
     disconnect( &dc->data, SIGNAL(ExportedToExcel()), this, SLOT(on_exportDone()));
     disconnect( &dc->data, SIGNAL(ExportedToSQLiteTable()), this, SLOT(on_exportDone()));
+    disconnect( &dc->data, SIGNAL(ImportedFromCSV()), this, SLOT(on_exportDone()) );
+    disconnect( &dc->data, SIGNAL(ImportedFromExcel()), this, SLOT(on_exportDone()));
+    disconnect( &dc->data, SIGNAL(ImportedFromSQLiteTable()), this, SLOT(on_exportDone()));
+
 
 
 
@@ -2728,6 +2849,10 @@ void LoaderWidnow::on_tabWidget_currentChanged(int index)
     connect( &dc->data, SIGNAL(ExportedToCSV()), this, SLOT(on_exportDone()), Qt::QueuedConnection );
     connect( &dc->data, SIGNAL(ExportedToExcel()), this, SLOT(on_exportDone()), Qt::QueuedConnection );
     connect( &dc->data, SIGNAL(ExportedToSQLiteTable()), this, SLOT(on_exportDone()), Qt::QueuedConnection );
+    connect( &dc->data, SIGNAL(ImportedFromCSV()), this, SLOT(on_exportDone()), Qt::QueuedConnection );
+    connect( &dc->data, SIGNAL(ImportedFromExcel()), this, SLOT(on_exportDone()), Qt::QueuedConnection );
+    connect( &dc->data, SIGNAL(ImportedFromSQLiteTable()), this, SLOT(on_exportDone()), Qt::QueuedConnection );
+
 
 
 
@@ -2743,13 +2868,19 @@ void LoaderWidnow::on_tabWidget_currentChanged(int index)
     connect( cd, SIGNAL(s_suggestedName()), this, SLOT(updatesuggestion()), Qt::QueuedConnection );
     LastWorkspaceName = tabDatas[i]->workspaceName;
 
+
+
+    QIcon ic;
+    ui->tabWidget->setTabIcon(ui->tabWidget->currentIndex(),ic);
+    tabDatas[i]->iconID=0;
+
     ui->tabWidget->setTabText(ui->tabWidget->currentIndex(),tabDatas[i]->workspaceName);
     on_workspaceLineEdit_textChanged(ui->tabWidget->tabText(ui->tabWidget->currentIndex()));
 
-    ui->driverComboBox->setCurrentText(dc->driver);
-    ui->DBNameComboBox->setCurrentText(dc->dbname);
-    ui->userNameLineEdit->setText(dc->usrname);
-    ui->passwordLineEdit->setText(dc->password);
+    disableAutoconnect = true;
+    ui->connection_comboBox->setCurrentText(dc->conname);
+    disableAutoconnect = false;
+
     ui->connectionStatusLabel_2->setText(QString("connected to ") + dc->dbname);
 
     queryExecutionState = tabDatas[i]->lastQueryState;
@@ -2809,6 +2940,59 @@ void LoaderWidnow::on_tabWidget_currentChanged(int index)
 
 
 }
+
+void LoaderWidnow::updateTabIcons()
+{
+
+
+    for(int t=0;t < ui->tabWidget->count();t++ )
+    {
+
+        int delTabId = QVariant(ui->tabWidget->tabWhatsThis(t)).toInt();
+
+        bool found = false;
+        int i=0;
+        for(i=0;i<tabDatas.size();i++)
+        {
+            if(tabDatas[i]->Id == QVariant(delTabId).toString())
+            {
+                found = true;
+                break;
+            }
+        }
+        if(!found)
+            continue;
+
+        if(tabDatas[i])
+        {
+            if(tabDatas[i]->dc.executing)
+            {
+                ui->tabWidget->setTabIcon(t,QApplication::style()->standardIcon(QStyle::SP_BrowserReload));
+                tabDatas[i]->iconID = 1;
+            }
+            else if(tabDatas[i]->dc.lastLaunchIsError)
+            {
+                ui->tabWidget->setTabIcon(t,QApplication::style()->standardIcon(QStyle::SP_MessageBoxCritical));
+                tabDatas[i]->iconID = 2;
+            }
+            else if (tabDatas[i]->iconID == 1) // if loading icon, yet dataconnection is not loading nor error
+            {
+                if(i!=currentTabId)
+                {
+                    ui->tabWidget->setTabIcon(t,QApplication::style()->standardIcon(QStyle::SP_MessageBoxInformation));
+                    tabDatas[i]->iconID = 3;
+                }
+                else
+                {
+                    QIcon ic;
+                    ui->tabWidget->setTabIcon(t,ic);
+                    tabDatas[i]->iconID=0;
+                }
+            }
+        }
+    }
+}
+
 void LoaderWidnow::on_tabWidget_tabBarDoubleClicked(int index)
 {
     bool ok = true;
@@ -2832,6 +3016,8 @@ void LoaderWidnow::on_pushButton_4_clicked()
 
     ui->tabWidget->addTab(wg,"New tab" + QVariant(_addtabcounter).toString());
     ui->tabWidget->setTabWhatsThis(ui->tabWidget->tabBar()->count()-1,QVariant(_addtabcounter).toString());
+
+
 
 
     tabDatas.push_back(new tabdata());
@@ -3040,12 +3226,8 @@ void LoaderWidnow::dropEvent(QDropEvent * evt)
             qDebug()<<"written " + documentsDir + "/tmpDragDropFile.xlsx";
         }
         fl.close();
-        if (dc->data.ImportFromCSV(documentsDir + "/tmpDragDropFile.xlsx",';',true))
-        {
-            dc->executionEnd = QDateTime::currentDateTime();
-            UpdateTable();
-            ui->tableDBNameLabel->setText("Imported from csv");
-        }
+        ImportFromCSV(documentsDir + "/tmpDragDropFile.xlsx",";",true);
+
 
     }
     else if(mimeData->hasUrls())
@@ -3056,17 +3238,13 @@ void LoaderWidnow::dropEvent(QDropEvent * evt)
 
             if(str.startsWith("file:///"))
                 str.replace("file:///","");
-            if(dc->data.ImportFromExcel(str,0,0,0,0,true))
+            if(str.endsWith("xlsx",Qt::CaseInsensitive))
             {
-                dc->executionEnd = QDateTime::currentDateTime();
-                UpdateTable();
-                ui->tableDBNameLabel->setText("Imported from Excel");
+                ImportFromXlsx(str,"",true);
             }
-            else if (dc->data.ImportFromCSV(str,';',true))
+            else
             {
-                dc->executionEnd = QDateTime::currentDateTime();
-                UpdateTable();
-                ui->tableDBNameLabel->setText("Imported from csv");
+                ImportFromCSV(str,";",true);
             }
 
         }
@@ -3086,17 +3264,13 @@ void LoaderWidnow::dropEvent(QDropEvent * evt)
         }
         fl.close();
 
-        if(dc->data.ImportFromExcel(documentsDir + "/tmpDragDropFile.xlsx",0,0,0,0,true))
+        if(QString().fromLocal8Bit(mimeData->data("application/x-qt-windows-mime;value=\"FileGroupDescriptor\"")).contains("xlsx",Qt::CaseInsensitive))
         {
-            dc->executionEnd = QDateTime::currentDateTime();
-            UpdateTable();
-            ui->tableDBNameLabel->setText("Imported from Excel");
+            ImportFromXlsx(documentsDir + "/tmpDragDropFile.xlsx","",true);
         }
-        else if (dc->data.ImportFromCSV(documentsDir + "/tmpDragDropFile.xlsx",';',true))
+        else if(QString().fromLocal8Bit(mimeData->data("application/x-qt-windows-mime;value=\"FileGroupDescriptor\"")).contains("csv",Qt::CaseInsensitive))
         {
-            dc->executionEnd = QDateTime::currentDateTime();
-            UpdateTable();
-            ui->tableDBNameLabel->setText("Imported from csv");
+            ImportFromCSV(documentsDir + "/tmpDragDropFile.xlsx",";",true);
         }
 
     }
@@ -3593,6 +3767,8 @@ int correct_word_count = 0;
 #include "sqlSubfunctions.h"
 
 
+#include "OpenXLSX.hpp"
+using namespace OpenXLSX;
 
 void LoaderWidnow::on_nnTestRun_pressed()
 {
@@ -3624,7 +3800,6 @@ void LoaderWidnow::on_nnTestRun_pressed()
     // qDebug() << "Decoded: " << decoded;
 
 
-    return;
 /*
     nn.inputs = new float[nn.sizein];
     nn.outputs = new float[nn.sizeout];
@@ -3868,152 +4043,59 @@ void LoaderWidnow::on_nnTestRun_pressed()
     }
     //nn.SaveTo((documentsDir + "/nntest_"+ QVariant("result").toString() +".nn").toStdString());
 
+*/
 
-
-    /* OpenXLSX test bench. Saves pivot tables, but will requere  a lotof rewriting
+    //OpenXLSX test bench. Saves pivot tables, but will requere  a lotof rewriting
+    qDebug () << "Opening";
     XLDocument doc1;
     doc1.open("./Demo04.xlsx");
     if(!doc1.isOpen())
         doc1.create("./Demo04.xlsx", XLForceOverwrite);
 
 
+    qDebug () << "opened";
+    if(!doc1.workbook().worksheetExists("Простыня"))
+        doc1.workbook().addWorksheet("Простыня");
     auto wks1 = doc1.workbook().worksheet("Простыня");
-    // wks1.setName("Простыня");
 
-    // Cell values can be set to any Unicode string using the normal value assignment methods.
-
-    // qDebug() << QDateTime::currentSecsSinceEpoch() / 86400.0f;
-
-    // // Create an XLDateTime object from an Excel date number (e.g., 55.5 represents Feb 24, 1900, 12:00 PM)
-    // OpenXLSX::XLDateTime dt( 45658.0);//QDateTime::currentSecsSinceEpoch() / 86400.0f + 86400.0f + 3600*3);
-
-    // // Convert to std::tm structure
-    // std::tm tmo = dt.tm();
-
-    // // Print the time using asctime for human-readable format
-    // qDebug() << "Time from XLDateTime: " << std::asctime(&tmo);
-
-    // XLStyles style = doc1.workbook()
-    // style.numberFormat().setFormat("yyyy-mm-dd"); // Customize as needed
-    // wks1.cell("A1").setCellFormat();
-
-    ;// Or create a new style
-
-    // style.numberFormat().setFormat("yyyy-mm-dd"); // Customize as needed
-    // qDebug() << wks1.cell("A1").cellFormat();
-
-    ;
-
-    //for(int i=0;i < doc1.styles().cellFormats().count();i++)
-    //{
-    //    qDebug() << doc1.styles().numberFormats().numberFormatById(i).summary() <<doc1.styles().numberFormats().numberFormatById(i).formatCode() << doc1.styles().numberFormats().numberFormatById(i).numberFormatId();
-    //}
-
-    //XLCellFormats & cellFormats = doc1.styles().cellFormats();
-    qDebug() << "doc1.styles().cellFormats().count() " << doc1.styles().cellFormats().count();
-
-    for(int i=0;i < doc1.styles().cellFormats().count();i++)
-    {
-        qDebug() << i << doc1.styles().cellFormats().cellFormatByIndex(i).summary() << doc1.styles().cellFormats().cellFormatByIndex(i).numberFormatId()  ;
-        if(doc1.styles().cellFormats().cellFormatByIndex(i).numberFormatId() > 0)
-        {
-            uint32_t numfmtid = doc1.styles().cellFormats().cellFormatByIndex(i).numberFormatId();
-            // qDebug() << doc1.styles().numberFormats().numberFormatById(14).formatCode();
-            // qDebug() << doc1.styles().numberFormats().numberFormatById(14).summary();
-            // si = i;
-        }
-    }
 
     XLCellFormats & cellFormats = doc1.styles().cellFormats();
 
-    XLStyleIndex DateTimeStyle = cellFormats.create();
+    XLNumberFormats & numberformats = doc1.styles().numberFormats();
 
-    XLStyleIndex nfi = doc1.styles().numberFormats().create();
-    OpenXLSX::XLNumberFormat nm = doc1.styles().numberFormats().numberFormatByIndex(nfi);
+    XLStyleIndex DateTimeStyle = doc1.styles().cellFormats().create();
+
+    XLStyleIndex nfi = numberformats.create();
+    OpenXLSX::XLNumberFormat nm = numberformats.numberFormatByIndex(nfi);
+    nm.setNumberFormatId(1001);
     nm.setFormatCode("DD.MM.YYYY HH:mm:SS");
-    cellFormats.cellFormatByIndex(DateTimeStyle).setApplyNumberFormat(true);
-    cellFormats.cellFormatByIndex(DateTimeStyle).setNumberFormatId(nm.numberFormatId());
+    cellFormats[DateTimeStyle].setApplyNumberFormat(true);
+    cellFormats[DateTimeStyle].setNumberFormatId(nm.numberFormatId());
 
 
+    XLStyleIndex NumberStyle = cellFormats.create();
 
 
+    XLStyleIndex Numbernfi = numberformats.create();
+    XLNumberFormat Numbernm = numberformats.numberFormatByIndex(Numbernfi);
+    Numbernm.setNumberFormatId(1002);
+    Numbernm.setFormatCode("# ##0");
 
-    // void ExcelSerialDateToDMY(int nSerialDate, int& nDay, int& nMonth, int& nYear)
-    // {
-    //     // Modified Julian to DMY calculation with an addition of 2415019
-    //     int l  = nSerialDate + 68569 + 2415019;
-    //     int n  = int(( 4 * l ) / 146097);
-    //     l      = l - int(( 146097 * n + 3 ) / 4);
-    //     int i  = int(( 4000 * ( l + 1 ) ) / 1461001);
-    //     l      = l - int(( 1461 * i ) / 4) + 31;
-    //     int j  = int(( 80 * l ) / 2447);
-    //     nDay   = l - int(( 2447 * j ) / 80);
-    //     l      = int(j / 11);
-    //     nMonth = j + 2 - ( 12 * l );
-    //     nYear  = 100 * ( n - 49 ) + i + l;
-    // }
+    cellFormats[NumberStyle].setApplyNumberFormat(true);
+    cellFormats[NumberStyle].setNumberFormatId(Numbernm.numberFormatId());
+
+    doc1.styles().cellFormats() = cellFormats;
+    doc1.styles().numberFormats() = numberformats;
 
 
-    // static qint64 msecs1904 = QDateTime(QDate(1904, 1, 1), QTime(0, 0)).toMSecsSinceEpoch();
-    // static qint64 msecs1899 = QDateTime(QDate(1899, 12, 31), QTime(0, 0)).toMSecsSinceEpoch();
-
-    // if (!is1904 && num > 60) // for mac os excel
-    // {
-    //     num = num - 1;
-    // }
-
-    // auto msecs = static_cast<qint64>(num * 1000 * 60 * 60 * 24.0 + 0.5);
-
-    // if (is1904)
-    //     msecs += msecs1904;
-    // else
-    //     msecs += msecs1899;
-
-    // QDateTime dtRet = QDateTime::fromMSecsSinceEpoch(msecs);
-
-    // // Remove one hour to see whether the date is Daylight
-    // QDateTime dtNew = dtRet.addMSecs(-3600000); // issue102
-    // if (dtNew.isDaylightTime()) {
-    //     dtRet = dtNew;
-    // }
-
-    // double whole      = 0;
-    // double fractional = std::modf(num, &whole);
-
-    // if (num < double(1)) {
-    //     // only time
-    //     QTime t = dtRet.time();
-    //     // return QVariant(t);
-    // }
-
-    // if (fractional == 0.0) {
-    //     // only date
-    //     QDate onlyDT = dtRet.date();
-    //     // return QVariant(onlyDT);
-    // }
-
-    // // return QVariant(dtRet);
+    // datetime and numbers are numbers
+    // texts are strings
 
 
-
-
-
-
-
-    wks1.cell(XLCellReference(1,1)).value() = "안녕하세요 세계!";
-    wks1.cell(XLCellReference(1,2)).value() = "你好，世界!";
-    wks1.cell(XLCellReference(1,3)).value() = "こんにちは 世界";
-    wks1.cell(XLCellReference(1,4)).value() = "नमस्ते दुनिया!";
-    wks1.cell(XLCellReference(1,5)).value() = "Привет, мир!";
-    wks1.cell(XLCellReference(1,6)).value() = "Γειά σου Κόσμε!";
-
-    wks1.cell(XLCellReference(40,7)).value() = 45032.2;
-    wks1.cell(XLCellReference(40,7)).setCellFormat(DateTimeStyle);
-
-
-    wks1.cell(XLCellReference(40,8)).value() = 45032.2;
-    wks1.cell(XLCellReference(40,7)).setCellFormat(0);
-    wks1.cell(XLCellReference(40,9)).value() = "45032.2";
+    // wks1.setColumnFormat(1,NumberStyle);
+    // wks1.setColumnFormat(2,DateTimeStyle);
+    // wks1.setColumnFormat(8,DateTimeStyle);
+    // wks1.cell(XLCellReference(44,1)).setCellFormat(DateTimeStyle);
 
     QDateTime dt = QDateTime::currentDateTime();
 
@@ -4023,45 +4105,316 @@ void LoaderWidnow::on_nnTestRun_pressed()
             dt.date().day() - 2415019 - 32075) + (dt.time().second() * 1.0  + dt.time().minute()*60.0 + dt.time().hour()*3600.0)/86400.0;
     wks1.cell(XLCellReference(45,8)).value() = currentdt;
 
+
+
+
+
+    for(int i=0;i<dc->data.headers.size();i++)
+        wks1.cell(XLCellReference(1,i+1)).value()= dc->data.headers[i].toStdString();
+
+
+
+    for(int i=0;i<dc->data.tbldata.size();i++)
+    {
+        int column = i + 1 ;
+        int _dt_valid_count = 0;
+        int _number_valid_count = 0;
+        int _empty_count = 0;
+        int a = 0;
+
+        auto rng = wks1.range(XLCellReference(2, column), XLCellReference(dc->data.tbldata[i].size()+1, column));
+
+        for(auto current_cell : rng)
+        {
+            // to approximate row save count
+            current_cell.cellReference().column();
+
+            int row = a + 2 ;
+
+            if(dc->data.tbldata[i][a].size() == 0 || dc->data.tbldata[i][a] == " ")
+                _empty_count++;
+
+            //6 = double, 10 = QString, 16 = DateTime
+
+            if(dc->data.maxVarTypes.size() == dc->data.tbldata.size())
+            {
+                if(dc->data.maxVarTypes[i] == 10 || dc->data.maxVarTypes[i] == QMetaType::QDateTime)
+                {
+                    QString str = dc->data.tbldata[i][a];
+                    if(str.size() == 23 || str.size() == 19|| str.size() == 10)
+                    {
+
+
+                        if( (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                             && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                             && str[8].isDigit() && str[9].isDigit() && !str[10].isDigit()
+
+                             && str[11].isDigit() && str[12].isDigit() && !str[13].isDigit()
+                             && str[14].isDigit() && str[15].isDigit() && !str[16].isDigit()
+                             && str[17].isDigit() && str[18].isDigit())
+                            ||
+                            (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                             && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                             && str[8].isDigit() && str[9].isDigit() && !str[10].isDigit()
+
+                             && str[11].isDigit() && str[12].isDigit() && !str[13].isDigit()
+                             && str[14].isDigit() && str[15].isDigit() && !str[16].isDigit()
+                             && str[17].isDigit() && str[18].isDigit()
+                             && str[19]== '.' && str[20].isDigit()&& str[21].isDigit()&& str[22].isDigit())
+                            ||
+                            (str.size() == 10 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                             && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                             && str[8].isDigit() && str[9].isDigit())
+                            )
+                        {
+
+                            _dt_valid_count++;
+                            const int XLSX_ROW_MAX    = 1048576;
+                            const int XLSX_COLUMN_MAX = 16384;
+                            if (!(row > XLSX_ROW_MAX || row < 1 || column > XLSX_COLUMN_MAX || column < 1))
+                            {
+                                QString year="    ";year[0] = str[0]; year[1] = str[1]; year [2] = str[2]; year[3] = str[3];
+                                QString month = "  "; month[0] = str[5]; month[1] = str[6];
+                                QString day = "  "; day[0] = str[8]; day[1] = str[9];
+
+                                int i_year = year.toInt();
+                                int i_month = month.toInt();
+                                int i_day = day.toInt();
+                                double currentdt = (int(( 1461 * ( i_year + 4800 + int(( i_month - 14 ) / 12) ) ) / 4) +
+                                                    int(( 367 * ( i_month - 2 - 12 * ( ( i_month - 14 ) / 12 ) ) ) / 12) -
+                                                    int(( 3 * ( int(( i_year + 4900 + int(( i_month - 14 ) / 12) ) / 100) ) ) / 4) +
+                                                    i_day - 2415019 - 32075);
+
+                                if(str.size() >= 19)
+                                {
+
+                                    QString hour = str[11]; hour += str[12];
+                                    QString minute = str[14]; minute += str[15];
+                                    QString second = str[17]; second += str[18];
+                                    currentdt += (second.toInt() * 1.0  +minute.toInt()*60.0 + hour.toInt()*3600.0)/86400.0;
+                                }
+                                double value = currentdt;
+
+                                current_cell.value()= value;
+                            }
+                        }
+                        else current_cell.value()= dc->data.tbldata[i][a].toStdString();
+                    }
+                    else
+                        current_cell.value()= dc->data.tbldata[i][a].toStdString();
+                }
+                else if(dc->data.maxVarTypes[i] == 6)
+                {
+
+                    if(dc->data.tbldata[i][a].startsWith('0') && !dc->data.tbldata[i][a].startsWith("0.") && !dc->data.tbldata[i][a].startsWith("0,") && dc->data.tbldata[i][a].size()>1)
+                    {
+                        current_cell.value()= dc->data.tbldata[i][a].toStdString();
+                    }
+                    else
+                    {
+
+                        bool ok = false;
+                        double vardoubl = dc->data.tbldata[i][a].toDouble(&ok);
+                        if(ok)
+                        {
+                            current_cell.value()= vardoubl;
+                            _number_valid_count++;
+                        }
+                        else {
+                            qint64 varint = dc->data.tbldata[i][a].toLongLong(&ok);
+                            if(ok)
+                            {
+                                current_cell.value()= varint;
+                                _number_valid_count++;
+                            }
+                            else {
+                                current_cell.value()= dc->data.tbldata[i][a].toStdString();
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    QString str = dc->data.tbldata[i][a];
+                    if(str.size() == 23 || str.size() == 19|| str.size() == 10)
+                    {
+
+                            //
+                            //2025-01-01 10:10:10.123;
+
+                        //if(dt.isValid())
+
+
+                        if( (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                             && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                             && str[8].isDigit() && str[9].isDigit() && !str[10].isDigit()
+
+                             && str[11].isDigit() && str[12].isDigit() && !str[13].isDigit()
+                             && str[14].isDigit() && str[15].isDigit() && !str[16].isDigit()
+                             && str[17].isDigit() && str[18].isDigit())
+                            ||
+                            (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                             && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                             && str[8].isDigit() && str[9].isDigit() && !str[10].isDigit()
+
+                             && str[11].isDigit() && str[12].isDigit() && !str[13].isDigit()
+                             && str[14].isDigit() && str[15].isDigit() && !str[16].isDigit()
+                             && str[17].isDigit() && str[18].isDigit()
+                             && str[19]== '.' && str[20].isDigit()&& str[21].isDigit()&& str[22].isDigit())
+                            ||
+                            (str.size() == 10 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                             && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                             && str[8].isDigit() && str[9].isDigit())
+                            )
+                        {
+
+                            _dt_valid_count++;
+                            const int XLSX_ROW_MAX    = 1048576;
+                            const int XLSX_COLUMN_MAX = 16384;
+                            if (!(row > XLSX_ROW_MAX || row < 1 || column > XLSX_COLUMN_MAX || column < 1))
+                            {
+                                QString year="    ";year[0] = str[0]; year[1] = str[1]; year [2] = str[2]; year[3] = str[3];
+                                QString month = "  "; month[0] = str[5]; month[1] = str[6];
+                                QString day = "  "; day[0] = str[8]; day[1] = str[9];
+
+                                int i_year = year.toInt();
+                                int i_month = month.toInt();
+                                int i_day = day.toInt();
+                                double currentdt = (int(( 1461 * ( i_year + 4800 + int(( i_month - 14 ) / 12) ) ) / 4) +
+                                                    int(( 367 * ( i_month - 2 - 12 * ( ( i_month - 14 ) / 12 ) ) ) / 12) -
+                                                    int(( 3 * ( int(( i_year + 4900 + int(( i_month - 14 ) / 12) ) / 100) ) ) / 4) +
+                                                    i_day - 2415019 - 32075);
+
+                                if(str.size() >= 19)
+                                {
+
+                                    QString hour = str[11]; hour += str[12];
+                                    QString minute = str[14]; minute += str[15];
+                                    QString second = str[17]; second += str[18];
+                                    currentdt += (second.toInt() * 1.0  +minute.toInt()*60.0 + hour.toInt()*3600.0)/86400.0;
+                                }
+                                double value = currentdt;
+
+                                current_cell.value()= value;
+                            }
+                        }
+                        else current_cell.value()= dc->data.tbldata[i][a].toStdString();
+                    }
+                    else
+                        current_cell.value()= dc->data.tbldata[i][a].toStdString();
+                }
+            }
+            else
+            {
+                QString str = dc->data.tbldata[i][a];
+                if(str.size() == 23 || str.size() == 19|| str.size() == 10)
+                {
+
+                        //
+                        //2025-01-01 10:10:10.123;
+
+                    //if(dt.isValid())
+
+
+                    if( (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                         && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                         && str[8].isDigit() && str[9].isDigit() && !str[10].isDigit()
+
+                         && str[11].isDigit() && str[12].isDigit() && !str[13].isDigit()
+                         && str[14].isDigit() && str[15].isDigit() && !str[16].isDigit()
+                         && str[17].isDigit() && str[18].isDigit())
+                        ||
+                        (str.size() == 19 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                         && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                         && str[8].isDigit() && str[9].isDigit() && !str[10].isDigit()
+
+                         && str[11].isDigit() && str[12].isDigit() && !str[13].isDigit()
+                         && str[14].isDigit() && str[15].isDigit() && !str[16].isDigit()
+                         && str[17].isDigit() && str[18].isDigit()
+                         && str[19]== '.' && str[20].isDigit()&& str[21].isDigit()&& str[22].isDigit())
+                        ||
+                        (str.size() == 10 && str[0].isDigit() && str[1].isDigit() && str[2].isDigit() && str[3].isDigit() && !str[4].isDigit()//datetime
+                         && str[5].isDigit() && str[6].isDigit() && !str[7].isDigit()
+                         && str[8].isDigit() && str[9].isDigit())
+                        )
+                    {
+
+                        _dt_valid_count++;
+                        const int XLSX_ROW_MAX    = 1048576;
+                        const int XLSX_COLUMN_MAX = 16384;
+                        if (!(row > XLSX_ROW_MAX || row < 1 || column > XLSX_COLUMN_MAX || column < 1))
+                        {
+                            QString year="    ";year[0] = str[0]; year[1] = str[1]; year [2] = str[2]; year[3] = str[3];
+                            QString month = "  "; month[0] = str[5]; month[1] = str[6];
+                            QString day = "  "; day[0] = str[8]; day[1] = str[9];
+
+                            int i_year = year.toInt();
+                            int i_month = month.toInt();
+                            int i_day = day.toInt();
+                            double currentdt = (int(( 1461 * ( i_year + 4800 + int(( i_month - 14 ) / 12) ) ) / 4) +
+                                                int(( 367 * ( i_month - 2 - 12 * ( ( i_month - 14 ) / 12 ) ) ) / 12) -
+                                                int(( 3 * ( int(( i_year + 4900 + int(( i_month - 14 ) / 12) ) / 100) ) ) / 4) +
+                                                i_day - 2415019 - 32075);
+
+                            if(str.size() >= 19)
+                            {
+
+                                QString hour = str[11]; hour += str[12];
+                                QString minute = str[14]; minute += str[15];
+                                QString second = str[17]; second += str[18];
+                                currentdt += (second.toInt() * 1.0  +minute.toInt()*60.0 + hour.toInt()*3600.0)/86400.0;
+                            }
+                            double value = currentdt;
+
+                            current_cell.value()= value;
+                        }
+                    }
+                    else current_cell.value()= dc->data.tbldata[i][a].toStdString();
+                }
+                else
+                    current_cell.value()= dc->data.tbldata[i][a].toStdString();
+            }
+
+            a++;
+        }
+
+        if(_dt_valid_count > (dc->data.tbldata[i].size() - _empty_count)*0.5)
+        {
+            wks1.setColumnFormat(column,DateTimeStyle);
+        }
+        if(_number_valid_count > (dc->data.tbldata[i].size() - _empty_count)*0.5)
+        {
+            wks1.setColumnFormat(column,NumberStyle);
+        }
+    }
+
+
+
     // Workbooks can also be saved and loaded with Unicode names
     doc1.save();
     doc1.saveAs(QString("фывячс.xlsx").toLocal8Bit().constData(), XLForceOverwrite);
     doc1.close();
 
 
-    doc1.open(QString("фывячс.xlsx").toLocal8Bit().constData());
-    if(!doc1.isOpen())
-        doc1.create(QString("фывячс.xlsx").toLocal8Bit().constData(), XLForceOverwrite);
-
-    if(!doc1.isOpen())
-    {
-        qDebug() << "doc2 is not opened";
-        return;
-    }
-    qDebug() << "doc2 is opened";
-    wks1 = doc1.workbook().worksheet("Простыня");
-    if(!wks1.valid())
-    {
-        qDebug() << "couldnt read sheet name";
-        return;
-    }
-
-
-    // The nowide::cout object is a drop-in replacement of the std::cout that enables console output of UTF-8, even on Windows.
-    qDebug() << "Cell A1 (Korean)  : " << wks1.cell(XLCellReference("A1")).value().get<std::string>() << '\n';
-    qDebug() << "Cell A2 (Chinese) : " << wks1.cell(XLCellReference("A2")).value().get<std::string>() << '\n';
-    qDebug() << "Cell A3 (Japanese): " << wks1.cell(XLCellReference("A3")).value().get<std::string>() << '\n';
-    qDebug() << "Cell A4 (Hindi)   : " << wks1.cell(XLCellReference("A4")).value().get<std::string>() << '\n';
-    qDebug() << "Cell A5 (Russian) : " << wks1.cell(XLCellReference("A5")).value().get<std::string>() << '\n';
-    qDebug() << "Cell A6 (Greek)   : " << wks1.cell(XLCellReference("A6")).value().get<std::string>() << '\n';
-
-
-    cout << "\nNOTE: If you are using a Windows terminal, the above output may look like gibberish,\n"
-            "because the Windows terminal does not support UTF-8 at the moment. To view to output,\n"
-            "you can use the overloaded 'cout' in the boost::nowide library (as in this sample program).\n"
-            "This will require a UTF-8 enabled font in the terminal. Lucinda Console supports some\n"
-            "non-ASCII scripts, such as Cyrillic and Greek. NSimSun supports some asian scripts.\n\n";
-
-    doc1.close();
-    qDebug() << "on_nnTestRun_pressed undefined";*/
 }
+
+void LoaderWidnow::on_connection_comboBox_currentTextChanged(const QString &arg1)
+{
+    //dc->conname = arg1.trimmed();
+
+    if(!disableAutoconnect) on_ConnectButton_pressed();
+
+}
+
+
+void LoaderWidnow::on_ExportButton_clicked()
+{
+    ui->actionExport->trigger();
+}
+
+
+void LoaderWidnow::on_ImportButton_clicked()
+{
+    ui->actionImport->trigger();
+}
+

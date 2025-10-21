@@ -71,7 +71,7 @@ float DataStorage::GetPropertyAsFloat(QString ObjectName, QString Property)
 bool DataStorage::GetPropertyAsBool(QString ObjectName, QString Property)
 {
     //if(data.count(ObjectName) > 0 && data[ObjectName].count(Property) > 0)
-        return QVariant(data[ObjectName][Property]).toBool();
+    return QVariant(data[ObjectName][Property].trimmed()).toBool();
     //else return 0;
 }
 

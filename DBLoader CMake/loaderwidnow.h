@@ -57,6 +57,7 @@ public:
     // connection
     DatabaseConnection* dc = nullptr;
     QThread** sqlexecThread = nullptr;
+    bool disableAutoconnect = false;
 
     bool autolaunchTimerWindowVisible = false;
     QTimer autolaunchTimer;
@@ -78,6 +79,7 @@ public:
         QString lastTableMessage = "";
         QString lastTableDBName = "";
         int textposition = 0;
+        int iconID = 0;
         ~tabdata()
         {
             if(!dc.executing && sqlexecThread != nullptr)
@@ -250,6 +252,8 @@ public:
     void dropEvent(QDropEvent * evt) override;
 
 public slots:
+    void updateTabIcons();
+
     void sendMail(QString host, QString Sender, QString SenderName, QStringList to,QStringList cc, QString Subject, QString messageText, QStringList attachments, QStringList pictutes);
 
     void splitColumn();
@@ -293,9 +297,6 @@ public slots:
     void on_SaveCSVButton_pressed();
     void on_SaveSQLiteButton_pressed();
 
-    // Data import
-    void on_ImportFromCSVButton_pressed();
-    void on_importFromExcelButton_pressed();
 
     void on_exportDone();
 
@@ -324,6 +325,8 @@ public slots:
     void tableHeaderDoubleClicked(int id);
 
 
+    void ImportFromCSV(QString filename, QString delimeter = ";", bool headers = true, bool bypass = false, QString localDBTableName = "tmp");
+    void ImportFromXlsx(QString filename,QString Sheetname,bool headers = true);
 
 
     void CopyLastLaunchedSql();
@@ -382,6 +385,10 @@ private:
 
 signals:
     void TableUpdated();
+private slots:
+    void on_connection_comboBox_currentTextChanged(const QString &arg1);
+    void on_ExportButton_clicked();
+    void on_ImportButton_clicked();
 };
 inline LoaderWidnow* loadWind = nullptr;
 #endif // LOADERWIDNOW_H

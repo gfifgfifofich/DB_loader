@@ -78,18 +78,19 @@ public:
     ShaderBuffer* outputBufferGPU = nullptr;
     ShaderBuffer* biasGradientsBufferGPU = nullptr;
     ShaderBuffer* weightGradientsBufferGPU = nullptr;
+    bool gpuCreated = false;
 
     void CreateGPU(int* Architecture, int archsize);
-    void RunGPU(float* inputData);
-    void BackPropagateGPU(float* input, float* targetOutput, float learningRate);
+    void RunGPU(float* inputData, int amount = 1);
+    void BackPropagateGPU(float* input, float* targetOutput, float learningRate, int amount = 1);
     void DeleteGPU();
 
     // New GPU memory management functions
     void UpdateWeightsAndBiases();
-    void InitGPUBuffers();
-    void UpdateGPUInput(float* inputData);
-    void ReadGPUOutput();
-    void UpdateGPUTargetOutput(float* targetOutput);
+    void InitGPUBuffers(int amount = 1);
+    void UpdateGPUInput(float* inputData,int amount = 1);
+    void ReadGPUOutput(int amount = 1);
+    void UpdateGPUTargetOutput(float* targetOutput,int amount = 1);
     void ReadGPUWeightsBiases();
 
 	//Setups nn for future learning. After the learning iteration compleated, call ApplyLearning
