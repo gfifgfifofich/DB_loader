@@ -38,6 +38,8 @@ public:
 
     QString tableStr = "";
     QString columnStr = "";
+    QString schemaStr = "";
+    bool ignoreSchema = true;
     void updateTableSearch();
 
 private slots:
@@ -60,6 +62,8 @@ private slots:
     void on_clearChainButton_pressed();
 
     void on_listWidget_itemDoubleClicked(QListWidgetItem *item);
+
+    void on_Schema_lineEdit_textChanged(const QString &arg1);
 
 private:
     Ui::StructureDescriptor *ui;

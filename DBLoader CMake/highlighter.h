@@ -89,6 +89,7 @@ public:
     QString dbSchemaName = "";
 
     DataStorage TableColumnDS;
+    DataStorage AllTableColumnDS;
     void UpdateTableColumns(QSqlDatabase* db, QString dbname);
     void HighLightALl();
     void OnBlockCountChanged(int newBlockCount) ;

@@ -998,6 +998,7 @@ void Highlighter::UpdateTableColumns(QSqlDatabase* db, QString dbname)
 
     dbPatterns.clear();
     TableColumnDS.data.clear();
+    AllTableColumnDS.data.clear();
     dbSchemaName = dbname;
 
     if(PostgresStyle)
@@ -1011,12 +1012,16 @@ void Highlighter::UpdateTableColumns(QSqlDatabase* db, QString dbname)
     if(!QSLiteStyle)
     {
         //strl = db->databaseName().split(';');
-        QString filename =documentsDir + "/"+ dbname;
-
-        filename += QString(".txt");
+        QString filename =documentsDir + "/"+ dbname + QString(".txt");
         if(QFile::exists(filename))
         {
             TableColumnDS.Load(filename);
+        }
+
+
+        if(QFile::exists(documentsDir + "/All_"+ dbname + QString(".txt")))
+        {
+            AllTableColumnDS.Load(documentsDir + "/All_"+ dbname + QString(".txt"));
         }
 
     }

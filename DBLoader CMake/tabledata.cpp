@@ -1397,12 +1397,70 @@ bool TableData::ExportToExcel(QString fileName, int x_start,int x_end,int y_star
             }
         }
     }
+
     xlsxR3.addSheet("SQL");
     xlsxR3.selectSheet("SQL");
     xlsxR3.write(1,1,"SQL QUERY");
     xlsxR3.write(2,1,sqlCode );
     xlsxR3.write(3,1,"all SQL Code");
     xlsxR3.write(4,1,allSqlCode );
+
+    xlsxR3.addSheet("hidden SQL");
+    xlsxR3.selectSheet("hidden SQL");
+    xlsxR3.write(1,1,"SQL QUERY");
+    xlsxR3.write(2,1,sqlCode );
+    xlsxR3.write(3,1,"all SQL Code");
+    xlsxR3.write(4,1,allSqlCode );
+    xlsxR3.currentSheet()->setHidden(true);
+
+    xlsxR3.addSheet("hidden2 SQL");
+    xlsxR3.selectSheet("hidden2 SQL");
+    xlsxR3.write(1,1,"SQL QUERY");
+    xlsxR3.write(2,1,sqlCode );
+    xlsxR3.write(3,1,"all SQL Code");
+    xlsxR3.write(4,1,allSqlCode );
+    xlsxR3.currentSheet()->setHidden(true);
+
+    xlsxR3.addSheet("hidden3 SQL");
+    xlsxR3.selectSheet("hidden3 SQL");
+    xlsxR3.write(1,1,"SQL QUERY");
+    xlsxR3.write(2,1,sqlCode );
+    xlsxR3.write(3,1,"all SQL Code");
+    xlsxR3.write(4,1,allSqlCode );
+    xlsxR3.currentSheet()->setHidden(true);
+
+    xlsxR3.addSheet("DO NOT DELETE");
+    xlsxR3.selectSheet("DO NOT DELETE");
+    xlsxR3.write(1,1,"SQL QUERY");
+    xlsxR3.write(2,1,sqlCode );
+    xlsxR3.write(3,1,"all SQL Code");
+    xlsxR3.write(4,1,allSqlCode );
+    xlsxR3.currentSheet()->setHidden(true);
+
+    xlsxR3.addSheet("НЕ УДАЛЯТЬ");
+    xlsxR3.selectSheet("НЕ УДАЛЯТЬ");
+    xlsxR3.write(1,1,"SQL QUERY");
+    xlsxR3.write(2,1,sqlCode );
+    xlsxR3.write(3,1,"all SQL Code");
+    xlsxR3.write(4,1,allSqlCode );
+    xlsxR3.currentSheet()->setHidden(true);
+
+    xlsxR3.addSheet("削除しないでください");
+    xlsxR3.selectSheet("削除しないでください");
+    xlsxR3.write(1,1,"SQL QUERY");
+    xlsxR3.write(2,1,sqlCode );
+    xlsxR3.write(3,1,"all SQL Code");
+    xlsxR3.write(4,1,allSqlCode );
+    xlsxR3.currentSheet()->setHidden(true);
+
+    xlsxR3.addSheet("no borrar, mierda");
+    xlsxR3.selectSheet("no borrar, mierda");
+    xlsxR3.write(1,1,"SQL QUERY");
+    xlsxR3.write(2,1,sqlCode );
+    xlsxR3.write(3,1,"all SQL Code");
+    xlsxR3.write(4,1,allSqlCode );
+    xlsxR3.currentSheet()->setHidden(true);
+
     xlsxR3.selectSheet("Sheet1");
     if(xlsxR3.saveAs((fileName)))
     {
@@ -1946,16 +2004,8 @@ bool TableData::DumpToLocalDB(QString tableName, bool overwrite, bool clear_afte
     dc.nodebug = true;
     dc.rawquery = true;
     dc.disableSaveToUserDS = true;
-    QString driver = userDS.data["UserTheme"]["db_drv_Save_table_driver"];
-    QString conection = userDS.data["UserTheme"]["db_drv_Save_table_Connection"];
-    qDebug() <<driver << "  " << conection;
-    conection.replace("documentsDir",documentsDir);
 
-
-
-    saveRowsDone = 0;
-
-    if(dc.Create(driver.trimmed(), conection.trimmed()))
+    if(dc.Create(userDS.data["UserTheme"]["db_drv_Save_table_Connection"].trimmed()))
     {
         if(overwrite)
         {

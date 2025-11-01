@@ -106,6 +106,41 @@ void StructureDescriptor::on_pushButton_clicked()
 
             loadWind->cd->highlighter->TableColumnDS.Save(filename);
         }
+
+
+        if(loadWind->dc->oracle)
+        {
+            loadWind->dc->execSql("SELECT distinct lower(table_name), lower(column_name ), lower(owner)  -- oracle\n"
+                                  "FROM DBA_TAB_COLUMNS       \n"
+                                  "inner join   (SELECT DISTINCT  OBJECT_NAME       \n"
+                                  "    FROM DBA_OBJECTS           \n"
+                                  "    WHERE OBJECT_TYPE = 'TABLE' or OBJECT_TYPE like '%VIEW%'  AND\n"
+                                  "    (upper(OWNER) != 'SYSTEM' AND upper(OWNER) != 'SYS' AND upper(OWNER) != 'ADMIN' )\n"
+                                  ") tables on tables.OBJECT_NAME = table_name      \n"
+                                  "order by lower(table_name)");
+        }
+        if(loadWind->dc->postgre)
+        {
+            loadWind->dc->execSql("SELECT table_name, column_name, table_schema -- Postgres\n"
+                                  "  FROM information_schema.columns\n");
+        }
+
+        loadWind->UpdateTable();
+        if(loadWind->dc->data.tbldata.size()>=3 && loadWind->dc->data.tbldata[0].size()>0)
+        {
+
+            loadWind->cd->highlighter->AllTableColumnDS.data.clear();
+            for(int i = 0; i < loadWind->dc->data.tbldata[0].size();i++)
+            {
+                loadWind->cd->highlighter->AllTableColumnDS.data[loadWind->dc->data.tbldata[0][i]][loadWind->dc->data.tbldata[1][i]];
+                loadWind->cd->highlighter->AllTableColumnDS.data[loadWind->dc->data.tbldata[0][i]]["this_table_schema_name"] = loadWind->dc->data.tbldata[2][i];
+            }
+
+
+            QString filename = documentsDir + "/All_"+ loadWind->cd->highlighter->dbSchemaName + ".txt";
+
+            loadWind->cd->highlighter->AllTableColumnDS.Save(filename);
+        }
     }
 }
 
@@ -122,6 +157,17 @@ void StructureDescriptor::on_lineEdit_3_textChanged(const QString &arg1)
     updateTableSearch();
 }
 
+void StructureDescriptor::on_Schema_lineEdit_textChanged(const QString &arg1)
+{// schema name filter
+    schemaStr = arg1;
+    if(schemaStr.trimmed().size()<=0)
+        ignoreSchema = true;
+    else
+        ignoreSchema = false;
+    updateTableSearch();
+
+}
+
 
 void StructureDescriptor::updateTableSearch()
 {
@@ -129,15 +175,25 @@ void StructureDescriptor::updateTableSearch()
     {
         ui->listWidget->clear();
 
-        for(auto table : loadWind->cd->highlighter->TableColumnDS.data)
+        DataStorage* ds = &loadWind->cd->highlighter->AllTableColumnDS;
+        if(ds->data.size() <=0)
+            ds = &loadWind->cd->highlighter->TableColumnDS;
+
+        for(auto table : ds->data)
         {
+            QString schema = ds->data[table.first]["this_table_schema_name"].trimmed() + ".";
+            if(schema.trimmed()=="." || ignoreSchema)
+                schema = "";
+            else
+                if(!schema.contains(schemaStr))
+                    continue;
             if(tableStr.trimmed().size() > 0 || columnStr.trimmed().size() > 0)
             {
                 bool hasColumn = true;
                 if(columnStr.trimmed().size() > 0)
                 {
                     hasColumn = false;
-                    for(auto column : loadWind->cd->highlighter->TableColumnDS.data[QString(table.first).trimmed()])
+                    for(auto column : ds->data[QString(table.first).trimmed()])
                     {
                         if(QString(column.first).trimmed().contains(columnStr))
                         {
@@ -148,35 +204,13 @@ void StructureDescriptor::updateTableSearch()
                 }
 
                 if(QString(table.first).trimmed().startsWith(tableStr) && hasColumn)
-                    ui->listWidget->addItem(table.first);
+                    ui->listWidget->addItem(schema + table.first);
+
+
+
             }
             else
-                ui->listWidget->addItem(table.first);
-
-        }
-        for(auto table : loadWind->cd->highlighter->TableColumnDS.data)
-        {
-            if(tableStr.trimmed().size() > 0 || columnStr.trimmed().size() > 0)
-            {
-                bool hasColumn = true;
-                if(columnStr.trimmed().size() > 0)
-                {
-                    hasColumn = false;
-                    for(auto column : loadWind->cd->highlighter->TableColumnDS.data[QString(table.first).trimmed()])
-                    {
-                        if(QString(column.first).trimmed().contains(columnStr))
-                        {
-                            hasColumn = true;
-                            break;
-                        }
-                    }
-                }
-
-                if(QString(table.first).trimmed().contains(tableStr) && hasColumn && !QString(table.first).trimmed().startsWith(tableStr))
-                    ui->listWidget->addItem(table.first);
-            }
-            else
-                ui->listWidget->addItem(table.first);
+                ui->listWidget->addItem(schema + table.first);
 
         }
 
@@ -187,23 +221,40 @@ void StructureDescriptor::updateTableSearch()
 
 void StructureDescriptor::on_lineEdit_textChanged(const QString &arg1)
 {// Describing table name changed
+    DataStorage* ds = &loadWind->cd->highlighter->AllTableColumnDS;
+    if(ds->data.size() <=0)
+        ds = &loadWind->cd->highlighter->TableColumnDS;
+
     if(loadWind->cd != nullptr)
     {
-        if(loadWind->dc->dbname == userDS.data["UserTheme"]["db_drv_Save_table_Connection"].replace("documentsDir",documentsDir + "/SQLiteDB.db").trimmed() && loadWind->dc->driver == userDS.data["UserTheme"]["db_drv_Save_table_driver"].trimmed())
+        QString asd = arg1;
+        if(!ignoreSchema || schemaStr.size() >0)
+            while(asd.size() > 0)
+            {
+                if(asd[0]!='.')
+                    asd.removeAt(0);
+                else
+                {
+                    asd.removeAt(0);
+                    break;
+
+                }
+            }
+
+        qDebug() << "loadWind->dc->conname.trimmed()" << loadWind->dc->conname.trimmed() << userDS.data["UserTheme"]["db_drv_Save_table_Connection"].trimmed();
+        if(loadWind->dc->conname.trimmed() == userDS.data["UserTheme"]["db_drv_Save_table_Connection"].trimmed())
         {// in local db
             qDebug() << "in local database";
             DatabaseConnection dc;
             // dc.nodebug = true;
             dc.rawquery = true;
             dc.disableSaveToUserDS = true;
-            QString driver = userDS.data["UserTheme"]["db_drv_Save_table_driver"].trimmed();
-            QString conection = userDS.data["UserTheme"]["db_drv_Save_table_Connection"].trimmed();
-            conection.replace("documentsDir",documentsDir);
-
-            dc.Create(driver.trimmed(), conection.trimmed());
+            dc.Create(userDS.data["UserTheme"]["db_drv_Save_table_Connection"].trimmed());
 
 
-            if(dc.execSql("select exec_sql,cre_date,exec_workspace_name,exec_user_name,exec_driver,exec_database from user_table_desc where exec_table_name = '" + arg1.trimmed() +  "'"))
+
+
+            if(dc.execSql("select exec_sql,cre_date,exec_workspace_name,exec_user_name,exec_driver,exec_database from user_table_desc where exec_table_name = '" + asd.trimmed() +  "'"))
             {
                 if(dc.data.tbldata.size() >=6 && dc.data.tbldata[0].size()>0)
                 {
@@ -217,8 +268,10 @@ void StructureDescriptor::on_lineEdit_textChanged(const QString &arg1)
         }
 
         ui->listWidget_2->clear();
-        for(auto y : loadWind->cd->highlighter->TableColumnDS.data[arg1.trimmed()])
+        for(auto y : ds->data[asd.trimmed()])
         {
+            if(y.first.contains("this_table_schema_name"))
+                continue;
             QString word = y.first.trimmed() +' '+ y.second;
             if(y.second.trimmed().size()<=0)
                 word = y.first;
@@ -364,4 +417,5 @@ void StructureDescriptor::on_clearChainButton_pressed()
     chain.clear();
     ui->chainLabel->clear();
 }
+
 

@@ -2977,10 +2977,16 @@ bool DatabaseConnection::execSql(QString sql)
             try {
                 OCI_laststmt = nullptr;
                 OCI_laststmt = ((oracle::occi::Connection*)OCI_lastcon)->createStatement (str.toLocal8Bit().constData());
+                ((oracle::occi::Statement*)OCI_laststmt)->setPrefetchMemorySize( 1 * 1024 * 1024 * 1024); // enable bulk collect
+                ((oracle::occi::Statement*)OCI_laststmt)->setPrefetchRowCount(50000); // enable bulk collect
 
                 oracle::occi::ResultSet *rset = nullptr;
                 rset = ((oracle::occi::Statement*)OCI_laststmt)->executeQuery ();
+                ((oracle::occi::Statement*)OCI_laststmt)->setPrefetchMemorySize( 1 * 1024 * 1024 * 1024); // enable bulk collect
                 ((oracle::occi::Statement*)OCI_laststmt)->setPrefetchRowCount(50000); // enable bulk collect
+
+
+
                 emit querySuccess();
                 queryExecutionState = 3;
                 dataDownloading = true;
@@ -3453,17 +3459,17 @@ bool DatabaseConnection::execSql(QString sql)
     //currentRunningOracleDriver = nullptr;
     QSqlQuery q(db);
     query = &q;
-    if(!nodebug) qDebug() << "created query";
+    if(!nodebug) qDebug() << "created QT query";
 
     q.setForwardOnly(true);
     data.headers.clear();
-    if(!nodebug) qDebug() << "executing query";
+    if(!nodebug) qDebug() << "executing QT query";
     emit queryBeginExecuting();
     queryExecutionState = 2;
     //qDebug() << "SQL" << str;
     if(q.exec(str))
     {
-        if(!nodebug) qDebug() << "query sucess.  isSelect = " << q.isSelect();
+        if(!nodebug) qDebug() << "QT query sucess.  isSelect = " << q.isSelect();
         emit querySuccess();
         queryExecutionState = 3;
         for(int a=0,total = q.record().count(); a<total;a++)

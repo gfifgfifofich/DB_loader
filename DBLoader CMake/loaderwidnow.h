@@ -115,10 +115,26 @@ public:
         QVBoxLayout graph_layout;
         QHBoxLayout SpinBox_layout;
         QHBoxLayout Labels_layout;
+        QHBoxLayout Settings_layout;
 
-        QSpinBox groupBysb;
-        QSpinBox separateBysb;
-        QSpinBox dataColumnsb;
+
+
+        QComboBox groupBysb;
+        QSpinBox groupSubstrBegin;
+        QSpinBox groupSubstrEnd;
+        QLabel cutfirst;
+        QLabel cutlast;
+
+        QCheckBox qroupDateYYYYCheckbox;
+        QCheckBox qroupDateMMCheckbox;
+        QCheckBox qroupDateDDCheckbox;
+        QCheckBox qroupDatehhCheckbox;
+        QCheckBox qroupDatemmCheckbox;
+        QCheckBox qroupDatessCheckbox;
+
+        QComboBox separateBysb;
+        QComboBox dataColumnsb;
+        QComboBox dataAggMethod;
 
         QComboBox graphTypeCB;
         QLabel graphTypeLabel;
@@ -154,6 +170,21 @@ public:
 
         void Init()
         {
+            Settings_layout.addWidget(&cutfirst);
+
+            Settings_layout.addWidget(&groupSubstrBegin);
+            Settings_layout.addWidget(&cutlast);
+            Settings_layout.addWidget(&groupSubstrEnd);
+
+            Settings_layout.addWidget(&qroupDateYYYYCheckbox);
+            Settings_layout.addWidget(&qroupDateMMCheckbox);
+            Settings_layout.addWidget(&qroupDateDDCheckbox);
+            Settings_layout.addWidget(&qroupDatehhCheckbox);
+            Settings_layout.addWidget(&qroupDatemmCheckbox);
+            Settings_layout.addWidget(&qroupDatessCheckbox);
+
+            Settings_layout.addWidget(&dataAggMethod);
+
             SpinBox_layout.addWidget(&groupBysb);
             SpinBox_layout.addWidget(&separateBysb);
             SpinBox_layout.addWidget(&dataColumnsb);
@@ -162,6 +193,7 @@ public:
             graphTypeCB.addItem("Spline");
             graphTypeCB.addItem("Line");
             graphTypeCB.addItem("Bar");
+
 
             groupByLabel.setText("group by");
             graphTypeLabel.setText("Graph type");
@@ -185,6 +217,8 @@ public:
 
             graph_layout.addLayout(&Labels_layout);
             graph_layout.addLayout(&SpinBox_layout);
+            graph_layout.addLayout(&Settings_layout);
+
 
             graphThemeCheckBox.setText("White theme");
             showLabelsCheckBox.setText("Labels");
@@ -196,6 +230,10 @@ public:
 
             showLabelsCheckBox.setMaximumWidth(55);
             graphThemeCheckBox.setMaximumWidth(90);
+
+
+            cutfirst.setText("ignore first");
+            cutlast.setText("ignore last");
 
             //cv.setBackgroundBrush(QColor::fromRgb(255,255,255));
             cv.setChart(&chrt);
@@ -211,15 +249,33 @@ public:
             chrt.addAxis(&vax,Qt::AlignmentFlag::AlignBottom);
             chrt.addAxis(&vay,Qt::AlignmentFlag::AlignLeft);
 
+            groupSubstrBegin.setMinimum(-1);
+            groupSubstrEnd.setMinimum(-1);
 
-            groupBysb.setMinimum(0);
-            separateBysb.setMinimum(-1);
-            dataColumnsb.setMinimum(0);
+            dataAggMethod.addItem("count");
+            dataAggMethod.addItem("sum");
+            dataAggMethod.addItem("avg");
 
-            groupBysb.setValue(0);
-            separateBysb.setValue(-1);
-            dataColumnsb.setValue(0);
 
+
+            qroupDateYYYYCheckbox.setText("YYYY");
+            qroupDateMMCheckbox.setText("MM");
+            qroupDateDDCheckbox.setText("DD");
+            qroupDatehhCheckbox.setText("hh");
+            qroupDatemmCheckbox.setText("mm");
+            qroupDatessCheckbox.setText("ss");
+
+            cutfirst.hide();
+            cutlast.hide();
+            qroupDateYYYYCheckbox.hide();
+            qroupDateMMCheckbox.hide();
+            qroupDateDDCheckbox.hide();
+            qroupDatehhCheckbox.hide();
+            qroupDatemmCheckbox.hide();
+            qroupDatessCheckbox.hide();
+            dataAggMethod.hide();
+            groupSubstrEnd.hide();
+            groupSubstrBegin.hide();
             graphThemeCheckBox.hide();
             showLabelsCheckBox.hide();
             saveAsPDFButton.hide();
@@ -342,10 +398,6 @@ public slots:
     void saveGraphAsPDF();
     void copyGraphScriptHandle();
     void saveGraph(DatabaseConnection* tmp_con);
-    // Update column labels of graph
-    void on_graph_group_change(int val);
-    void on_graph_separator_change(int val);
-    void on_graph_data_change(int val);
 
     //Tabs
     //Cycle to next/first tab

@@ -41,13 +41,13 @@
 +                                          Replace window - replaces every "string" with other "string", yea
 +                                          Highlight from bracket to bracket with codeEditor HighLight selection (will highlight background from bracket to bracket)
 +                                          Highlighting of selected token
-+-                                         fix subtables
++                                          fix subtables
 +                                          datatypes
 +                                          tab press reg
 +                                          Timer
-- replace data in excel file using id column
-- replace excel worksheet
-- Fix append (create if not exists)
++                                          replace data in excel file using id column
++                                          replace excel worksheet
++                                          Fix append (create if not exists)
 - Subexec as text
 +- reimplement Patterns compleatly through .ds files
 
@@ -843,7 +843,7 @@ void LoaderWidnow::on_ConnectButton_pressed()
 
     if(!dc->executing && dc->Create(driver, dbname, usrname, password))
     {
-        dc->conname = conname;
+        dc->conname = ui->connection_comboBox->currentText().trimmed();
 
         ui->connectionStatusLabel_2->setText(QString("connected to ") + dc->dbname.replace('\n',""));
 
@@ -1439,9 +1439,25 @@ void LoaderWidnow::UpdateTable()
     ui->dataSizeLabel_2->setText(msg);
     ui->tableDBNameLabel->setText(dc->dbname);
 
-    on_graph_group_change(gw.groupBysb.value());
-    on_graph_separator_change(gw.separateBysb.value());
-    on_graph_data_change(gw.dataColumnsb.value());
+    QString buffvar = "";
+    buffvar = gw.groupBysb.currentText();
+    gw.groupBysb.clear();
+    gw.groupBysb.addItem("");
+    gw.groupBysb.addItems(dc->data.headers);
+    gw.groupBysb.setCurrentText(buffvar);
+
+    buffvar = gw.separateBysb.currentText();
+    gw.separateBysb.clear();
+    gw.separateBysb.addItem("");
+    gw.separateBysb.addItems(dc->data.headers);
+    gw.separateBysb.setCurrentText(buffvar);
+
+    buffvar = gw.dataColumnsb.currentText();
+    gw.dataColumnsb.clear();
+    gw.dataColumnsb.addItem("");
+    gw.dataColumnsb.addItems(dc->data.headers);
+    gw.dataColumnsb.setCurrentText(buffvar);
+
     emit TableUpdated();
 
 
@@ -1529,6 +1545,13 @@ void LoaderWidnow::ShowGraph()
             sizes[1] =  0;
         }
         ui->splitter_2->setSizes(sizes);
+
+        gw.qroupDateYYYYCheckbox.hide();
+        gw.qroupDateMMCheckbox.hide();
+        gw.qroupDateDDCheckbox.hide();
+        gw.qroupDatehhCheckbox.hide();
+        gw.qroupDatemmCheckbox.hide();
+        gw.qroupDatessCheckbox.hide();
         gw.graphThemeCheckBox.hide();
         gw.showLabelsCheckBox.hide();
         gw.saveAsPDFButton.hide();
@@ -1545,6 +1568,11 @@ void LoaderWidnow::ShowGraph()
         gw.bs.hide();
         gw.graphTypeCB.hide();
         gw.graphTypeLabel.hide();
+        gw.dataAggMethod.hide();
+        gw.groupSubstrEnd.hide();
+        gw.groupSubstrBegin.hide();
+        gw.cutfirst.hide();
+        gw.cutlast.hide();
     }
     else
     {
@@ -1555,6 +1583,14 @@ void LoaderWidnow::ShowGraph()
         }
         ui->splitter_2->setSizes(sizes);
 
+        gw.cutfirst.show();
+        gw.cutlast.show();
+        gw.qroupDateYYYYCheckbox.show();
+        gw.qroupDateMMCheckbox.show();
+        gw.qroupDateDDCheckbox.show();
+        gw.qroupDatehhCheckbox.show();
+        gw.qroupDatemmCheckbox.show();
+        gw.qroupDatessCheckbox.show();
         gw.graphThemeCheckBox.show();
         gw.showLabelsCheckBox.show();
         gw.saveAsPDFButton.show();
@@ -1572,9 +1608,10 @@ void LoaderWidnow::ShowGraph()
         gw.graphTypeCB.show();
         gw.graphTypeLabel.show();
 
-        on_graph_group_change(gw.groupBysb.value());
-        on_graph_separator_change(gw.separateBysb.value());
-        on_graph_data_change(gw.dataColumnsb.value());
+        gw.dataAggMethod.show();
+        gw.groupSubstrEnd.show();
+        gw.groupSubstrBegin.show();
+
 
     }
 }
@@ -1701,29 +1738,6 @@ void LoaderWidnow::ShowTimerWindow()
     }
 }
 
-// graphs
-void LoaderWidnow::on_graph_group_change(int val)
-{
-    if(val>=0 && val <  dc->data.headers.size())
-        gw.groupByLabel.setText("group by " +  dc->data.headers[val]);
-    else
-        gw.groupByLabel.setText("group by nothing!");
-}
-void LoaderWidnow::on_graph_separator_change(int val)
-{
-    if(val>=0 && val <  dc->data.headers.size())
-        gw.separateByLabel.setText("separate by " +  dc->data.headers[val]);
-    else
-        gw.separateByLabel.setText("separate by nothing");
-}
-void LoaderWidnow::on_graph_data_change(int val)
-{
-    if(val>=0 && val <  dc->data.headers.size())
-        gw.dataColumnLabel.setText("data column: " +  dc->data.headers[val]);
-    else
-        gw.dataColumnLabel.setText("no data!");
-}
-
 void LoaderWidnow::UpdateGraph()
 {
     // set theme
@@ -1737,9 +1751,20 @@ void LoaderWidnow::UpdateGraph()
         gw.cv.setBackgroundBrush(QColor::fromRgb(24,24,24));
         gw.chrt.setBackgroundBrush(QColor::fromRgb(24,24,24));
     }
-    int groupColumn = gw.groupBysb.value();
-    int dataColumn = gw.dataColumnsb.value();
-    int separateColumn = gw.separateBysb.value();
+    int groupColumn = -1;
+    int dataColumn = -1;
+    int separateColumn = -1;
+
+
+    for(int i =0;i < dc->data.headers.size();i++)
+    {
+        if(gw.groupBysb.currentText() == dc->data.headers[i])
+            groupColumn = i;
+        if(gw.separateBysb.currentText() == dc->data.headers[i])
+            separateColumn = i;
+        if(gw.dataColumnsb.currentText() == dc->data.headers[i])
+            dataColumn = i;
+    }
 
     if(gw.manual_override)
     {
@@ -1753,12 +1778,17 @@ void LoaderWidnow::UpdateGraph()
     if(separateColumn <= -1 || dataColumn == separateColumn || groupColumn == separateColumn || separateColumn >= dc->data.tbldata.size())
         separate = false;
 
-    if(dataColumn  >= dc->data.tbldata.size())
+    bool use_substring = (gw.groupSubstrEnd.value()>=0 || gw.groupSubstrBegin.value()>=0);
+
+
+
+    if(dataColumn  >= dc->data.tbldata.size() || dataColumn <0)
         return;
-    if(groupColumn  >= dc->data.tbldata.size())
+    if(groupColumn  >= dc->data.tbldata.size() || groupColumn <0)
         return;
 
-    std::map<QString,std::map<QString,float>> ColumnData; // ColumnData[separator][grouper] == value
+    std::map<QString,std::map<QString,float>> ColumnData; // ColumnData[separator][grouper] == summ
+    std::map<QString,std::map<QString,int>> ColumnCounts; // ColumnData[separator][grouper] == count
 
     long int maxi = -1000000;
     long int mini = QDateTime::currentSecsSinceEpoch();
@@ -1777,7 +1807,9 @@ void LoaderWidnow::UpdateGraph()
     // use dateAxis or valueAxis
     if(dc->data.tbldata[groupColumn].size() >=2)
     {
-        bottomAxisIsDate = QVariant(dc->data.tbldata[groupColumn][0]).toDateTime().isValid() && !QVariant(dc->data.tbldata[groupColumn][0]).toDateTime().isNull();
+
+        QString grouper = dc->data.tbldata[groupColumn][0];
+        bottomAxisIsDate = QVariant(grouper).toDateTime().isValid() && !QVariant(grouper).toDateTime().isNull();
     }
     else
         bottomAxisIsDate = false;
@@ -1790,10 +1822,39 @@ void LoaderWidnow::UpdateGraph()
         float a = QVariant(dc->data.tbldata[dataColumn][i]).toReal(&isReal);
         if(!isReal)
             a=1; // count
+        QString grouper = dc->data.tbldata[groupColumn][i];
+        if(use_substring)
+        {
+            if(gw.groupSubstrBegin.value()<0 && gw.groupSubstrEnd.value() >= 0)
+            {
+                grouper = grouper.first(grouper.size() - gw.groupSubstrEnd.value());
+            }
+            if(gw.groupSubstrBegin.value()>=0 && gw.groupSubstrEnd.value() < 0)
+            {
+                grouper = grouper.last(grouper.size() - gw.groupSubstrBegin.value());
+            }
+
+
+        }
+        if(bottomAxisIsDate)
+        {
+            if(!gw.qroupDateYYYYCheckbox.isChecked() && grouper.size() >= 4) {grouper[0] = '1';grouper[1] = '0';grouper[2] = '0';grouper[3] = '0';}
+            if(!gw.qroupDateMMCheckbox.isChecked() && grouper.size() >= 7)   {grouper[5] = '0';grouper[6] = '1';}
+            if(!gw.qroupDateDDCheckbox.isChecked() && grouper.size() >= 10)   {grouper[8] = '0';grouper[9] = '1';}
+            if(!gw.qroupDatehhCheckbox.isChecked() && grouper.size() >= 13)  {grouper[11] = '0';grouper[12] = '0';}
+            if(!gw.qroupDatemmCheckbox.isChecked() && grouper.size() >= 16)  {grouper[14] = '0';grouper[15] = '0';}
+            if(!gw.qroupDatessCheckbox.isChecked() && grouper.size() >= 19)  {grouper[17] = '0';grouper[18] = '0';}
+        }
         if(separate)
-            ColumnData[dc->data.tbldata[separateColumn][i]][dc->data.tbldata[groupColumn][i]] += a;
+        {
+            ColumnCounts[dc->data.tbldata[separateColumn][i]][grouper] += 1;
+            ColumnData[dc->data.tbldata[separateColumn][i]][grouper] += a;
+        }
         else
-            ColumnData["Value1"][dc->data.tbldata[groupColumn][i]] += a;
+        {
+            ColumnCounts["Value1"][grouper] += 1;
+            ColumnData["Value1"][grouper] += a;
+        }
     }
 
 
@@ -1805,6 +1866,21 @@ void LoaderWidnow::UpdateGraph()
             if(dc->data.tbldata.size() > 1)
             {
 
+                if(gw.dataAggMethod.currentIndex() == 0)
+                {// count
+                    i.second = ColumnCounts[a.first][i.first];
+                    ColumnData[a.first][i.first] = i.second;
+                }
+                if(gw.dataAggMethod.currentIndex() == 1)
+                {// sum, ignore cuz already is a sum
+
+                }
+                if(gw.dataAggMethod.currentIndex() == 2)
+                {// avg
+                    if(ColumnCounts[a.first][i.first]!= 0)
+                        i.second /= ColumnCounts[a.first][i.first];
+                    ColumnData[a.first][i.first] = i.second;
+                }
                 if(i.second > maxf)
                     maxf = i.second;
                 if(i.second < minf)
@@ -2090,6 +2166,20 @@ void LoaderWidnow::copyGraphScriptHandle()
 {
     QString selected_text = "";
 
+    int groupColumn = -1;
+    int dataColumn = -1;
+    int separateColumn = -1;
+
+    for(int i =0;i < dc->data.headers.size();i++)
+    {
+        if(gw.groupBysb.currentText() == dc->data.headers[i])
+            groupColumn = i;
+        if(gw.separateBysb.currentText() == dc->data.headers[i])
+            separateColumn = i;
+        if(gw.dataColumnsb.currentText() == dc->data.headers[i])
+            dataColumn = i;
+    }
+
     // create a ready-to-paste script to save current graph
     selected_text = "SubexecToGraph { {";
     selected_text += dc->driver;
@@ -2098,11 +2188,11 @@ void LoaderWidnow::copyGraphScriptHandle()
     selected_text += "} {";
     selected_text += "FILE_NAME";
     selected_text += "} {";
-    selected_text += QVariant(gw.groupBysb.value()).toString();
+    selected_text += QVariant(groupColumn).toString();
     selected_text += "} {";
-    selected_text += QVariant(gw.separateBysb.value()).toString();
+    selected_text += QVariant(separateColumn).toString();
     selected_text += "} {";
-    selected_text += QVariant(gw.dataColumnsb.value()).toString();
+    selected_text += QVariant(dataColumn).toString();
     selected_text += "}";
 
 
@@ -2118,9 +2208,8 @@ void LoaderWidnow::copyGraphScriptHandle()
 void LoaderWidnow::saveGraph(DatabaseConnection* tmp_con)
 {
 
-    gw.groupBysb.setValue(gw.manual_groupColumn);
-    gw.dataColumnsb.setValue(gw.manual_dataColumn);
-    gw.separateBysb.setValue(gw.manual_separateColumn);
+    gw.manual_override= true;
+
 
     DatabaseConnection* tmp_dc = dc;
     dc = tmp_con;

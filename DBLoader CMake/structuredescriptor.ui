@@ -34,6 +34,13 @@
            <number>0</number>
           </property>
           <item>
+           <widget class="QLabel" name="label_4">
+            <property name="text">
+             <string>Schema</string>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QLabel" name="label_2">
             <property name="text">
              <string>Tables</string>
@@ -63,6 +70,9 @@
           <property name="bottomMargin">
            <number>0</number>
           </property>
+          <item>
+           <widget class="QLineEdit" name="Schema_lineEdit"/>
+          </item>
           <item>
            <widget class="QLineEdit" name="lineEdit_2"/>
           </item>
