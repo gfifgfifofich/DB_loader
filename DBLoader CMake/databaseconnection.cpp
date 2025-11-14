@@ -565,6 +565,7 @@ bool DatabaseConnection::Create(QString driver, QString DBName)
 }
 bool DatabaseConnection::Create(QString conname)
 {
+    this->conname =  conname;
     if(userDS.data["Connections"].count(conname) > 0)
         return Create(userDS.data[conname]["Driver"],userDS.data[conname]["Connstr"],userDS.data[conname]["User"],userDS.data[conname]["Password"]);
     else return false;
@@ -1059,6 +1060,9 @@ QString DatabaseConnection::UnrollAllLoops(QString sql)
 
                             formatedSql += str;
                         }
+
+
+
                         qDebug() << "keywordbuff "<<keywordbuff  ;
                         keywordbuff = "";
                     }
@@ -1618,6 +1622,26 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
 
                                 }
 
+                                else if(subCommandPatterns[i] == "SilentSubexecToCSV")
+                                {
+                                    savefilecount++;
+                                    if(!nodebug) qDebug() << "silent exporting to CSV " << saveName;
+                                    if(subscriptConnection->data.headers.size() > 0 && !subscriptConnection->data.headers[0].startsWith("Error"))
+                                        if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0)
+                                            subscriptConnection->data.ExportToCSV(QString(documentsDir + "/" +"CSV/") + QString(saveName) + QString(".csv"),csvDelimeter,true);
+                                }
+                                else if(subCommandPatterns[i] == "SilentSubexecAppendCSV")
+                                {
+                                    savefilecount++;
+                                    if(!nodebug) qDebug() << "silent exporting(Append) to CSV " << saveName;
+                                    if(subscriptConnection->data.headers.size() > 0 && !subscriptConnection->data.headers[0].startsWith("Error"))
+                                        if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0)
+                                            subscriptConnection->data.AppendToCSV(QString(documentsDir + "/" +"CSV/") + QString(saveName) + QString(".csv"),csvDelimeter);
+                                }
+
+                                else if(subCommandPatterns[i].startsWith("SilentSubexecBypassToLocalDBTable"))
+                                    savefilecount++;
+
 
                                 else if(subCommandPatterns[i] == "SubexecReplaceExcelWorksheet")
                                 {
@@ -1643,31 +1667,65 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
 
 
 
-                                    if(subscriptConnection->data.headers.size() > 0 && !subscriptConnection->data.headers[0].startsWith("Error"))
-                                        if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0)
-                                            subscriptConnection->data.ExportToExcelUniqueColumn(QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx"),WorksheetName,UniqueExcelColumnName);
+                                    if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0)
+                                    {
+
+                                        bool exportError = false;
+                                        if(subscriptConnection->data.headers.size() > 0 && !subscriptConnection->data.headers[0].startsWith("Error"))
+                                            if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0)
+                                                exportError = subscriptConnection->data.ExportToExcelUniqueColumn(QString(documentsDir + "/" + "excel/") + QString(saveName) + QString(".xlsx"),WorksheetName,UniqueExcelColumnName);
+
+                                        QString saveErrorStr = "";
+                                        if(subscriptConnection->data.headers.size() > 0 && subscriptConnection->data.headers[0] == "Error")
+                                            formatedSql += " 'Error' as \"Status\", ";
+                                        else if (saveErrorStr.size() > 0)
+                                        {
+                                            formatedSql += " '";
+                                            formatedSql += saveErrorStr;
+                                            if(exportError)
+                                                formatedSql += " export error";
+                                            formatedSql += "' ";
+
+                                            formatedSql += "as \"Status\", ";
+                                        }
+                                        else
+                                            formatedSql += " 'Success' as \"Status\", ";
+
+                                        if(subscriptConnection->data.headers.size() > 0 && subscriptConnection->data.headers[0] == "Error")
+                                        {
+                                            formatedSql += "'";
+                                            if(subscriptConnection->data.tbldata.size() > 0 && subscriptConnection->data.tbldata[0].size()>0)
+                                                formatedSql += subscriptConnection->data.tbldata[0][0];
+                                            formatedSql += "'";
+                                            formatedSql += " as \"Error message\", ";
+                                        }
+                                        else
+                                        {
+                                            formatedSql += "'";
+                                            formatedSql += " ";
+                                            formatedSql += "'";
+                                            formatedSql += " as \"Error message\", ";
+                                        }
+                                        formatedSql += "'";
+                                        formatedSql += QVariant(subscriptConnection->data.tbldata.size()).toString();
+                                        formatedSql += "'";
+                                        formatedSql += " as \"Column count\", ";
+                                        formatedSql += "'";
+                                        if(subscriptConnection->data.tbldata.size() > 0)
+                                            formatedSql += QVariant(subscriptConnection->data.tbldata[0].size()).toString();
+                                        else
+                                            formatedSql += " 0 ";
+                                        formatedSql += "'";
+                                        formatedSql += " as \"Row count\" ";
+
+
+                                        formatedSql += ", '";
+                                        formatedSql += execTimeStr;
+                                        formatedSql += "' ";
+                                        formatedSql += "as \"Execution time\"";
+                                    }
 
                                 }
-
-                                else if(subCommandPatterns[i] == "SilentSubexecToCSV")
-                                {
-                                    savefilecount++;
-                                    if(!nodebug) qDebug() << "silent exporting to CSV " << saveName;
-                                    if(subscriptConnection->data.headers.size() > 0 && !subscriptConnection->data.headers[0].startsWith("Error"))
-                                        if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0)
-                                            subscriptConnection->data.ExportToCSV(QString(documentsDir + "/" +"CSV/") + QString(saveName) + QString(".csv"),csvDelimeter,true);
-                                }
-                                else if(subCommandPatterns[i] == "SilentSubexecAppendCSV")
-                                {
-                                    savefilecount++;
-                                    if(!nodebug) qDebug() << "silent exporting(Append) to CSV " << saveName;
-                                    if(subscriptConnection->data.headers.size() > 0 && !subscriptConnection->data.headers[0].startsWith("Error"))
-                                        if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0)
-                                            subscriptConnection->data.AppendToCSV(QString(documentsDir + "/" +"CSV/") + QString(saveName) + QString(".csv"),csvDelimeter);
-                                }
-
-                                else if(subCommandPatterns[i].startsWith("SilentSubexecBypassToLocalDBTable"))
-                                    savefilecount++;
 
                                 else if(subCommandPatterns[i].startsWith("SubexecBypassToLocalDBTable"))
                                 {
@@ -2148,17 +2206,37 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                                 {
                                                     formatedSql += "'";
                                                     formatedSql += subscriptConnection->data.tbldata[t][j];
-                                                    formatedSql += "' ";
+                                                    formatedSql += "'";
                                                     if(((TableCutoffEnd>=0 && TableCutoffStart>=0  && j+1 <= TableCutoffEnd && j + 1 <subscriptConnection->data.tbldata[0].size()) || (TableCutoffEnd<0 && TableCutoffStart<0 && j + 1 <subscriptConnection->data.tbldata[0].size())) || (t + 1 <subscriptConnection->data.tbldata.size() && neededMagicColumn == -1)) // there will be next
                                                         formatedSql += ",";
                                                 }
                                             }
                                         }
                                     }
-
-
-
-
+                                }
+                                else if(subCommandPatterns[i] == "SubexecToRawArray" || subCommandPatterns[i] == "ExcelToRawArray" || subCommandPatterns[i] == "CSVToRawArray")
+                                {// exec into 'element1','element2','element3'
+                                    savefilecount++;
+                                    if(!nodebug) qDebug() <<"Reached SubexecToRawArray implementation";
+                                    if(subscriptConnection != nullptr && subscriptConnection->data.tbldata.size() > 0)
+                                    {
+                                        for(int j=0;j<subscriptConnection->data.tbldata[0].size();j++)
+                                        {
+                                            if(TableCutoffEnd>=0  && TableCutoffStart>=0 && j < TableCutoffStart)
+                                                continue;
+                                            if(TableCutoffEnd>=0 && TableCutoffStart>=0  && j > TableCutoffEnd)
+                                                break;
+                                            for(int t=0;t<subscriptConnection->data.tbldata.size();t++)
+                                            {
+                                                if(t == neededMagicColumn || neededMagicColumn == -1)
+                                                {
+                                                    formatedSql += subscriptConnection->data.tbldata[t][j];
+                                                    if(((TableCutoffEnd>=0 && TableCutoffStart>=0  && j+1 <= TableCutoffEnd && j + 1 <subscriptConnection->data.tbldata[0].size()) || (TableCutoffEnd<0 && TableCutoffStart<0 && j + 1 <subscriptConnection->data.tbldata[0].size())) || (t + 1 <subscriptConnection->data.tbldata.size() && neededMagicColumn == -1)) // there will be next
+                                                        formatedSql += ",";
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                                 else if(subCommandPatterns[i] == "ExcelToSqliteTable"|| subCommandPatterns[i] == "CSVToSqliteTable" || subCommandPatterns[i] == "ExcelToLocalDBTable"|| subCommandPatterns[i] == "CSVToLocalDBTable")
                                 {
@@ -2223,6 +2301,7 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                     formatedSql += "' ";
                                     formatedSql += "as \"Execution time\"";
                                 }
+
 
                                 if(!nodebug) qDebug() << "closing subconnection";
                                 subscriptConnection->db.close();
@@ -2329,6 +2408,28 @@ QString DatabaseConnection::processSqlWithCommands(QString sql)
                                 asyncExecution_threads.clear();
                                 qDebug() << "threads done and cleared";
                                 reset = true;
+                            }
+
+
+                            if(subCommandPatterns[i].trimmed() == "DBLCurrentDB")
+                            {
+                                formatedSql += conname;
+                            }
+                            if(subCommandPatterns[i].trimmed() == "DBLIfEqual")
+                            {
+                                qDebug() << funcVariables[0].trimmed().remove(QChar('\u0000')) << funcVariables[1].trimmed().remove(QChar('\u0000')) << (funcVariables[0].trimmed().remove(QChar('\u0000')) == funcVariables[1].trimmed().remove(QChar('\u0000')));
+                                if(funcVariables.size()>=2 && funcVariables[0].trimmed().remove(QChar('\u0000')) == funcVariables[1].trimmed().remove(QChar('\u0000')))
+                                {
+                                    formatedSql += scriptCommand;
+                                }
+                            }
+                            if(subCommandPatterns[i].trimmed() == "DBLIfNotEqual")
+                            {
+                                qDebug() << funcVariables[0].trimmed().remove(QChar('\u0000')) << funcVariables[1].trimmed().remove(QChar('\u0000')) << (funcVariables[0].trimmed().remove(QChar('\u0000')) == funcVariables[1].trimmed().remove(QChar('\u0000')));
+                                if(funcVariables.size()>=2 && funcVariables[0].trimmed().remove(QChar('\u0000')) != funcVariables[1].trimmed().remove(QChar('\u0000')))
+                                {
+                                    formatedSql += scriptCommand;
+                                }
                             }
 
                             keywordbuff = "";

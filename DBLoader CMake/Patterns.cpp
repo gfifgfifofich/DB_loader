@@ -120,6 +120,7 @@ void fillPaterns()
     subCommandPatterns.push_back("SubexecAppendCSV");
     subCommandPatterns.push_back("SubexecToMagic");
     subCommandPatterns.push_back("SubexecToArray");
+    subCommandPatterns.push_back("SubexecToRawArray");
     subCommandPatterns.push_back("SubexecToGraph");
 
     subCommandPatterns.push_back("DBLPasteYearMonthOffset");
@@ -132,6 +133,9 @@ void fillPaterns()
     subCommandPatterns.push_back("DBLPasteNumMonthDayOffset");
     subCommandPatterns.push_back("DBLPasteMonth");
     subCommandPatterns.push_back("DBLPasteNumMonth");
+    subCommandPatterns.push_back("DBLCurrentDB");
+    subCommandPatterns.push_back("DBLIfEqual");
+    subCommandPatterns.push_back("DBLIfNotEqual");
 
 
 
