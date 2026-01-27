@@ -4507,3 +4507,10 @@ void LoaderWidnow::on_ImportButton_clicked()
     ui->actionImport->trigger();
 }
 
+
+void LoaderWidnow::on_ToSubexec_pushButton_clicked()
+{
+
+    QApplication::clipboard()->setText( QString("select SubexecToLocalDBTable { ") +"{"+ dc->conname +"} "+"{"+ ui->saveLineEdit->text() +"}\n\t" + dc->Last_RawsqlCode.replace(';',"").trimmed().replace('\n',"\n\t") + "\n}");
+}
+

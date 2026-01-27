@@ -34,6 +34,7 @@ public:
     QSqlQuery* query = nullptr;
     QString sqlCode;
     QString Last_sqlCode;
+    QString Last_RawsqlCode;
     QString Last_ConnectError = "";
 
     // Connection info

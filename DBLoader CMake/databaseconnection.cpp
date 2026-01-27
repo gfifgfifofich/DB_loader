@@ -2518,6 +2518,7 @@ bool DatabaseConnection::execSql(QString sql)
     this->data.allSqlCode = str;
 
 
+    Last_RawsqlCode = sql.trimmed();
 
 
     if(!rawquery)

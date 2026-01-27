@@ -441,6 +441,7 @@ private slots:
     void on_connection_comboBox_currentTextChanged(const QString &arg1);
     void on_ExportButton_clicked();
     void on_ImportButton_clicked();
+    void on_ToSubexec_pushButton_clicked();
 };
 inline LoaderWidnow* loadWind = nullptr;
 #endif // LOADERWIDNOW_H
